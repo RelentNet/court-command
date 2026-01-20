@@ -17,6 +17,15 @@ def health_check():
     """Coolify uses this to ensure the container is alive."""
     return {"status": "healthy", "version": "1.0.0"}
 
+@app.get("/api/debug-env")
+def debug_env():
+    return {
+        "database_connected": bool(os.getenv("DATABASE_URL")),
+        "redis_connected": bool(os.getenv("REDIS_URL")),
+        # Use .get() with a default to avoid errors if missing
+        "admin_pin_exists": bool(os.getenv("ADMIN_PIN")),
+    }
+
 @app.get("/api/court-info")
 async def get_court_info(request: Request):
     """
