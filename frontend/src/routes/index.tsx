@@ -1,6 +1,5 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import {
-  useQuery,
   useMutation,
   QueryClient,
   QueryClientProvider,

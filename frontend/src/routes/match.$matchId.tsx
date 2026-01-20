@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, RefreshCw, Undo, Trophy, Hash } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Undo } from 'lucide-react'
 
 export const Route = createFileRoute('/match/$matchId')({
   component: MatchDebugConsole,
