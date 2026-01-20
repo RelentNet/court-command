@@ -1,5 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
 sqlmodel 
 asyncpg 
 redis
+aiosqlite
+websockets

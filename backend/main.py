@@ -32,8 +32,11 @@ app.add_middleware(
 
 async def broadcast_match_update(match: Match):
     """Publishes the current match state to Redis."""
-    data = match.model_dump(mode="json")
-    await redis_client.publish(f"match_updates_{match.public_id}", json.dumps(data))
+    try:
+        data = match.model_dump(mode="json")
+        await redis_client.publish(f"match_updates_{match.public_id}", json.dumps(data))
+    except Exception as e:
+        print(f"Warning: Redis publish failed (Redis might be down): {e}")
 
 async def get_next_sequence_id(session: AsyncSession, match_id: int) -> int:
     """Calculates the next sequence ID for the event log."""
@@ -52,19 +55,26 @@ def health_check():
 async def websocket_endpoint(websocket: WebSocket, public_id: str):
     await websocket.accept()
     pubsub = redis_client.pubsub()
-    await pubsub.subscribe(f"match_updates_{public_id}")
     
     try:
+        await pubsub.subscribe(f"match_updates_{public_id}")
         while True:
             message = await pubsub.get_message(ignore_subscribe_messages=True)
             if message:
                 await websocket.send_text(message["data"])
             await asyncio.sleep(0.01) # Prevent tight loop
+    except redis.exceptions.ConnectionError:
+        print("Warning: Redis connection failed. Real-time updates disabled.")
+        # Keep socket open so frontend doesn't panic-reconnect loop
+        while True:
+            await asyncio.sleep(10)
     except WebSocketDisconnect:
-        await pubsub.unsubscribe()
+        if pubsub.connection:
+            await pubsub.unsubscribe()
     except Exception as e:
         print(f"WebSocket error: {e}")
-        await pubsub.unsubscribe()
+        if pubsub.connection:
+            await pubsub.unsubscribe()
 
 @app.post("/api/matches", response_model=Match)
 async def create_match(match: Match, session: AsyncSession = Depends(get_session)):

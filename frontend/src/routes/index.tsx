@@ -32,8 +32,17 @@ function App() {
       return res.json()
     },
     onSuccess: (data) => {
+      console.log('Match Created Response:', data)
+      if (!data.public_id) {
+        console.error('Missing public_id in response:', data)
+        alert('Error: Match created but ID is missing. See console.')
+        return
+      }
       // Navigate to the debug console
-      router.navigate({ to: `/match/${data.public_id}` })
+      router.navigate({ 
+        to: '/match/$matchId',
+        params: { matchId: data.public_id }
+      })
     },
   })
 
