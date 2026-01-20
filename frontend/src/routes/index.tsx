@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import config from '../config'
 
 export const Route = createFileRoute('/')({
   component: App,
@@ -8,18 +9,15 @@ export const Route = createFileRoute('/')({
 
 function App() {
   const router = useRouter()
-  const [team1, setTeam1] = useState('D. Johns / A. Johns')
-  const [team2, setTeam2] = useState('M. Wright / R. Newman')
-  const [court, setCourt] = useState('Grandstand')
+  const [court, setCourt] = useState('Center Court')
+  const [team1, setTeam1] = useState('Team A')
+  const [team2, setTeam2] = useState('Team B')
 
   // Create Match Mutation
   const createMatch = useMutation({
     mutationFn: async () => {
-      const apiUrl =
-        import.meta.env.VITE_API_URL ||
-        'https://api.tickertemplate.relentnet.app'
-      console.log('Creating match with:', { court, team1, team2, apiUrl })
-      const res = await fetch(`${apiUrl}/api/matches`, {
+      console.log('Creating match with:', { court, team1, team2, apiUrl: config.API_URL })
+      const res = await fetch(`${config.API_URL}/api/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
