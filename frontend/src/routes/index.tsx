@@ -1,19 +1,9 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import {
-  useMutation,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
-const queryClient = new QueryClient()
-
 export const Route = createFileRoute('/')({
-  component: () => (
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  ),
+  component: App,
 })
 
 function App() {
