@@ -1,0 +1,90 @@
+[
+    {
+        "Field": "Team 1 Name",
+        "Description": "Used for Team events (name club, college, or team name)"
+    },
+    {
+        "Field": "Team 1 Name Short",
+        "Description": "Abreviated team name"
+    },
+    {
+        "Field": "Team 1 Logo",
+        "Description": "Updated or URL Link to team logo graphic"
+    },
+    {
+        "Field": "Team 1 Player 1 Name",
+        "Description": null
+    },
+    {
+        "Field": "Team 1 Player 2 Name",
+        "Description": null
+    },
+    {
+        "Field": "Who is serving first?",
+        "Description": "buttons for \"team 1 and team 2 which starts the score at 0-0-2, with \"Side Out\" and the player with the \"Band\" (First Server) shaded green representing the current server."
+    },
+    {
+        "Field": "Team 1 First Server",
+        "Description": "\"band\" placed on display interface. Swap between the two players"
+    },
+    {
+        "Field": "Team 2 Player 1 Name",
+        "Description": null
+    },
+    {
+        "Field": "Team 2 Player 2 Name",
+        "Description": null
+    },
+    {
+        "Field": "Team 1 First Server",
+        "Description": "\"band\" placed on display interface. Swap between the two players"
+    },
+    {
+        "Field": "Server # Status Button",
+        "Description": "Dynamic Button that starts out staying \"Server 1\", once pressed, it goes to \"Side Out\", then the Active, green conditional formating goes to the other team's right side player and the button goes back to \"Server 1\""
+    },
+    {
+        "Field": "Point Scored",
+        "Description": "This will add a point to the teams that has the active serve focus."
+    },
+    {
+        "Field": "Remove point Team 1",
+        "Description": "Takes their score -1"
+    },
+    {
+        "Field": "Remove point Team 2",
+        "Description": "Takes their score -1"
+    },
+    {
+        "Field": "Set # of Games",
+        "Description": "The \"best of\" number of games in the active match (1, 3, 5)"
+    },
+    {
+        "Field": "Game #",
+        "Description": "Starts with \"Game 1\", then \"2\", etc"
+    },
+    {
+        "Field": "Advance Game",
+        "Description": "Goes from active game to next game"
+    },
+    {
+        "Field": "Back 1 game",
+        "Description": "Goes back to the previous game (Holds games scores until saved and or reset"
+    },
+    {
+        "Field": "Clear match scores",
+        "Description": "Needs \"are you sure\" but removes all scores of active match, keeps player details"
+    },
+    {
+        "Field": "Reset match",
+        "Description": "Clear everything"
+    },
+    {
+        "Field": "Switch Ends",
+        "Description": "Swap placement of the names to reflect their physical placement (L or R)"
+    },
+    {
+        "Field": "Add TO, TW, Tf",
+        "Description": "these are infractions that get warning and could cuase disqualification or points to be awarded to opponents"
+    }
+]
