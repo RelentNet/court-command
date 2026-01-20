@@ -20,10 +20,10 @@ def health_check():
 @app.get("/api/debug-env")
 def debug_env():
     return {
-        "database_connected": bool(os.getenv("DATABASE_URL")),
-        "redis_connected": bool(os.getenv("REDIS_URL")),
+        "database_connected": os.getenv("DATABASE_URL"),
+        "redis_connected": os.getenv("REDIS_URL"),
         # Use .get() with a default to avoid errors if missing
-        "admin_pin_exists": bool(os.getenv("ADMIN_PIN")),
+        "admin_pin_exists": os.getenv("ADMIN_PIN"),
     }
 
 @app.get("/api/court-info")
