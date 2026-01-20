@@ -1,16 +1,46 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import {
+  useQuery,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query'
 
-export const Route = createFileRoute('/' as any)({
-  component: App,
+// Initialize QueryClient (usually done in main.tsx, but fine here for now)
+const queryClient = new QueryClient()
+
+export const Route = createFileRoute('/')({
+  component: () => (
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  ),
 })
 
 function App() {
-  const [domain, setDomain] = useState<string>('Detecting...')
+  // Real fetch from your Python Backend
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['courtInfo'],
+    queryFn: async () => {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const res = await fetch(`${apiUrl}/api/court-info`)
+      if (!res.ok) throw new Error('Network response was not ok')
+      return res.json()
+    },
+  })
 
-  useEffect(() => {
-    setDomain(window.location.host)
-  }, [])
+  // Show loading state while fetching
+  if (isLoading)
+    return (
+      <div className="text-white text-center mt-20">
+        Connecting to Engine...
+      </div>
+    )
+  if (error)
+    return (
+      <div className="text-red-500 text-center mt-20">
+        Error: {error.message}
+      </div>
+    )
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
@@ -24,13 +54,17 @@ function App() {
             <p className="text-slate-400 text-sm uppercase tracking-wider mb-1">
               Active Court Domain
             </p>
-            <p className="text-xl font-mono text-lime-400">{domain}</p>
+            {/* Displaying Real Data from Python Backend */}
+            <p className="text-xl font-mono text-lime-400">
+              {data.detected_host}
+            </p>
           </div>
 
-          <p className="text-slate-400 text-sm italic">
-            Deployment successful. This instance is now isolated for this client
-            project.
-          </p>
+          <div className="p-2 bg-slate-800 rounded border border-slate-600">
+            <p className="text-xs text-slate-400">
+              Storage Mode: {data.storage_mode}
+            </p>
+          </div>
 
           <button className="w-full py-3 bg-lime-500 hover:bg-lime-400 text-slate-900 font-bold rounded-lg transition-colors">
             Enter Referee Mode

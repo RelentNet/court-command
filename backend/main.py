@@ -1,8 +1,18 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from contextlib import asynccontextmanager
+from .database import init_db
 
-app = FastAPI(title="RelentNet Pickleball API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create tables
+    await init_db()
+    print("--- DB Tables Created ---")
+    yield
+    # Shutdown logic (if any)
+
+app = FastAPI(title="RelentNet Pickleball API", lifespan=lifespan)
 
 # Setup CORS for your Vite frontend
 app.add_middleware(
