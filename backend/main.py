@@ -19,15 +19,16 @@ logger = logging.getLogger("API")
 
 # Redis Setup
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
+    # Initialize Redis in app state
+    app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     yield
     # Shutdown
-    await redis_client.close()
+    await app.state.redis.close()
 
 app = FastAPI(title="RelentNet Pickleball API", lifespan=lifespan)
 
@@ -38,8 +39,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Dependency for Redis
+def get_redis(request: Request):
+    return request.app.state.redis
+
 # Dependency for Service
-def get_match_service(session: AsyncSession = Depends(get_session)) -> MatchService:
+def get_match_service(
+    session: AsyncSession = Depends(get_session),
+    redis_client = Depends(get_redis)
+) -> MatchService:
     return MatchService(session, redis_client)
 
 @app.get("/health")
@@ -49,31 +57,42 @@ def health_check():
 @app.websocket("/ws/matches/{public_id}")
 async def websocket_endpoint(websocket: WebSocket, public_id: str):
     await websocket.accept()
+    
+    # Access redis from app state (websocket has access to app)
+    redis_client = websocket.app.state.redis
     pubsub = redis_client.pubsub()
     
     try:
         await pubsub.subscribe(f"match_updates_{public_id}")
-        while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True)
-            if message:
+        
+        # Async iterator is more efficient than polling
+        async for message in pubsub.listen():
+            if message["type"] == "message":
                 await websocket.send_text(message["data"])
-            await asyncio.sleep(0.01)
             
     except RedisConnectionError:
-        logger.warning("Redis connection failed. Real-time updates disabled.")
-        while True:
-            await asyncio.sleep(10)
+        logger.error(f"Redis connection failed for match {public_id}")
+        # Close with status code indicating internal error to trigger client reconnect
+        await websocket.close(code=1011, reason="Redis Connection Failed")
             
     except WebSocketDisconnect:
-        pass
+        # Normal client disconnect
+        logger.info(f"Client disconnected from match {public_id}")
         
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011)
+        except:
+            pass
         
     finally:
-        if pubsub.connection:
+        # Cleanup resources
+        try:
             await pubsub.unsubscribe()
-            await pubsub.aclose()
+            await pubsub.close()
+        except:
+            pass
 
 @app.post("/api/matches", response_model=Match)
 async def create_match(match: Match, service: MatchService = Depends(get_match_service)):
