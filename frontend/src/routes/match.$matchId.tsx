@@ -7,12 +7,15 @@ export const Route = createFileRoute('/match/$matchId')({
   component: MatchDebugConsole,
 })
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL =
+  import.meta.env.VITE_API_URL || 'https://api.tickertemplate.relentnet.app'
 
 function MatchDebugConsole() {
   const { matchId } = Route.useParams()
   const queryClient = useQueryClient()
-  const [wsStatus, setWsStatus] = useState<'CONNECTING' | 'OPEN' | 'CLOSED'>('CLOSED')
+  const [wsStatus, setWsStatus] = useState<'CONNECTING' | 'OPEN' | 'CLOSED'>(
+    'CLOSED',
+  )
 
   // 1. Initial Data Fetch
   const { data: match, isLoading } = useQuery({
@@ -31,7 +34,7 @@ function MatchDebugConsole() {
 
     ws.onopen = () => setWsStatus('OPEN')
     ws.onclose = () => setWsStatus('CLOSED')
-    
+
     ws.onmessage = (event) => {
       const update = JSON.parse(event.data)
       // Instant update of React Query cache
@@ -56,44 +59,57 @@ function MatchDebugConsole() {
   if (!match) return <div className="p-8 text-red-500">Match not found</div>
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="bg-slate-900 p-6 min-h-screen text-white">
+      <div className="space-y-6 mx-auto max-w-4xl">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <a href="/" className="p-2 hover:bg-slate-800 rounded-full transition-colors">
+            <a
+              href="/"
+              className="hover:bg-slate-800 p-2 rounded-full transition-colors"
+            >
               <ArrowLeft className="w-6 h-6" />
             </a>
             <div>
-              <h1 className="text-2xl font-bold">{match.court_name}</h1>
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <span className={`w-2 h-2 rounded-full ${wsStatus === 'OPEN' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <h1 className="font-bold text-2xl">{match.court_name}</h1>
+              <div className="flex items-center gap-2 text-slate-400 text-sm">
+                <span
+                  className={`w-2 h-2 rounded-full ${wsStatus === 'OPEN' ? 'bg-green-500' : 'bg-red-500'}`}
+                />
                 WS: {wsStatus}
               </div>
             </div>
           </div>
-          <button 
+          <button
             onClick={() => actionMutation.mutate('undo')}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold"
+            className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg font-bold"
           >
             <Undo className="w-4 h-4" /> Undo
           </button>
         </div>
 
         {/* Scoreboard Preview */}
-        <div className="grid grid-cols-2 gap-4 bg-slate-800 p-8 rounded-2xl border border-slate-700 relative overflow-hidden">
+        <div className="relative gap-4 grid grid-cols-2 bg-slate-800 p-8 border border-slate-700 rounded-2xl overflow-hidden">
           {/* Active Server Indicator */}
-          <div className={`absolute top-0 bottom-0 w-2 bg-lime-500 transition-all duration-300 ${match.serving_team === 1 ? 'left-0' : 'right-0'}`} />
+          <div
+            className={`absolute top-0 bottom-0 w-2 bg-lime-500 transition-all duration-300 ${match.serving_team === 1 ? 'left-0' : 'right-0'}`}
+          />
 
           {/* Team 1 */}
-          <div className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 1 ? 'bg-slate-700/50' : ''}`}>
-            <h2 className="text-xl font-semibold text-slate-300">{match.team_1_name}</h2>
-            <div className="text-6xl font-bold font-mono">{match.team_1_score}</div>
+          <div
+            className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 1 ? 'bg-slate-700/50' : ''}`}
+          >
+            <h2 className="font-semibold text-slate-300 text-xl">
+              {match.team_1_name}
+            </h2>
+            <div className="font-mono font-bold text-6xl">
+              {match.team_1_score}
+            </div>
             <div className="flex justify-center gap-2 mt-4">
-              <button 
+              <button
                 onClick={() => actionMutation.mutate('point')}
                 disabled={match.serving_team !== 1}
-                className="px-6 py-3 bg-lime-600 hover:bg-lime-500 disabled:opacity-20 disabled:cursor-not-allowed rounded-lg font-bold transition-all"
+                className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
               >
                 + Point
               </button>
@@ -101,14 +117,20 @@ function MatchDebugConsole() {
           </div>
 
           {/* Team 2 */}
-          <div className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 2 ? 'bg-slate-700/50' : ''}`}>
-            <h2 className="text-xl font-semibold text-slate-300">{match.team_2_name}</h2>
-            <div className="text-6xl font-bold font-mono">{match.team_2_score}</div>
-             <div className="flex justify-center gap-2 mt-4">
-              <button 
+          <div
+            className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 2 ? 'bg-slate-700/50' : ''}`}
+          >
+            <h2 className="font-semibold text-slate-300 text-xl">
+              {match.team_2_name}
+            </h2>
+            <div className="font-mono font-bold text-6xl">
+              {match.team_2_score}
+            </div>
+            <div className="flex justify-center gap-2 mt-4">
+              <button
                 onClick={() => actionMutation.mutate('point')}
                 disabled={match.serving_team !== 2}
-                className="px-6 py-3 bg-lime-600 hover:bg-lime-500 disabled:opacity-20 disabled:cursor-not-allowed rounded-lg font-bold transition-all"
+                className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
               >
                 + Point
               </button>
@@ -116,13 +138,13 @@ function MatchDebugConsole() {
           </div>
 
           {/* Center Info */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-2">
-            <div className="bg-slate-900 px-4 py-2 rounded-full border border-slate-600 text-sm font-mono">
+          <div className="top-1/2 left-1/2 absolute flex flex-col items-center gap-2 -translate-x-1/2 -translate-y-1/2">
+            <div className="bg-slate-900 px-4 py-2 border border-slate-600 rounded-full font-mono text-sm">
               Server: {match.server_number}
             </div>
-            <button 
+            <button
               onClick={() => actionMutation.mutate('sideout')}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm font-bold"
+              className="flex items-center gap-2 bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg font-bold text-sm"
             >
               <RefreshCw className="w-4 h-4" /> Side Out
             </button>
@@ -130,22 +152,32 @@ function MatchDebugConsole() {
         </div>
 
         {/* Debug Info */}
-        <div className="grid grid-cols-2 gap-6">
-           <div className="bg-slate-900 p-4 rounded-lg border border-slate-800 font-mono text-xs overflow-auto h-64">
-             <h3 className="text-slate-500 mb-2 uppercase">Raw State</h3>
-             <pre className="text-lime-300">{JSON.stringify(match, null, 2)}</pre>
-           </div>
-           
-           <div className="bg-slate-900 p-4 rounded-lg border border-slate-800">
-             <h3 className="text-slate-500 mb-2 uppercase">Controls</h3>
-             <div className="grid grid-cols-2 gap-2">
-               {/* Placeholders for future features */}
-               <button className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-sm text-slate-400">Timeout (T1)</button>
-               <button className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-sm text-slate-400">Timeout (T2)</button>
-               <button className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-sm text-slate-400">Warning</button>
-               <button className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-sm text-slate-400">Technical</button>
-             </div>
-           </div>
+        <div className="gap-6 grid grid-cols-2">
+          <div className="bg-slate-900 p-4 border border-slate-800 rounded-lg h-64 overflow-auto font-mono text-xs">
+            <h3 className="mb-2 text-slate-500 uppercase">Raw State</h3>
+            <pre className="text-lime-300">
+              {JSON.stringify(match, null, 2)}
+            </pre>
+          </div>
+
+          <div className="bg-slate-900 p-4 border border-slate-800 rounded-lg">
+            <h3 className="mb-2 text-slate-500 uppercase">Controls</h3>
+            <div className="gap-2 grid grid-cols-2">
+              {/* Placeholders for future features */}
+              <button className="bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-400 text-sm">
+                Timeout (T1)
+              </button>
+              <button className="bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-400 text-sm">
+                Timeout (T2)
+              </button>
+              <button className="bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-400 text-sm">
+                Warning
+              </button>
+              <button className="bg-slate-800 hover:bg-slate-700 p-2 rounded text-slate-400 text-sm">
+                Technical
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -15,7 +15,10 @@ function App() {
   // Create Match Mutation
   const createMatch = useMutation({
     mutationFn: async () => {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+      const apiUrl =
+        import.meta.env.VITE_API_URL ||
+        'https://api.tickertemplate.relentnet.app'
+      console.log('Creating match with:', { court, team1, team2, apiUrl })
       const res = await fetch(`${apiUrl}/api/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -25,7 +28,7 @@ function App() {
           team_2_name: team2,
           // Defaults
           best_of_games: 3,
-          start_on_server_2: false 
+          start_on_server_2: false,
         }),
       })
       if (!res.ok) throw new Error('Failed to create match')
@@ -39,52 +42,58 @@ function App() {
         return
       }
       // Navigate to the debug console
-      router.navigate({ 
+      router.navigate({
         to: '/match/$matchId',
-        params: { matchId: data.public_id }
+        params: { matchId: data.public_id },
       })
     },
   })
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full bg-slate-800 rounded-xl shadow-2xl p-8 border border-slate-700">
-        <h1 className="text-3xl font-bold bg-linear-to-r from-lime-400 to-emerald-500 bg-clip-text text-transparent mb-8 text-center">
+    <div className="flex flex-col justify-center items-center bg-slate-900 p-4 min-h-screen text-white">
+      <div className="bg-slate-800 shadow-2xl p-8 border border-slate-700 rounded-xl w-full max-w-md">
+        <h1 className="bg-clip-text bg-linear-to-r from-lime-400 to-emerald-500 mb-8 font-bold text-transparent text-3xl text-center">
           Match Setup
         </h1>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-xs text-slate-400 uppercase mb-1">Court Name</label>
-            <input 
+            <label className="block mb-1 text-slate-400 text-xs uppercase">
+              Court Name
+            </label>
+            <input
               value={court}
               onChange={(e) => setCourt(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:border-lime-500 outline-none transition-colors"
+              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-slate-400 uppercase mb-1">Team 1 Name</label>
-            <input 
+            <label className="block mb-1 text-slate-400 text-xs uppercase">
+              Team 1 Name
+            </label>
+            <input
               value={team1}
               onChange={(e) => setTeam1(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:border-lime-500 outline-none transition-colors"
+              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs text-slate-400 uppercase mb-1">Team 2 Name</label>
-            <input 
+            <label className="block mb-1 text-slate-400 text-xs uppercase">
+              Team 2 Name
+            </label>
+            <input
               value={team2}
               onChange={(e) => setTeam2(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white focus:border-lime-500 outline-none transition-colors"
+              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
             />
           </div>
 
-          <button 
+          <button
             onClick={() => createMatch.mutate()}
             disabled={createMatch.isPending}
-            className="w-full py-3 mt-4 bg-lime-500 hover:bg-lime-400 text-slate-900 font-bold rounded-lg transition-colors flex justify-center items-center"
+            className="flex justify-center items-center bg-lime-500 hover:bg-lime-400 mt-4 py-3 rounded-lg w-full font-bold text-slate-900 transition-colors"
           >
             {createMatch.isPending ? 'Creating...' : 'Start Match'}
           </button>

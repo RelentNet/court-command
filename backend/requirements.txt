@@ -5,3 +5,4 @@ asyncpg
 redis
 aiosqlite
 websockets
+python-dotenv

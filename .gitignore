@@ -8,3 +8,11 @@ count.txt
 .nitro
 .tanstack
 .wrangler
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+backend.db

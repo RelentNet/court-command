@@ -4,6 +4,8 @@ from sqlmodel import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 import redis.asyncio as redis
+# CRITICAL FIX: Explicitly import the exception to avoid AttributeError
+from redis.exceptions import ConnectionError as RedisConnectionError
 import json
 import os
 import asyncio
@@ -12,13 +14,17 @@ from database import init_db, get_session
 from models import Match, MatchEvent
 
 # Redis Setup
+# We use decode_responses=True so we get strings, not bytes.
+# We DO NOT set socket_timeout, allowing the connection to wait indefinitely for events.
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: Create DB tables
     await init_db()
     yield
+    # Shutdown: Clean up Redis connection
     await redis_client.close()
 
 app = FastAPI(title="RelentNet Pickleball API", lifespan=lifespan)
@@ -29,6 +35,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Helper Functions ---
 
 async def broadcast_match_update(match: Match):
     """Publishes the current match state to Redis."""
@@ -59,22 +67,30 @@ async def websocket_endpoint(websocket: WebSocket, public_id: str):
     try:
         await pubsub.subscribe(f"match_updates_{public_id}")
         while True:
+            # ignore_subscribe_messages=True prevents sending the initial "1" response
             message = await pubsub.get_message(ignore_subscribe_messages=True)
             if message:
                 await websocket.send_text(message["data"])
             await asyncio.sleep(0.01) # Prevent tight loop
-    except redis.exceptions.ConnectionError:
+            
+    except RedisConnectionError:
         print("Warning: Redis connection failed. Real-time updates disabled.")
-        # Keep socket open so frontend doesn't panic-reconnect loop
         while True:
             await asyncio.sleep(10)
+            
     except WebSocketDisconnect:
-        if pubsub.connection:
-            await pubsub.unsubscribe()
+        pass
+        
     except Exception as e:
         print(f"WebSocket error: {e}")
+        
+    finally:
+        # Clean up properly
+        # FIX: Check if we have a connection before trying to close it
         if pubsub.connection:
             await pubsub.unsubscribe()
+            # FIX: Use aclose() to silence the DeprecationWarning
+            await pubsub.aclose()
 
 @app.post("/api/matches", response_model=Match)
 async def create_match(match: Match, session: AsyncSession = Depends(get_session)):
@@ -117,6 +133,7 @@ async def add_point(public_id: str, session: AsyncSession = Depends(get_session)
     )
     session.add(event)
     
+    session.add(match)
     await session.commit()
     await session.refresh(match)
     await broadcast_match_update(match)
@@ -158,7 +175,8 @@ async def side_out(public_id: str, session: AsyncSession = Depends(get_session))
         }
     )
     session.add(event)
-
+    
+    session.add(match)
     await session.commit()
     await session.refresh(match)
     await broadcast_match_update(match)
@@ -166,12 +184,6 @@ async def side_out(public_id: str, session: AsyncSession = Depends(get_session))
 
 @app.post("/api/matches/{public_id}/undo")
 async def undo_last_event(public_id: str, session: AsyncSession = Depends(get_session)):
-    # This is a complex operation:
-    # 1. Find the Match
-    # 2. Find the LAST event for this match.
-    # 3. Find the event BEFORE that (to restore state).
-    # 4. If no previous event, restore to 0-0-0 initial state.
-    
     statement = select(Match).where(Match.public_id == public_id)
     result = await session.execute(statement)
     match = result.scalar_one_or_none()
@@ -198,18 +210,18 @@ async def undo_last_event(public_id: str, session: AsyncSession = Depends(get_se
         match.team_2_score = snapshot.get("team_2_score", 0)
         match.server_number = snapshot.get("server_number", 1)
         match.serving_team = snapshot.get("serving_team", 1)
-        # ... restore other fields as needed
+        # Add any other fields you need to restore
     else:
         # No previous event means we are back to start
         match.team_1_score = 0
         match.team_2_score = 0
         match.server_number = 1
         match.serving_team = 1
-        # TODO: Check 'start_on_server_2' config if we want to support that restoration accurately
 
-    # Delete the undone event (or mark as undone if we want a redo history)
+    # Delete the undone event
     await session.delete(last_event)
     
+    session.add(match)
     await session.commit()
     await session.refresh(match)
     await broadcast_match_update(match)
