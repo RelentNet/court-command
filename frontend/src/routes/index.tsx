@@ -13,7 +13,7 @@ function Dashboard() {
         {/* Hero Section */}
         <div className="text-center">
           <h1 className="mb-4 font-bold text-5xl tracking-tight">
-            Relent<span className="text-lime-500">Net</span>
+            Court<span className="text-lime-500">Command</span>
           </h1>
           <p className="text-slate-400 text-xl">Tournament Operations Center</p>
         </div>

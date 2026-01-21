@@ -18,7 +18,7 @@ export default function Header() {
         </button>
         <h1 className="ml-4 text-xl font-semibold">
           <Link to="/">
-            RelentNet
+            CourtCommand
           </Link>
         </h1>
       </header>
@@ -29,7 +29,7 @@ export default function Header() {
         }`}
       >
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <h2 className="text-xl font-bold">RelentNet</h2>
+          <h2 className="text-xl font-bold">CourtCommand</h2>
           <button
             onClick={() => setIsOpen(false)}
             className="p-2 hover:bg-gray-800 rounded-lg transition-colors"

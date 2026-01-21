@@ -1,6 +1,6 @@
-# RelentNet Pickleball System
+# CourtCommand
 
-**RelentNet** is a modern, real-time sports ticker and referee management system designed for pickleball tournaments. It features a high-performance backend, instantaneous score synchronization via WebSockets, and a robust registry for managing players, teams, and courts.
+**CourtCommand** is a modern, real-time sports ticker and referee management system designed for pickleball tournaments. It features a high-performance backend, instantaneous score synchronization via WebSockets, and a robust registry for managing players, teams, and courts.
 
 ## 🚀 Features
 

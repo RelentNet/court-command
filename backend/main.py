@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await app.state.redis.close()
 
-app = FastAPI(title="RelentNet Pickleball API", lifespan=lifespan)
+app = FastAPI(title="CourtCommand Pickleball API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

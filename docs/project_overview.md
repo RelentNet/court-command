@@ -1,4 +1,4 @@
-# Technical Specification: RelentNet Pickleball System
+# Technical Specification: CourtCommand Pickleball System
 
 ## 1. Project Overview
 

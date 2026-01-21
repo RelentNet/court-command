@@ -1,6 +1,6 @@
-# RelentNet API Documentation
+# CourtCommand API Documentation
 
-This document outlines the API structure for the RelentNet Pickleball System. 
+This document outlines the API structure for the CourtCommand Pickleball System. 
 
 **Base URL:** `http://api.yourdomain.com` (or `http://localhost:8000` in dev)
 **Protocol:** REST (JSON) & WebSockets

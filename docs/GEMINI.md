@@ -1,8 +1,8 @@
-# RelentNet Pickleball System
+# CourtCommand Pickleball System
 
 ## Project Overview
 
-RelentNet is a multi-tenant, high-performance sports ticker and referee system designed for pickleball tournaments. It enables zero-latency score synchronization between a mobile referee interface and a broadcast-quality court ticker. The system is designed for "Appliance" style deployment via Coolify.
+CourtCommand is a multi-tenant, high-performance sports ticker and referee system designed for pickleball tournaments. It enables zero-latency score synchronization between a mobile referee interface and a broadcast-quality court ticker. The system is designed for "Appliance" style deployment via Coolify.
 
 ## Technology Stack
 

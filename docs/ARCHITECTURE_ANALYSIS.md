@@ -1,6 +1,6 @@
-# RelentNet Architecture & Data Flow Analysis
+# CourtCommand Architecture & Data Flow Analysis
 
-This document traces the data flow, component hierarchy, and key operations within the RelentNet Pickleball Ticker application.
+This document traces the data flow, component hierarchy, and key operations within the CourtCommand Pickleball Ticker application.
 
 ## 1. System Components
 
