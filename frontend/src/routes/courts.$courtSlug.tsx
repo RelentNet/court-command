@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
+import { useState } from 'react'
 import config from '../config'
+import { MatchSetupForm } from '../components/MatchSetupForm'
 
 export const Route = createFileRoute('/courts/$courtSlug')({
   component: CourtDetail,
@@ -9,6 +11,7 @@ export const Route = createFileRoute('/courts/$courtSlug')({
 
 function CourtDetail() {
   const { courtSlug } = Route.useParams()
+  const [isStarting, setIsStarting] = useState(false)
 
   const { data: court, isLoading, error } = useQuery({
     queryKey: ['court', courtSlug],
@@ -38,17 +41,67 @@ function CourtDetail() {
           </div>
         </div>
 
-        {/* Placeholder for Active Match */}
-        <div className="bg-slate-800 p-12 border border-slate-700 rounded-xl text-center">
-          <div className="mb-4 font-mono text-4xl">🎾</div>
-          <h2 className="mb-2 font-semibold text-xl">No Active Match</h2>
-          <p className="text-slate-400">
-            Start a new match to display the scoreboard.
-          </p>
-          <button className="bg-lime-600 hover:bg-lime-500 mt-6 px-6 py-2 rounded font-bold transition-colors">
-            Start Match
-          </button>
-        </div>
+        {/* Active Match or Setup Form */}
+        {isStarting ? (
+          <div className="flex justify-center">
+            <MatchSetupForm courtSlug={courtSlug} onCancel={() => setIsStarting(false)} />
+          </div>
+        ) : court.active_match ? (
+          <div className="bg-slate-800 p-12 border border-lime-500/50 rounded-xl text-center">
+            <div className="mb-4 font-mono text-4xl text-lime-500">● Live</div>
+            <h2 className="mb-2 font-semibold text-xl">Match In Progress</h2>
+            <p className="text-slate-400">
+              {court.active_match.participants.team_1?.name} vs {court.active_match.participants.team_2?.name}
+            </p>
+            <a 
+              href={`/match/${court.active_match.public_id}`}
+              className="inline-block bg-lime-600 hover:bg-lime-500 mt-6 px-8 py-3 rounded-lg font-bold transition-colors"
+            >
+              Open Scoreboard
+            </a>
+          </div>
+        ) : (
+          <div className="bg-slate-800 p-12 border border-slate-700 rounded-xl text-center">
+            <div className="mb-4 font-mono text-4xl">🎾</div>
+            <h2 className="mb-2 font-semibold text-xl">No Active Match</h2>
+            <p className="text-slate-400">
+              Start a new match to display the scoreboard.
+            </p>
+            <button 
+              onClick={() => setIsStarting(true)}
+              className="bg-lime-600 hover:bg-lime-500 mt-6 px-6 py-2 rounded font-bold transition-colors"
+            >
+              Start Match
+            </button>
+          </div>
+        )}
+
+        {/* Match History */}
+        {court.match_history?.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-400 uppercase tracking-wider">Recent Matches</h3>
+            <div className="gap-4 grid grid-cols-1">
+              {court.match_history.map((match: any) => (
+                <div key={match.id} className="flex justify-between items-center bg-slate-800 p-4 border border-slate-700 rounded-lg opacity-75 hover:opacity-100 transition-opacity">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-bold text-lg">
+                      {match.participants?.team_1?.name || 'Team 1'} vs {match.participants?.team_2?.name || 'Team 2'}
+                    </span>
+                    <span className="text-slate-500 text-xs">
+                      {new Date(match.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <a 
+                    href={`/match/${match.public_id}`}
+                    className="text-lime-500 hover:underline text-sm"
+                  >
+                    View Results &rarr;
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

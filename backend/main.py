@@ -14,7 +14,7 @@ from models import Match, Court, Player, Team
 from services.match_service import MatchService
 from services.court_service import CourtService
 from services.registry_service import RegistryService
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 # Logging Setup
@@ -93,7 +93,24 @@ async def get_team(team_id: int, service: RegistryService = Depends(get_registry
 class CreateCourtRequest(BaseModel):
     name: str
 
-@app.get("/courts", response_model=List[Court])
+from datetime import datetime
+
+class CourtSummary(BaseModel):
+    id: int
+    name: str
+    slug: str
+    created_at: datetime
+    is_active: bool = False
+
+class CourtWithMatch(BaseModel):
+    id: int
+    name: str
+    slug: str
+    created_at: datetime
+    active_match: Optional[Match] = None
+    match_history: List[Match] = []
+
+@app.get("/courts", response_model=List[CourtSummary])
 async def get_courts(service: CourtService = Depends(get_court_service)):
     return await service.get_all_courts()
 
@@ -101,7 +118,7 @@ async def get_courts(service: CourtService = Depends(get_court_service)):
 async def create_court(payload: CreateCourtRequest, service: CourtService = Depends(get_court_service)):
     return await service.create_court(payload.name)
 
-@app.get("/courts/{slug}", response_model=Court)
+@app.get("/courts/{slug}", response_model=CourtWithMatch)
 async def get_court(slug: str, service: CourtService = Depends(get_court_service)):
     return await service.get_court_by_slug(slug)
 

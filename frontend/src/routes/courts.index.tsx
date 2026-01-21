@@ -90,7 +90,14 @@ function CourtsDashboard() {
               className="group flex flex-col justify-between bg-slate-800 hover:bg-slate-750 p-6 border border-slate-700 hover:border-lime-500/50 rounded-xl transition-all"
             >
               <div>
-                <h3 className="font-bold text-xl">{court.name}</h3>
+                <div className="flex justify-between items-start">
+                  <h3 className="font-bold text-xl">{court.name}</h3>
+                  {court.is_active && (
+                    <span className="flex items-center gap-1 bg-lime-500/20 px-2 py-1 rounded-full text-lime-500 text-xs font-bold uppercase tracking-wider animate-pulse">
+                      <span className="w-2 h-2 bg-lime-500 rounded-full" /> Live
+                    </span>
+                  )}
+                </div>
                 <code className="mt-1 block text-slate-500 text-xs">/{court.slug}</code>
               </div>
               
