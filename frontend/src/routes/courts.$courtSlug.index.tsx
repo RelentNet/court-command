@@ -32,7 +32,7 @@ function CourtDetail() {
     },
   })
 
-  if (isLoading) return <div className="p-8 text-white">Loading...</div>
+  if (isLoading || !court) return <div className="p-8 text-white">Loading...</div>
   if (error) return <div className="p-8 text-red-500">Court not found</div>
 
   return (
@@ -66,8 +66,8 @@ function CourtDetail() {
             <div className="mb-4 font-mono text-4xl text-lime-500">● Live</div>
             <h2 className="mb-2 font-semibold text-xl">Match In Progress</h2>
             <p className="text-slate-400">
-              {court.active_match.participants.team_1.name} vs{' '}
-              {court.active_match.participants.team_2.name}
+              {court.active_match.participants.team_1?.name || 'Team 1'} vs{' '}
+              {court.active_match.participants.team_2?.name || 'Team 2'}
             </p>
             <div className="flex justify-center gap-4 mt-6">
               <Link
