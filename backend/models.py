@@ -1,8 +1,16 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, UniqueConstraint
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
 from sqlalchemy import JSON, Column
+
+class Court(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("slug"),)
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    slug: str = Field(index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Match(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

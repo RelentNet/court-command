@@ -10,8 +10,11 @@ import asyncio
 import logging
 
 from database import init_db, get_session
-from models import Match
+from models import Match, Court
 from services.match_service import MatchService
+from services.court_service import CourtService
+from typing import List
+from pydantic import BaseModel
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -43,16 +46,44 @@ app.add_middleware(
 def get_redis(request: Request):
     return request.app.state.redis
 
-# Dependency for Service
+# Dependency for Match Service
 def get_match_service(
     session: AsyncSession = Depends(get_session),
     redis_client = Depends(get_redis)
 ) -> MatchService:
     return MatchService(session, redis_client)
 
+# Dependency for Court Service
+def get_court_service(session: AsyncSession = Depends(get_session)) -> CourtService:
+    return CourtService(session)
+
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# --- Courts Endpoints ---
+
+class CreateCourtRequest(BaseModel):
+    name: str
+
+@app.get("/api/courts", response_model=List[Court])
+async def get_courts(service: CourtService = Depends(get_court_service)):
+    return await service.get_all_courts()
+
+@app.post("/api/courts", response_model=Court)
+async def create_court(payload: CreateCourtRequest, service: CourtService = Depends(get_court_service)):
+    return await service.create_court(payload.name)
+
+@app.get("/api/courts/{slug}", response_model=Court)
+async def get_court(slug: str, service: CourtService = Depends(get_court_service)):
+    return await service.get_court_by_slug(slug)
+
+@app.delete("/api/courts/{slug}")
+async def delete_court(slug: str, service: CourtService = Depends(get_court_service)):
+    await service.delete_court(slug)
+    return {"status": "deleted"}
+
+# --- Match Endpoints ---
 
 @app.websocket("/ws/matches/{public_id}")
 async def websocket_endpoint(websocket: WebSocket, public_id: str):
