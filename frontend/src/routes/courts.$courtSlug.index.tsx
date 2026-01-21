@@ -1,11 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
 import { MatchSetupForm } from '../components/MatchSetupForm'
 
-export const Route = createFileRoute('/courts/$courtSlug')({
+export const Route = createFileRoute('/courts/$courtSlug/')({
   component: CourtDetail,
 })
 
@@ -29,12 +29,12 @@ function CourtDetail() {
     <div className="bg-slate-900 p-6 min-h-screen text-white">
       <div className="space-y-6 mx-auto max-w-4xl">
         <div className="flex items-center gap-4">
-          <a
-            href="/courts"
+          <Link
+            to="/courts"
             className="hover:bg-slate-800 p-2 rounded-full transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
-          </a>
+          </Link>
           <div>
             <h1 className="font-bold text-3xl">{court.name}</h1>
             <p className="text-slate-400">Manage matches for this court here.</p>
@@ -53,12 +53,22 @@ function CourtDetail() {
             <p className="text-slate-400">
               {court.active_match.participants.team_1?.name} vs {court.active_match.participants.team_2?.name}
             </p>
-            <a 
-              href={`/match/${court.active_match.public_id}`}
-              className="inline-block bg-lime-600 hover:bg-lime-500 mt-6 px-8 py-3 rounded-lg font-bold transition-colors"
-            >
-              Open Scoreboard
-            </a>
+            <div className="flex justify-center gap-4 mt-6">
+              <Link 
+                to="/courts/$courtSlug/referee"
+                params={{ courtSlug }}
+                className="bg-lime-600 hover:bg-lime-500 px-6 py-3 rounded-lg font-bold text-white transition-colors"
+              >
+                Referee Console
+              </Link>
+              <Link 
+                to="/courts/$courtSlug/scoreboard"
+                params={{ courtSlug }}
+                className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold text-white transition-colors"
+              >
+                Scoreboard Display
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="bg-slate-800 p-12 border border-slate-700 rounded-xl text-center">
@@ -91,12 +101,13 @@ function CourtDetail() {
                       {new Date(match.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <a 
-                    href={`/match/${match.public_id}`}
+                  <Link 
+                    to="/match/$matchId"
+                    params={{ matchId: match.public_id }}
                     className="text-lime-500 hover:underline text-sm"
                   >
                     View Results &rarr;
-                  </a>
+                  </Link>
                 </div>
               ))}
             </div>

@@ -14,7 +14,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistryIndexRouteImport } from './routes/registry.index'
 import { Route as CourtsIndexRouteImport } from './routes/courts.index'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
-import { Route as CourtsCourtSlugRouteImport } from './routes/courts.$courtSlug'
+import { Route as CourtsCourtSlugIndexRouteImport } from './routes/courts.$courtSlug.index'
+import { Route as CourtsCourtSlugScoreboardRouteImport } from './routes/courts.$courtSlug.scoreboard'
+import { Route as CourtsCourtSlugRefereeRouteImport } from './routes/courts.$courtSlug.referee'
 
 const QuickMatchRoute = QuickMatchRouteImport.update({
   id: '/quick-match',
@@ -41,71 +43,96 @@ const MatchMatchIdRoute = MatchMatchIdRouteImport.update({
   path: '/match/$matchId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CourtsCourtSlugRoute = CourtsCourtSlugRouteImport.update({
-  id: '/courts/$courtSlug',
-  path: '/courts/$courtSlug',
+const CourtsCourtSlugIndexRoute = CourtsCourtSlugIndexRouteImport.update({
+  id: '/courts/$courtSlug/',
+  path: '/courts/$courtSlug/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CourtsCourtSlugScoreboardRoute =
+  CourtsCourtSlugScoreboardRouteImport.update({
+    id: '/courts/$courtSlug/scoreboard',
+    path: '/courts/$courtSlug/scoreboard',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const CourtsCourtSlugRefereeRoute = CourtsCourtSlugRefereeRouteImport.update({
+  id: '/courts/$courtSlug/referee',
+  path: '/courts/$courtSlug/referee',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
-  '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
+  '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
+  '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug/': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
-  '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts': typeof CourtsIndexRoute
   '/registry': typeof RegistryIndexRoute
+  '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
+  '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
-  '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
+  '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
+  '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug/': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/quick-match'
-    | '/courts/$courtSlug'
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
+    | '/courts/$courtSlug/referee'
+    | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/quick-match'
-    | '/courts/$courtSlug'
     | '/match/$matchId'
     | '/courts'
     | '/registry'
+    | '/courts/$courtSlug/referee'
+    | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug'
   id:
     | '__root__'
     | '/'
     | '/quick-match'
-    | '/courts/$courtSlug'
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
+    | '/courts/$courtSlug/referee'
+    | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   QuickMatchRoute: typeof QuickMatchRoute
-  CourtsCourtSlugRoute: typeof CourtsCourtSlugRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   CourtsIndexRoute: typeof CourtsIndexRoute
   RegistryIndexRoute: typeof RegistryIndexRoute
+  CourtsCourtSlugRefereeRoute: typeof CourtsCourtSlugRefereeRoute
+  CourtsCourtSlugScoreboardRoute: typeof CourtsCourtSlugScoreboardRoute
+  CourtsCourtSlugIndexRoute: typeof CourtsCourtSlugIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -145,11 +172,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MatchMatchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/courts/$courtSlug': {
-      id: '/courts/$courtSlug'
+    '/courts/$courtSlug/': {
+      id: '/courts/$courtSlug/'
       path: '/courts/$courtSlug'
-      fullPath: '/courts/$courtSlug'
-      preLoaderRoute: typeof CourtsCourtSlugRouteImport
+      fullPath: '/courts/$courtSlug/'
+      preLoaderRoute: typeof CourtsCourtSlugIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courts/$courtSlug/scoreboard': {
+      id: '/courts/$courtSlug/scoreboard'
+      path: '/courts/$courtSlug/scoreboard'
+      fullPath: '/courts/$courtSlug/scoreboard'
+      preLoaderRoute: typeof CourtsCourtSlugScoreboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/courts/$courtSlug/referee': {
+      id: '/courts/$courtSlug/referee'
+      path: '/courts/$courtSlug/referee'
+      fullPath: '/courts/$courtSlug/referee'
+      preLoaderRoute: typeof CourtsCourtSlugRefereeRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -158,10 +199,12 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   QuickMatchRoute: QuickMatchRoute,
-  CourtsCourtSlugRoute: CourtsCourtSlugRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   CourtsIndexRoute: CourtsIndexRoute,
   RegistryIndexRoute: RegistryIndexRoute,
+  CourtsCourtSlugRefereeRoute: CourtsCourtSlugRefereeRoute,
+  CourtsCourtSlugScoreboardRoute: CourtsCourtSlugScoreboardRoute,
+  CourtsCourtSlugIndexRoute: CourtsCourtSlugIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

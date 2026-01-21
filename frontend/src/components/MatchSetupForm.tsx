@@ -68,8 +68,13 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
       return res.json()
     },
     onSuccess: (data) => {
-      // Redirect to Referee Interface
-      navigate({ to: '/match/$matchId', params: { matchId: data.public_id } })
+      if (courtSlug) {
+        // Redirect to Court Referee Interface
+        navigate({ to: '/courts/$courtSlug/referee', params: { courtSlug } })
+      } else {
+        // Redirect to Generic Referee Interface (Quick Match)
+        navigate({ to: '/match/$matchId', params: { matchId: data.public_id } })
+      }
     }
   })
 

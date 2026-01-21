@@ -80,6 +80,12 @@ class CourtService:
         return court
 
     async def delete_court(self, slug: str):
-        court = await self.get_court_by_slug(slug)
+        statement = select(Court).where(Court.slug == slug)
+        result = await self.session.execute(statement)
+        court = result.scalar_one_or_none()
+        
+        if not court:
+            raise HTTPException(status_code=404, detail="Court not found")
+            
         await self.session.delete(court)
         await self.session.commit()
