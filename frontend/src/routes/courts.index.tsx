@@ -15,7 +15,7 @@ function CourtsDashboard() {
   const { data: courts, isLoading } = useQuery({
     queryKey: ['courts'],
     queryFn: async () => {
-      const res = await fetch(`${config.API_URL}/api/courts`)
+      const res = await fetch(`${config.API_URL}/courts`)
       if (!res.ok) throw new Error('Failed to fetch courts')
       return res.json()
     },
@@ -23,7 +23,7 @@ function CourtsDashboard() {
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
-      const res = await fetch(`${config.API_URL}/api/courts`, {
+      const res = await fetch(`${config.API_URL}/courts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
@@ -39,7 +39,7 @@ function CourtsDashboard() {
 
   const deleteMutation = useMutation({
     mutationFn: async (slug: string) => {
-      const res = await fetch(`${config.API_URL}/api/courts/${slug}`, {
+      const res = await fetch(`${config.API_URL}/courts/${slug}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to delete court')

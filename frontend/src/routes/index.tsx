@@ -17,7 +17,7 @@ function App() {
   const createMatch = useMutation({
     mutationFn: async () => {
       console.log('Creating match with:', { court, team1, team2, apiUrl: config.API_URL })
-      const res = await fetch(`${config.API_URL}/api/matches`, {
+      const res = await fetch(`${config.API_URL}/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

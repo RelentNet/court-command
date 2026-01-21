@@ -62,9 +62,46 @@ class MatchService:
             match.team_1_score += 1
         else:
             match.team_2_score += 1
+            
+        # Check for Game Over
+        points_to = match.config.get("points_to", 11)
+        win_by = match.config.get("win_by", 2)
+        
+        t1 = match.team_1_score
+        t2 = match.team_2_score
+        
+        game_won = False
+        winner = None
+        
+        if t1 >= points_to and (t1 - t2) >= win_by:
+            game_won = True
+            winner = 1
+        elif t2 >= points_to and (t2 - t1) >= win_by:
+            game_won = True
+            winner = 2
+            
+        if game_won:
+            # Archive Result
+            match.completed_games.append({
+                "game_num": match.current_game_num,
+                "score_team_1": t1,
+                "score_team_2": t2,
+                "winner": winner
+            })
+            # IMPORTANT: SqlAlchemy sometimes doesn't detect JSON mutation in place
+            # Re-assigning triggers the flag_modified
+            match.completed_games = list(match.completed_games)
+            
+            # Reset for next game
+            match.team_1_score = 0
+            match.team_2_score = 0
+            match.current_game_num += 1
+            match.server_number = 1
+            match.serving_team = 1 # Or logic for who serves first in next game
         
         # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
+
         event = MatchEvent(
             match_id=match.id,
             sequence_id=seq_id,

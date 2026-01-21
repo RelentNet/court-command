@@ -1,8 +1,28 @@
-from sqlmodel import SQLModel, Field, UniqueConstraint
+from sqlmodel import SQLModel, Field, UniqueConstraint, Relationship
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 import uuid
 from sqlalchemy import JSON, Column
+
+# --- Registry Models ---
+
+class Player(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    display_name: str
+    handedness: str = "right" # right, left
+    skill_rating: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Team(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    short_name: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    
+    # Simple JSON list of player IDs for now (e.g. [1, 2])
+    # In a larger app, this would be a many-to-many relationship table
+    player_ids: List[int] = Field(default=[], sa_column=Column(JSON)) 
 
 class Court(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("slug"),)
@@ -12,44 +32,44 @@ class Court(SQLModel, table=True):
     slug: str = Field(index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+# --- Match Models ---
+
 class Match(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     public_id: str = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
-    court_name: str
+    court_slug: Optional[str] = None # Link to a court
     
-    # Team 1 Configuration
-    team_1_name: str = "Team 1"
-    team_1_short: Optional[str] = None
-    team_1_logo_url: Optional[str] = None
-    team_1_player1: Optional[str] = None
-    team_1_player2: Optional[str] = None
+    status: str = "in_progress" # warm_up, in_progress, final
     
-    # Team 2 Configuration
-    team_2_name: str = "Team 2"
-    team_2_short: Optional[str] = None
-    team_2_logo_url: Optional[str] = None
-    team_2_player1: Optional[str] = None
-    team_2_player2: Optional[str] = None
+    # Who is playing? (Stores names, seeds, or links to Team IDs)
+    # Structure: { "team_1": { "id": 55, "name": "..." }, "team_2": ... }
+    participants: Dict[str, Any] = Field(default={}, sa_column=Column(JSON))
     
-    # Match Configuration
-    best_of_games: int = 3 # 1, 3, 5
-    start_on_server_2: bool = False # For 0-0-2 start
+    # Rules (Best of 3, etc)
+    config: Dict[str, Any] = Field(default={
+        "format": "best_of_3",
+        "scoring_type": "side_out",
+        "points_to": 11,
+        "win_by": 2
+    }, sa_column=Column(JSON))
     
-    # Current State
+    # Historic Results (e.g. [{"game_num": 1, "score_team_1": 11, "score_team_2": 9}])
+    completed_games: List[Dict[str, Any]] = Field(default=[], sa_column=Column(JSON))
+    
+    # --- Live State (The Ticker Data) ---
     current_game_num: int = 1
-    server_number: int = 1 # 1 or 2
-    serving_team: int = 1  # 1 or 2
+    
+    # Current Game Score
     team_1_score: int = 0
     team_2_score: int = 0
     
+    # Serving State
+    server_number: int = 1 # 1 or 2
+    serving_team: int = 1  # 1 or 2
+    
     # Display State
-    swap_sides: bool = False # If true, Team 1 is displayed on right
+    swap_sides: bool = False
     
-    # Infractions (Stored as JSON lists of strings e.g. ["TO", "TW"])
-    team_1_infractions: List[str] = Field(default=[], sa_column=Column(JSON))
-    team_2_infractions: List[str] = Field(default=[], sa_column=Column(JSON))
-    
-    is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class MatchEvent(SQLModel, table=True):

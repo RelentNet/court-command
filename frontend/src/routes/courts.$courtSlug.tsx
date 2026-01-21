@@ -13,7 +13,7 @@ function CourtDetail() {
   const { data: court, isLoading, error } = useQuery({
     queryKey: ['court', courtSlug],
     queryFn: async () => {
-      const res = await fetch(`${config.API_URL}/api/courts/${courtSlug}`)
+      const res = await fetch(`${config.API_URL}/courts/${courtSlug}`)
       if (!res.ok) throw new Error('Court not found')
       return res.json()
     },

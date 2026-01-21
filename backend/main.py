@@ -10,9 +10,10 @@ import asyncio
 import logging
 
 from database import init_db, get_session
-from models import Match, Court
+from models import Match, Court, Player, Team
 from services.match_service import MatchService
 from services.court_service import CourtService
+from services.registry_service import RegistryService
 from typing import List
 from pydantic import BaseModel
 
@@ -57,28 +58,54 @@ def get_match_service(
 def get_court_service(session: AsyncSession = Depends(get_session)) -> CourtService:
     return CourtService(session)
 
+# Dependency for Registry Service
+def get_registry_service(session: AsyncSession = Depends(get_session)) -> RegistryService:
+    return RegistryService(session)
+
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+# --- Registry Endpoints ---
+
+@app.get("/players", response_model=List[Player])
+async def get_players(service: RegistryService = Depends(get_registry_service)):
+    return await service.get_all_players()
+
+@app.post("/players", response_model=Player)
+async def create_player(player: Player, service: RegistryService = Depends(get_registry_service)):
+    return await service.create_player(player)
+
+@app.get("/teams", response_model=List[Team])
+async def get_teams(service: RegistryService = Depends(get_registry_service)):
+    return await service.get_all_teams()
+
+@app.post("/teams", response_model=Team)
+async def create_team(team: Team, service: RegistryService = Depends(get_registry_service)):
+    return await service.create_team(team)
+
+@app.get("/teams/{team_id}", response_model=Team)
+async def get_team(team_id: int, service: RegistryService = Depends(get_registry_service)):
+    return await service.get_team(team_id)
 
 # --- Courts Endpoints ---
 
 class CreateCourtRequest(BaseModel):
     name: str
 
-@app.get("/api/courts", response_model=List[Court])
+@app.get("/courts", response_model=List[Court])
 async def get_courts(service: CourtService = Depends(get_court_service)):
     return await service.get_all_courts()
 
-@app.post("/api/courts", response_model=Court)
+@app.post("/courts", response_model=Court)
 async def create_court(payload: CreateCourtRequest, service: CourtService = Depends(get_court_service)):
     return await service.create_court(payload.name)
 
-@app.get("/api/courts/{slug}", response_model=Court)
+@app.get("/courts/{slug}", response_model=Court)
 async def get_court(slug: str, service: CourtService = Depends(get_court_service)):
     return await service.get_court_by_slug(slug)
 
-@app.delete("/api/courts/{slug}")
+@app.delete("/courts/{slug}")
 async def delete_court(slug: str, service: CourtService = Depends(get_court_service)):
     await service.delete_court(slug)
     return {"status": "deleted"}
@@ -125,23 +152,23 @@ async def websocket_endpoint(websocket: WebSocket, public_id: str):
         except:
             pass
 
-@app.post("/api/matches", response_model=Match)
+@app.post("/matches", response_model=Match)
 async def create_match(match: Match, service: MatchService = Depends(get_match_service)):
     return await service.create_match(match)
 
-@app.get("/api/matches/{public_id}", response_model=Match)
+@app.get("/matches/{public_id}", response_model=Match)
 async def get_match(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.get_match(public_id)
 
-@app.post("/api/matches/{public_id}/point")
+@app.post("/matches/{public_id}/point")
 async def add_point(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.add_point(public_id)
 
-@app.post("/api/matches/{public_id}/sideout")
+@app.post("/matches/{public_id}/sideout")
 async def side_out(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.side_out(public_id)
 
-@app.post("/api/matches/{public_id}/undo")
+@app.post("/matches/{public_id}/undo")
 async def undo_last_event(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.undo_last_event(public_id)
 

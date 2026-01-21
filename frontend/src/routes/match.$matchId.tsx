@@ -20,7 +20,7 @@ function MatchDebugConsole() {
   const { data: match, isLoading } = useQuery({
     queryKey: ['match', matchId],
     queryFn: async () => {
-      const res = await fetch(`${config.API_URL}/api/matches/${matchId}`)
+      const res = await fetch(`${config.API_URL}/matches/${matchId}`)
       if (!res.ok) throw new Error('Match not found')
       return res.json()
     },
@@ -29,7 +29,7 @@ function MatchDebugConsole() {
   // 2. Optimistic Mutations
   const actionMutation = useMutation({
     mutationFn: async (action: 'point' | 'sideout' | 'undo') => {
-      const res = await fetch(`${config.API_URL}/api/matches/${matchId}/${action}`, {
+      const res = await fetch(`${config.API_URL}/matches/${matchId}/${action}`, {
         method: 'POST',
       })
       if (!res.ok) throw new Error('Action failed')
