@@ -16,14 +16,18 @@ RelentNet is a multi-tenant, high-performance sports ticker and referee system d
 
 *   **Data Flow:** Referee Action -> API (FastAPI) -> Persistence (Postgres) -> Broadcast (Redis) -> Ticker (WebSocket Update)
 *   **Routing (Frontend):**
-    *   `/`: Organization Dashboard / Match List
-    *   `/courts`: Court Management Dashboard
-    *   `/courts/$courtSlug`: Specific Court View (Active Match Landing)
-    *   `/match/$matchId`: Match Ticker & Referee Interface
+    *   `/`: "Command Center" Dashboard (Quick Actions)
+    *   `/quick-match`: Instant match creation (No setup required)
+    *   `/registry`: Player & Team Management
+    *   `/courts`: Court List (Live Status Indicators)
+    *   `/courts/$courtSlug`: Court Detail (Active Match & History)
+    *   `/courts/$courtSlug/referee`: Active Match Controls
+    *   `/courts/$courtSlug/scoreboard`: Read-Only Broadcast View
+    *   `/match/$matchId`: Legacy/Direct Match Access
 *   **API Structure:**
     *   Routes are **NOT** prefixed with `/api`.
     *   `/matches`: Game logic (Points, Sideouts, Undo).
-    *   `/courts`: Court management (CRUD).
+    *   `/courts`: Court management (CRUD, Active Match fetch).
     *   `/players` & `/teams`: Registry management.
 
 ## Critical Operational Notes

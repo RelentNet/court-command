@@ -34,13 +34,18 @@ Manage the entities that participate in matches.
 Manage the physical/virtual locations where matches occur.
 
 *   **GET `/courts`**
-    *   Returns a list of all courts.
+    *   Returns a list of `CourtSummary` objects.
+    *   **Response Fields:** `id`, `name`, `slug`, `created_at`, `is_active` (bool).
 *   **POST `/courts`**
     *   Creates a new court.
     *   **Payload:** `{ "name": "string" }`
     *   **Note:** Automatically generates a URL-friendly `slug`.
 *   **GET `/courts/{slug}`**
     *   Returns details for a specific court.
+    *   **Response Model:** `CourtWithMatch`
+    *   **Extra Fields:**
+        *   `active_match`: Full `Match` object if status is `in_progress`, else null.
+        *   `match_history`: List of up to 10 most recent completed `Match` objects.
 *   **DELETE `/courts/{slug}`**
     *   Removes a court.
 
