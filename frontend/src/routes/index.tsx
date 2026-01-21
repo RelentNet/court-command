@@ -1,104 +1,72 @@
-import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import config from '../config'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { LayoutGrid, Users, Zap, History } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
-  component: App,
+  component: Dashboard,
 })
 
-function App() {
-  const router = useRouter()
-  const [court, setCourt] = useState('Center Court')
-  const [team1, setTeam1] = useState('Team A')
-  const [team2, setTeam2] = useState('Team B')
-
-  // Create Match Mutation
-  const createMatch = useMutation({
-    mutationFn: async () => {
-      console.log('Creating match with:', { court, team1, team2, apiUrl: config.API_URL })
-      const res = await fetch(`${config.API_URL}/matches`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          court_name: court,
-          team_1_name: team1,
-          team_2_name: team2,
-          // Defaults
-          best_of_games: 3,
-          start_on_server_2: false,
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to create match')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      console.log('Match Created Response:', data)
-      if (!data.public_id) {
-        console.error('Missing public_id in response:', data)
-        alert('Error: Match created but ID is missing. See console.')
-        return
-      }
-      // Navigate to the debug console
-      router.navigate({
-        to: '/match/$matchId',
-        params: { matchId: data.public_id },
-      })
-    },
-  })
-
+function Dashboard() {
   return (
-    <div className="flex flex-col justify-center items-center bg-slate-900 p-4 min-h-screen text-white">
-      <div className="bg-slate-800 shadow-2xl p-8 border border-slate-700 rounded-xl w-full max-w-md">
-        <h1 className="bg-clip-text bg-linear-to-r from-lime-400 to-emerald-500 mb-8 font-bold text-transparent text-3xl text-center">
-          Match Setup
-        </h1>
+    <div className="bg-slate-900 p-6 min-h-screen text-white">
+      <div className="space-y-12 mx-auto pt-12 max-w-5xl">
+        
+        {/* Hero Section */}
+        <div className="text-center">
+          <h1 className="mb-4 font-bold text-5xl tracking-tight">
+            Relent<span className="text-lime-500">Net</span>
+          </h1>
+          <p className="text-slate-400 text-xl">Tournament Operations Center</p>
+        </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block mb-1 text-slate-400 text-xs uppercase">
-              Court Name
-            </label>
-            <input
-              value={court}
-              onChange={(e) => setCourt(e.target.value)}
-              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1 text-slate-400 text-xs uppercase">
-              Team 1 Name
-            </label>
-            <input
-              value={team1}
-              onChange={(e) => setTeam1(e.target.value)}
-              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-1 text-slate-400 text-xs uppercase">
-              Team 2 Name
-            </label>
-            <input
-              value={team2}
-              onChange={(e) => setTeam2(e.target.value)}
-              className="bg-slate-900 p-2 border border-slate-700 focus:border-lime-500 rounded outline-none w-full text-white transition-colors"
-            />
-          </div>
-
-          <button
-            onClick={() => createMatch.mutate()}
-            disabled={createMatch.isPending}
-            className="flex justify-center items-center bg-lime-500 hover:bg-lime-400 mt-4 py-3 rounded-lg w-full font-bold text-slate-900 transition-colors"
+        {/* Quick Actions Grid */}
+        <div className="gap-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
+          
+          <Link 
+            to="/quick-match"
+            className="group relative flex flex-col items-center bg-slate-800 hover:bg-slate-750 p-8 border border-slate-700 hover:border-amber-500 rounded-2xl transition-all overflow-hidden"
           >
-            {createMatch.isPending ? 'Creating...' : 'Start Match'}
+            <div className="group-hover:scale-110 mb-4 transition-transform duration-300">
+              <Zap className="w-12 h-12 text-amber-500" />
+            </div>
+            <h3 className="font-bold text-xl">Quick Match</h3>
+            <p className="mt-2 text-center text-slate-400 text-sm">Start an ad-hoc game instantly.</p>
+          </Link>
+
+          <Link 
+            to="/courts"
+            className="group flex flex-col items-center bg-slate-800 hover:bg-slate-750 p-8 border border-slate-700 hover:border-lime-500 rounded-2xl transition-all"
+          >
+            <div className="group-hover:scale-110 mb-4 transition-transform duration-300">
+              <LayoutGrid className="w-12 h-12 text-lime-500" />
+            </div>
+            <h3 className="font-bold text-xl">Courts</h3>
+            <p className="mt-2 text-center text-slate-400 text-sm">Manage courts and active matches.</p>
+          </Link>
+
+          <Link 
+            to="/registry"
+            className="group flex flex-col items-center bg-slate-800 hover:bg-slate-750 p-8 border border-slate-700 hover:border-blue-500 rounded-2xl transition-all"
+          >
+            <div className="group-hover:scale-110 mb-4 transition-transform duration-300">
+              <Users className="w-12 h-12 text-blue-500" />
+            </div>
+            <h3 className="font-bold text-xl">Registry</h3>
+            <p className="mt-2 text-center text-slate-400 text-sm">Manage players and teams.</p>
+          </Link>
+
+          <button 
+            disabled
+            className="group flex flex-col items-center bg-slate-800/50 p-8 border border-slate-800 rounded-2xl opacity-50 cursor-not-allowed"
+          >
+            <div className="mb-4">
+              <History className="w-12 h-12 text-slate-600" />
+            </div>
+            <h3 className="font-bold text-xl">History</h3>
+            <p className="mt-2 text-center text-slate-500 text-sm">Match logs (Coming Soon)</p>
           </button>
+
         </div>
       </div>
     </div>
   )
 }
-
-export default App

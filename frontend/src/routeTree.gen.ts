@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as QuickMatchRouteImport } from './routes/quick-match'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistryIndexRouteImport } from './routes/registry.index'
 import { Route as CourtsIndexRouteImport } from './routes/courts.index'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
 import { Route as CourtsCourtSlugRouteImport } from './routes/courts.$courtSlug'
 
+const QuickMatchRoute = QuickMatchRouteImport.update({
+  id: '/quick-match',
+  path: '/quick-match',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -43,6 +49,7 @@ const CourtsCourtSlugRoute = CourtsCourtSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/quick-match': typeof QuickMatchRoute
   '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
@@ -50,6 +57,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/quick-match': typeof QuickMatchRoute
   '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts': typeof CourtsIndexRoute
@@ -58,6 +66,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/quick-match': typeof QuickMatchRoute
   '/courts/$courtSlug': typeof CourtsCourtSlugRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
@@ -67,15 +76,23 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/quick-match'
     | '/courts/$courtSlug'
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/courts/$courtSlug' | '/match/$matchId' | '/courts' | '/registry'
+  to:
+    | '/'
+    | '/quick-match'
+    | '/courts/$courtSlug'
+    | '/match/$matchId'
+    | '/courts'
+    | '/registry'
   id:
     | '__root__'
     | '/'
+    | '/quick-match'
     | '/courts/$courtSlug'
     | '/match/$matchId'
     | '/courts/'
@@ -84,6 +101,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  QuickMatchRoute: typeof QuickMatchRoute
   CourtsCourtSlugRoute: typeof CourtsCourtSlugRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   CourtsIndexRoute: typeof CourtsIndexRoute
@@ -92,6 +110,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/quick-match': {
+      id: '/quick-match'
+      path: '/quick-match'
+      fullPath: '/quick-match'
+      preLoaderRoute: typeof QuickMatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -132,6 +157,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  QuickMatchRoute: QuickMatchRoute,
   CourtsCourtSlugRoute: CourtsCourtSlugRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   CourtsIndexRoute: CourtsIndexRoute,
