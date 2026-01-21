@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Undo } from 'lucide-react'
 import config from '../config'
 import { useMatchSocket } from '../hooks/useMatchSocket'
@@ -11,7 +11,10 @@ interface MatchContainerProps {
   readonly?: boolean // If true, hide controls (for scoreboard view)
 }
 
-export function MatchContainer({ matchId, readonly = false }: MatchContainerProps) {
+export function MatchContainer({
+  matchId,
+  readonly = false,
+}: MatchContainerProps) {
   const queryClient = useQueryClient()
   const wsStatus = useMatchSocket(matchId)
 
@@ -28,9 +31,12 @@ export function MatchContainer({ matchId, readonly = false }: MatchContainerProp
   // 2. Optimistic Mutations
   const actionMutation = useMutation({
     mutationFn: async (action: 'point' | 'sideout' | 'undo') => {
-      const res = await fetch(`${config.API_URL}/matches/${matchId}/${action}`, {
-        method: 'POST',
-      })
+      const res = await fetch(
+        `${config.API_URL}/matches/${matchId}/${action}`,
+        {
+          method: 'POST',
+        },
+      )
       if (!res.ok) throw new Error('Action failed')
       return res.json()
     },
@@ -77,10 +83,12 @@ export function MatchContainer({ matchId, readonly = false }: MatchContainerProp
         )}
 
         {/* Components */}
-        <Scoreboard 
-          match={match} 
+        <Scoreboard
+          match={match}
           onPoint={readonly ? () => {} : () => actionMutation.mutate('point')}
-          onSideOut={readonly ? () => {} : () => actionMutation.mutate('sideout')}
+          onSideOut={
+            readonly ? () => {} : () => actionMutation.mutate('sideout')
+          }
           isPending={actionMutation.isPending}
           readonly={readonly}
         />

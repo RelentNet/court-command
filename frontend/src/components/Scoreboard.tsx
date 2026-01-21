@@ -1,14 +1,21 @@
 import { RefreshCw } from 'lucide-react'
+import type { Match } from '../types/domain'
 
 interface ScoreboardProps {
-  match: any
+  match: Match
   onPoint: (team: number) => void
   onSideOut: () => void
   isPending: boolean
   readonly?: boolean
 }
 
-export function Scoreboard({ match, onPoint, onSideOut, isPending, readonly = false }: ScoreboardProps) {
+export function Scoreboard({
+  match,
+  onPoint,
+  onSideOut,
+  isPending,
+  readonly = false,
+}: ScoreboardProps) {
   return (
     <div className="relative gap-4 grid grid-cols-2 bg-slate-800 p-8 border border-slate-700 rounded-2xl overflow-hidden">
       {/* Active Server Indicator */}
@@ -21,11 +28,9 @@ export function Scoreboard({ match, onPoint, onSideOut, isPending, readonly = fa
         className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 1 ? 'bg-slate-700/50' : ''}`}
       >
         <h2 className="font-semibold text-slate-300 text-xl">
-          {match.participants?.team_1?.name || match.team_1_name || 'Team 1'}
+          {match.participants.team_1?.name || match.team_1_name || 'Team 1'}
         </h2>
-        <div className="font-mono font-bold text-6xl">
-          {match.team_1_score}
-        </div>
+        <div className="font-mono font-bold text-6xl">{match.team_1_score}</div>
         {!readonly && (
           <div className="flex justify-center gap-2 mt-4">
             <button
@@ -44,11 +49,9 @@ export function Scoreboard({ match, onPoint, onSideOut, isPending, readonly = fa
         className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 2 ? 'bg-slate-700/50' : ''}`}
       >
         <h2 className="font-semibold text-slate-300 text-xl">
-          {match.participants?.team_2?.name || match.team_2_name || 'Team 2'}
+          {match.participants.team_2?.name || match.team_2_name || 'Team 2'}
         </h2>
-        <div className="font-mono font-bold text-6xl">
-          {match.team_2_score}
-        </div>
+        <div className="font-mono font-bold text-6xl">{match.team_2_score}</div>
         {!readonly && (
           <div className="flex justify-center gap-2 mt-4">
             <button

@@ -1,18 +1,23 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Trash2, Plus } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
+import type { Court } from '../types/domain'
 
 export const Route = createFileRoute('/courts/')({
   component: CourtsDashboard,
 })
 
+interface CourtWithStatus extends Court {
+  is_active?: boolean
+}
+
 function CourtsDashboard() {
   const queryClient = useQueryClient()
   const [newCourtName, setNewCourtName] = useState('')
 
-  const { data: courts, isLoading } = useQuery({
+  const { data: courts, isLoading } = useQuery<Array<CourtWithStatus>>({
     queryKey: ['courts'],
     queryFn: async () => {
       const res = await fetch(`${config.API_URL}/courts`)
@@ -84,7 +89,7 @@ function CourtsDashboard() {
 
         {/* Court List */}
         <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {courts?.map((court: any) => (
+          {courts?.map((court: CourtWithStatus) => (
             <div
               key={court.id}
               className="group flex flex-col justify-between bg-slate-800 hover:bg-slate-750 p-6 border border-slate-700 hover:border-lime-500/50 rounded-xl transition-all"
@@ -98,14 +103,16 @@ function CourtsDashboard() {
                     </span>
                   )}
                 </div>
-                <code className="mt-1 block text-slate-500 text-xs">/{court.slug}</code>
+                <code className="mt-1 block text-slate-500 text-xs">
+                  /{court.slug}
+                </code>
               </div>
-              
+
               <div className="flex justify-between items-center mt-6 pt-4 border-t border-slate-700">
-                <Link 
-                   to="/courts/$courtSlug" 
-                   params={{ courtSlug: court.slug }}
-                   className="text-lime-500 text-sm hover:underline"
+                <Link
+                  to="/courts/$courtSlug"
+                  params={{ courtSlug: court.slug }}
+                  className="text-lime-500 text-sm hover:underline"
                 >
                   View Court &rarr;
                 </Link>
@@ -122,7 +129,7 @@ function CourtsDashboard() {
               </div>
             </div>
           ))}
-          
+
           {courts?.length === 0 && (
             <div className="col-span-full py-12 text-center text-slate-500">
               No courts created yet. Add one above!

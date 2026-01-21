@@ -17,14 +17,14 @@ export function useMatchSocket(matchId: string) {
 
     ws.onopen = () => setStatus('OPEN')
     ws.onclose = () => setStatus('CLOSED')
-    
+
     ws.onmessage = (event) => {
       try {
         const update = JSON.parse(event.data)
         // Instant update of React Query cache
         queryClient.setQueryData(['match', matchId], update)
       } catch (err) {
-        console.error("Failed to parse WS message", err)
+        console.error('Failed to parse WS message', err)
       }
     }
 

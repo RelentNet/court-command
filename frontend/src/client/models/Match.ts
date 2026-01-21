@@ -1,0 +1,20 @@
+/* generated using openapi-typescript-codegen -- do not edit */
+/* istanbul ignore file */
+/* tslint:disable */
+/* eslint-disable */
+export type Match = {
+  id?: number | null
+  public_id?: string
+  court_slug?: string | null
+  status?: string
+  participants?: Record<string, any>
+  config?: Record<string, any>
+  completed_games?: Array<Record<string, any>>
+  current_game_num?: number
+  team_1_score?: number
+  team_2_score?: number
+  server_number?: number
+  serving_team?: number
+  swap_sides?: boolean
+  created_at?: string
+}

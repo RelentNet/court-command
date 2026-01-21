@@ -1,8 +1,9 @@
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Shirt, Trophy, Settings } from 'lucide-react'
+import { Settings, Shirt, Trophy } from 'lucide-react'
 import config from '../config'
+import type { Team } from '../types/domain'
 
 interface MatchSetupFormProps {
   courtSlug: string
@@ -11,7 +12,7 @@ interface MatchSetupFormProps {
 
 export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
   const navigate = useNavigate()
-  
+
   // Form State
   const [team1Id, setTeam1Id] = useState<string>('')
   const [team2Id, setTeam2Id] = useState<string>('')
@@ -20,50 +21,50 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
   const [bestOf, setBestOf] = useState(3)
 
   // Fetch Teams
-  const { data: teams, isLoading } = useQuery({
+  const { data: teams, isLoading } = useQuery<Array<Team>>({
     queryKey: ['teams'],
     queryFn: async () => {
       const res = await fetch(`${config.API_URL}/teams`)
       if (!res.ok) throw new Error('Failed to fetch teams')
       return res.json()
-    }
+    },
   })
 
   // Create Match Mutation
   const createMatch = useMutation({
     mutationFn: async () => {
-      const t1 = teams.find((t: any) => t.id.toString() === team1Id)
-      const t2 = teams.find((t: any) => t.id.toString() === team2Id)
+      const t1 = teams?.find((t: Team) => t.id?.toString() === team1Id)
+      const t2 = teams?.find((t: Team) => t.id?.toString() === team2Id)
 
-      if (!t1 || !t2) throw new Error("Select both teams")
+      if (!t1 || !t2) throw new Error('Select both teams')
 
       const payload = {
         court_slug: courtSlug,
-        status: "in_progress",
+        status: 'in_progress',
         participants: {
           team_1: t1,
-          team_2: t2
+          team_2: t2,
         },
         config: {
           format: `best_of_${bestOf}`,
           points_to: pointsTo,
           win_by: winBy,
-          scoring_type: "side_out" // Default for now
+          scoring_type: 'side_out', // Default for now
         },
         // Initialize scores
         team_1_score: 0,
         team_2_score: 0,
         current_game_num: 1,
         server_number: 1,
-        serving_team: 1
+        serving_team: 1,
       }
 
       const res = await fetch(`${config.API_URL}/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
-      
+
       if (!res.ok) throw new Error('Failed to start match')
       return res.json()
     },
@@ -75,7 +76,7 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
         // Redirect to Generic Referee Interface (Quick Match)
         navigate({ to: '/match/$matchId', params: { matchId: data.public_id } })
       }
-    }
+    },
   })
 
   if (isLoading) return <div className="text-white">Loading teams...</div>
@@ -84,7 +85,9 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
     <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200">
       <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
         <h2 className="font-bold text-2xl text-white">Start Match</h2>
-        <button onClick={onCancel} className="text-slate-400 hover:text-white">Cancel</button>
+        <button onClick={onCancel} className="text-slate-400 hover:text-white">
+          Cancel
+        </button>
       </div>
 
       <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
@@ -93,17 +96,23 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
           <div className="flex items-center gap-2 mb-2 font-semibold text-lime-400 text-sm uppercase tracking-wider">
             <Shirt className="w-4 h-4" /> Teams
           </div>
-          
+
           <div className="space-y-2">
-            <label className="block text-slate-400 text-xs">Home Team (Server 1)</label>
-            <select 
+            <label className="block text-slate-400 text-xs">
+              Home Team (Server 1)
+            </label>
+            <select
               value={team1Id}
               onChange={(e) => setTeam1Id(e.target.value)}
               className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
             >
               <option value="">Select Team 1</option>
-              {teams?.map((t: any) => (
-                <option key={t.id} value={t.id} disabled={t.id.toString() === team2Id}>
+              {teams?.map((t: Team) => (
+                <option
+                  key={t.id}
+                  value={t.id || ''}
+                  disabled={t.id?.toString() === team2Id}
+                >
                   {t.name} ({t.short_name})
                 </option>
               ))}
@@ -116,14 +125,18 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
 
           <div className="space-y-2">
             <label className="block text-slate-400 text-xs">Away Team</label>
-            <select 
+            <select
               value={team2Id}
               onChange={(e) => setTeam2Id(e.target.value)}
               className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
             >
               <option value="">Select Team 2</option>
-              {teams?.map((t: any) => (
-                <option key={t.id} value={t.id} disabled={t.id.toString() === team1Id}>
+              {teams?.map((t: Team) => (
+                <option
+                  key={t.id}
+                  value={t.id || ''}
+                  disabled={t.id?.toString() === team1Id}
+                >
                   {t.name} ({t.short_name})
                 </option>
               ))}
@@ -139,18 +152,22 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
 
           <div className="gap-4 grid grid-cols-2">
             <div>
-              <label className="block mb-1 text-slate-400 text-xs">Points To</label>
-              <input 
-                type="number" 
+              <label className="block mb-1 text-slate-400 text-xs">
+                Points To
+              </label>
+              <input
+                type="number"
                 value={pointsTo}
                 onChange={(e) => setPointsTo(parseInt(e.target.value))}
                 className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white"
               />
             </div>
             <div>
-              <label className="block mb-1 text-slate-400 text-xs">Win By</label>
-              <input 
-                type="number" 
+              <label className="block mb-1 text-slate-400 text-xs">
+                Win By
+              </label>
+              <input
+                type="number"
                 value={winBy}
                 onChange={(e) => setWinBy(parseInt(e.target.value))}
                 className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white"
@@ -161,13 +178,13 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
           <div>
             <label className="block mb-1 text-slate-400 text-xs">Format</label>
             <div className="flex gap-2">
-              {[1, 3, 5].map(num => (
+              {[1, 3, 5].map((num) => (
                 <button
                   key={num}
                   onClick={() => setBestOf(num)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    bestOf === num 
-                      ? 'bg-lime-600 text-white' 
+                    bestOf === num
+                      ? 'bg-lime-600 text-white'
                       : 'bg-slate-900 text-slate-400 hover:bg-slate-700'
                   }`}
                 >
@@ -185,7 +202,9 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
           disabled={!team1Id || !team2Id || createMatch.isPending}
           className="flex justify-center items-center gap-2 bg-lime-500 hover:bg-lime-400 disabled:opacity-50 shadow-lg disabled:shadow-none py-4 rounded-xl w-full font-bold text-slate-900 text-lg transition-all"
         >
-          {createMatch.isPending ? 'Starting...' : (
+          {createMatch.isPending ? (
+            'Starting...'
+          ) : (
             <>
               <Trophy className="w-5 h-5" /> Start Match
             </>

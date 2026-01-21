@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Zap, ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Zap } from 'lucide-react'
 import config from '../config'
 
 export const Route = createFileRoute('/quick-match')({
@@ -17,34 +17,34 @@ function QuickMatchPage() {
     setIsCreating(true)
     try {
       const payload = {
-        status: "in_progress",
+        status: 'in_progress',
         court_slug: null, // No specific court
         participants: {
           team_1: { name: team1 },
-          team_2: { name: team2 }
+          team_2: { name: team2 },
         },
         config: {
-          format: "best_of_1",
+          format: 'best_of_1',
           points_to: 11,
           win_by: 2,
-          scoring_type: "side_out"
+          scoring_type: 'side_out',
         },
         team_1_score: 0,
         team_2_score: 0,
         current_game_num: 1,
         server_number: 1,
-        serving_team: 1
+        serving_team: 1,
       }
 
       const res = await fetch(`${config.API_URL}/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
 
       if (!res.ok) throw new Error('Failed to create match')
       const match = await res.json()
-      
+
       navigate({ to: '/match/$matchId', params: { matchId: match.public_id } })
     } catch (e) {
       console.error(e)
@@ -56,7 +56,10 @@ function QuickMatchPage() {
     <div className="bg-slate-900 p-6 min-h-screen text-white">
       <div className="mx-auto max-w-lg">
         <div className="flex items-center gap-4 mb-8">
-          <a href="/" className="hover:bg-slate-800 p-2 rounded-full transition-colors">
+          <a
+            href="/"
+            className="hover:bg-slate-800 p-2 rounded-full transition-colors"
+          >
             <ArrowLeft className="w-6 h-6" />
           </a>
           <h1 className="font-bold text-3xl">Quick Match</h1>
@@ -68,14 +71,17 @@ function QuickMatchPage() {
               <Zap className="w-12 h-12 text-amber-500" />
             </div>
             <p className="text-slate-400">
-              Start a match immediately without selecting a court or registered teams.
+              Start a match immediately without selecting a court or registered
+              teams.
             </p>
           </div>
 
           <div className="space-y-6">
             <div className="gap-6 grid grid-cols-2">
               <div>
-                <label className="block mb-2 font-semibold text-sm">Team 1 Name</label>
+                <label className="block mb-2 font-semibold text-sm">
+                  Team 1 Name
+                </label>
                 <input
                   value={team1}
                   onChange={(e) => setTeam1(e.target.value)}
@@ -83,7 +89,9 @@ function QuickMatchPage() {
                 />
               </div>
               <div>
-                <label className="block mb-2 font-semibold text-sm">Team 2 Name</label>
+                <label className="block mb-2 font-semibold text-sm">
+                  Team 2 Name
+                </label>
                 <input
                   value={team2}
                   onChange={(e) => setTeam2(e.target.value)}

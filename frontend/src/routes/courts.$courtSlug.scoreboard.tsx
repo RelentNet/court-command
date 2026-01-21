@@ -20,7 +20,8 @@ function CourtScoreboard() {
   })
 
   if (isLoading) return <div className="p-8 text-white">Loading...</div>
-  if (!court?.active_match) return <div className="p-8 text-white">No active match on this court.</div>
+  if (!court?.active_match)
+    return <div className="p-8 text-white">No active match on this court.</div>
 
   // Render in read-only mode
   return <MatchContainer matchId={court.active_match.public_id} readonly />

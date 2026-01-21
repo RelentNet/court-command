@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { Home, Menu, X, LayoutGrid, Users } from 'lucide-react'
+import { Home, LayoutGrid, Menu, Users, X } from 'lucide-react'
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -17,9 +17,7 @@ export default function Header() {
           <Menu size={24} />
         </button>
         <h1 className="ml-4 text-xl font-semibold">
-          <Link to="/">
-            CourtCommand
-          </Link>
+          <Link to="/">CourtCommand</Link>
         </h1>
       </header>
 
