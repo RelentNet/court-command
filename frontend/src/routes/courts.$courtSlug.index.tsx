@@ -1,10 +1,11 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
 import { MatchSetupForm } from '../components/MatchSetupForm'
 import type { Court, Match } from '../types/domain'
+import { Spinner } from '../components/Spinner'
 
 export const Route = createFileRoute('/courts/$courtSlug/')({
   component: CourtDetail,
@@ -17,6 +18,7 @@ interface CourtWithHistory extends Court {
 
 function CourtDetail() {
   const { courtSlug } = Route.useParams()
+  const navigate = useNavigate()
   const [isStarting, setIsStarting] = useState(false)
 
   const {
@@ -29,6 +31,31 @@ function CourtDetail() {
       const res = await fetch(`${config.API_URL}/courts/${courtSlug}`)
       if (!res.ok) throw new Error('Court not found')
       return res.json()
+    },
+  })
+
+  const createMatchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${config.API_URL}/matches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          court_slug: courtSlug,
+          status: 'warm_up',
+          participants: {},
+          config: {
+            format: 'best_of_3',
+            points_to: 11,
+            win_by: 2,
+            scoring_type: 'side_out',
+          },
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to create match')
+      return res.json()
+    },
+    onSuccess: () => {
+      navigate({ to: '/courts/$courtSlug/referee', params: { courtSlug } })
     },
   })
 
@@ -94,10 +121,17 @@ function CourtDetail() {
               Start a new match to display the scoreboard.
             </p>
             <button
-              onClick={() => setIsStarting(true)}
-              className="bg-lime-600 hover:bg-lime-500 mt-6 px-6 py-2 rounded font-bold transition-colors"
+              onClick={() => createMatchMutation.mutate()}
+              disabled={createMatchMutation.isPending}
+              className="bg-lime-600 hover:bg-lime-500 mt-6 px-6 py-2 rounded font-bold transition-colors disabled:opacity-50"
             >
-              Start Match
+              {createMatchMutation.isPending ? (
+                <div className="flex items-center gap-2">
+                  <Spinner size={16} /> Creating...
+                </div>
+              ) : (
+                'Start Match'
+              )}
             </button>
           </div>
         )}

@@ -41,6 +41,13 @@ class Match(SQLModel, table=True):
     
     status: str = "in_progress" # warm_up, in_progress, final
     
+    # Track specific Team IDs for configuration
+    team_1_id: Optional[int] = None
+    team_2_id: Optional[int] = None
+    
+    # Initial Configuration State
+    first_serving_team: Optional[int] = 1 # 1 or 2
+    
     # Who is playing? (Stores names, seeds, or links to Team IDs)
     # Structure: { "team_1": { "id": 55, "name": "..." }, "team_2": ... }
     participants: Dict[str, Any] = Field(default={}, sa_column=Column(JSON))

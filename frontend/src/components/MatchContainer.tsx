@@ -5,6 +5,7 @@ import { useMatchSocket } from '../hooks/useMatchSocket'
 import { Scoreboard } from './Scoreboard'
 import { ControlPanel } from './ControlPanel'
 import { DebugConsole } from './DebugConsole'
+import { MatchConfigurationPanel } from './MatchConfigurationPanel'
 
 interface MatchContainerProps {
   matchId: string
@@ -99,6 +100,9 @@ export function MatchContainer({
             </div>
           </div>
         )}
+
+        {/* Configuration Panel (Referee Only) */}
+        {!readonly && <MatchConfigurationPanel match={match} />}
 
         {/* Components */}
         <Scoreboard

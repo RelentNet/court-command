@@ -193,6 +193,20 @@ async def undo_last_event(public_id: str, service: MatchService = Depends(get_ma
 async def reset_match(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.reset_match(public_id)
 
+class ConfigureMatchRequest(BaseModel):
+    team_1_id: Optional[int] = None
+    team_2_id: Optional[int] = None
+    first_serving_team: Optional[int] = None
+    participants: Optional[Dict[str, Any]] = None
+
+@app.patch("/matches/{public_id}/configure", response_model=Match)
+async def configure_match(
+    public_id: str, 
+    payload: ConfigureMatchRequest, 
+    service: MatchService = Depends(get_match_service)
+):
+    return await service.configure_match(public_id, payload.model_dump(exclude_unset=True))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -48,6 +48,11 @@ export interface Match {
   court_slug?: string | null
   status: 'warm_up' | 'in_progress' | 'final' | string
 
+  // Configuration
+  team_1_id?: number | null
+  team_2_id?: number | null
+  first_serving_team?: number | null
+
   participants: MatchParticipants
   config: MatchConfig
   completed_games: Array<Record<string, unknown>>

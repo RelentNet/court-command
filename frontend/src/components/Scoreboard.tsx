@@ -28,8 +28,13 @@ export function Scoreboard({
         className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 1 ? 'bg-slate-700/50' : ''}`}
       >
         <h2 className="font-semibold text-slate-300 text-xl">
-          {match.participants.team_1?.name || match.team_1_name || 'Team 1'}
+          {match.participants?.team_1?.name || match.team_1_name || 'Team 1'}
         </h2>
+        <div className="flex justify-center gap-2 text-slate-500 text-xs">
+          <span>{match.participants?.team_1?.player_1?.display_name || 'P1'}</span>
+          <span>•</span>
+          <span>{match.participants?.team_1?.player_2?.display_name || 'P2'}</span>
+        </div>
         <div className="font-mono font-bold text-6xl">{match.team_1_score}</div>
         {!readonly && (
           <div className="flex justify-center gap-2 mt-4">
@@ -37,7 +42,7 @@ export function Scoreboard({
               onClick={() => onPoint(1)}
               disabled={match.serving_team !== 1 || isPending}
               className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
-              aria-label={`Add point for ${match.participants.team_1?.name || match.team_1_name || 'Team 1'}`}
+              aria-label={`Add point for ${match.participants?.team_1?.name || match.team_1_name || 'Team 1'}`}
             >
               + Point
             </button>
@@ -50,8 +55,13 @@ export function Scoreboard({
         className={`text-center space-y-2 p-4 rounded-xl ${match.serving_team === 2 ? 'bg-slate-700/50' : ''}`}
       >
         <h2 className="font-semibold text-slate-300 text-xl">
-          {match.participants.team_2?.name || match.team_2_name || 'Team 2'}
+          {match.participants?.team_2?.name || match.team_2_name || 'Team 2'}
         </h2>
+        <div className="flex justify-center gap-2 text-slate-500 text-xs">
+          <span>{match.participants?.team_2?.player_1?.display_name || 'P1'}</span>
+          <span>•</span>
+          <span>{match.participants?.team_2?.player_2?.display_name || 'P2'}</span>
+        </div>
         <div className="font-mono font-bold text-6xl">{match.team_2_score}</div>
         {!readonly && (
           <div className="flex justify-center gap-2 mt-4">
@@ -59,7 +69,7 @@ export function Scoreboard({
               onClick={() => onPoint(2)}
               disabled={match.serving_team !== 2 || isPending}
               className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
-              aria-label={`Add point for ${match.participants.team_2?.name || match.team_2_name || 'Team 2'}`}
+              aria-label={`Add point for ${match.participants?.team_2?.name || match.team_2_name || 'Team 2'}`}
             >
               + Point
             </button>

@@ -19,9 +19,18 @@ function CourtReferee() {
     },
   })
 
-  if (isLoading) return <div className="p-8 text-white">Loading...</div>
+  if (isLoading)
+    return (
+      <div className="flex justify-center items-center bg-slate-900 min-h-screen text-white">
+        Loading...
+      </div>
+    )
   if (!court?.active_match)
-    return <div className="p-8 text-white">No active match on this court.</div>
+    return (
+      <div className="flex justify-center items-center bg-slate-900 min-h-screen text-white">
+        No active match on this court.
+      </div>
+    )
 
   return <MatchContainer matchId={court.active_match.public_id} />
 }

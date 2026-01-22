@@ -2,8 +2,6 @@
 
 - **id**: Unique identifier.
 - **display_name**: The name shown on the ticker.
-- **skill_rating**: (Optional) DUPR rating or self-rating.
-- **handedness**: Left or Right (Important for referees to track who is serving).
 - **stats_summary**: Career wins/losses.
 
 ### Teams
