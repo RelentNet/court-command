@@ -1,42 +1,36 @@
 # [DESIGN] Audit Report
 
-## Executive Summary (Health Score: 9/10)
+## Executive Summary (Health Score: 8/10)
 
-The Referee interface has been successfully redesigned to prioritize clarity and speed. The new **State-Driven UI** features:
-1.  **Player Box Architecture:** Distinct visual containers for each player (Team 1 L/R, Team 2 L/R) making positioning and server status instantly readable.
-2.  **Unified Action Control:** A single, large "Point Scored" button simplifies the primary interaction loop, reducing cognitive load.
-3.  **Visual Indicators:** The active server is highlighted with a green border/icon, and the "First Server" (Band) is clearly marked.
+The Referee Interface is functional and robust, but the **Match Configuration Panel** has become dense. The "Team Selection" and "Player Creation" controls are crammed into a grid that feels overwhelming, especially when trying to quickly set up a match on a tablet.
 
-These changes significantly improve usability on tablet devices.
+The goal of this redesign is to **decompose the complexity**. Instead of one monolithic form, we will visually separate the concerns into distinct, clear zones.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Ambiguous Server Tracking (Resolved)
-The new grid layout explicitly highlights the active serving team/player.
-- **Fix:** Implemented `renderPlayerBox` with conditional styling for the serving team.
+### 1. Cluttered Configuration Panel
+The current `MatchConfigurationPanel` mixes Team Selection, Player Assignment, Coin Toss, and Rules into one dense block.
+- **Fix:** Split the panel into three distinct vertical sections (or "Cards"):
+    1.  **Home Team** (Team 1 Selection & Players)
+    2.  **Away Team** (Team 2 Selection & Players)
+    3.  **Match Settings** (First Server & Series Length)
 
-### 2. Redundant Actions (Resolved)
-The dual "+ Point" buttons have been replaced.
-- **Fix:** Implemented a single central "Point Scored" button that acts based on the current server state.
-
-### 3. "Band" Visibility (Resolved)
-- **Fix:** Added a visual "Band" badge to the first player of each team.
+### 2. Dense Dropdowns
+The player selection dropdowns are small and crowded next to each other.
+- **Fix:** Use full-width rows for player selection within the Team Card, giving them breathing room.
 
 ## Optimization Suggestions (Long-term)
 
-### 1. Gestural Interactions
-On tablets, swipe gestures (Swipe Up for Point, Swipe Down for Undo) would be faster than button taps.
-
-### 2. High-Contrast Accessibility
-Ensure the "Active Server" highlight is distinguishable by more than just color (use icons or shape changes) for color-blind referees.
+### 1. Stepper Workflow
+For a brand new match, a "Wizard" or "Stepper" (Step 1: Teams -> Step 2: Settings -> Step 3: Start) might be even cleaner than a single page.
 
 ## Progress Checklist
 
-- [x] **Phase 1: Player Box Architecture**
-    - [x] Update `Scoreboard.tsx` to render 4 distinct player boxes (Team 1 L/R, Team 2 L/R).
-    - [x] Implement "Active Server" styling for the player currently serving.
-    - [x] Add "Band" badge for the First Server of each team.
+- [ ] **Phase 1: Visual Restructuring**
+    - [ ] Refactor `MatchConfigurationPanel` to use a `grid-cols-1 lg:grid-cols-3` layout for larger screens, stacking vertically on mobile/tablet.
+    - [ ] Create a dedicated `<TeamConfigCard />` sub-component to encapsulate the logic for selecting a team and its players.
+    - [ ] Create a `<MatchSettingsCard />` for the rules.
 
-- [x] **Phase 2: Unified Action Control**
-    - [x] Replace team-specific "+ Point" buttons with a single central "Point Scored" button.
-    - [x] Ensure the "Side Out" button remains accessible and clear.
+- [ ] **Phase 2: UI Polish**
+    - [ ] Increase padding and font sizes for touch friendliness.
+    - [ ] Use clearer visual grouping (borders/backgrounds) for Home vs Away.

@@ -14,6 +14,7 @@ import {
 import config from '../config'
 import { Spinner } from './Spinner'
 import { CreateTeamModal } from './CreateTeamModal'
+import { TeamConfigCard } from './TeamConfigCard'
 import type { Match, Player, Team } from '../types/domain'
 
 interface MatchConfigurationPanelProps {
@@ -145,28 +146,21 @@ export function MatchConfigurationPanel({
     },
   })
 
-  if (teamsLoading || playersLoading) return <Spinner />
-
-  const getTeamPlayers = (teamId: string) => {
-    const team = teams?.find((t) => t.id?.toString() === teamId)
-    if (!team) return []
-    return players?.filter((p) => team.player_ids.includes(p.id!)) || []
-  }
-
-  const swapPlayers = (team: 1 | 2) => {
-    if (team === 1) {
-      const temp = team1Player1Id
-      setTeam1Player1Id(team1Player2Id)
-      setTeam1Player2Id(temp)
-    } else {
-      const temp = team2Player1Id
-      setTeam2Player1Id(team2Player2Id)
-      setTeam2Player2Id(temp)
+    if (teamsLoading || playersLoading) return <Spinner />
+  
+    const swapPlayers = (team: 1 | 2) => {
+      if (team === 1) {
+        const temp = team1Player1Id
+        setTeam1Player1Id(team1Player2Id)
+        setTeam1Player2Id(temp)
+      } else {
+        const temp = team2Player1Id
+        setTeam2Player1Id(team2Player2Id)
+        setTeam2Player2Id(temp)
+      }
     }
-  }
-
-    return (
-      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+  
+    return (      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="flex justify-between items-center bg-slate-800 hover:bg-slate-750 p-4 border-b border-slate-700 w-full font-bold text-lime-400 transition-colors"
@@ -187,180 +181,40 @@ export function MatchConfigurationPanel({
         </button>
   
         {isOpen && (
-          <div className="p-6 animate-in slide-in-from-top-2 duration-200">
-            <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
-              {/* Team 1 Configuration */}
-              <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-                    <Users className="w-4 h-4" /> Team 1 (Home)
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setIsCreatingTeam(true)}
-                      className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
-                    >
-                      <Plus className="w-3 h-3" /> New
-                    </button>
-                    <button
-                      onClick={() => swapPlayers(1)}
-                      className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
-                      title="Swap Player 1 & 2"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Swap
-                    </button>
-                  </div>
-                </div>
-  
-                {teams && teams.length < 2 && (
-                  <div className="bg-amber-500/10 p-3 border border-amber-500/20 rounded text-amber-500 text-xs">
-                    Not enough teams available.{' '}
-                    <Link to="/registry" className="font-bold hover:underline">
-                      Create teams in Registry
-                    </Link>
-                  </div>
-                )}
-  
-                <select
-                  value={team1Id}
-                  onChange={(e) => setTeam1Id(e.target.value)}
-                  className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
-                >
-                  <option value="">-- Select Team --</option>
-                  {teams?.map((t) => (
-                    <option
-                      key={t.id}
-                      value={t.id || ''}
-                      disabled={t.id?.toString() === team2Id}
-                    >
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-  
-                {team1Id && (
-                  <div className="gap-2 grid grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                        Player 1 (Starts Right)
-                      </label>
-                      <select
-                        value={team1Player1Id}
-                        onChange={(e) => setTeam1Player1Id(e.target.value)}
-                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                      >
-                        <option value="">-- Player --</option>
-                        {getTeamPlayers(team1Id).map((p) => (
-                          <option key={p.id} value={p.id || ''}>
-                            {p.display_name}
-                          </option>
-                        ))}
-                      </select>
+                  <div className="p-6 animate-in slide-in-from-top-2 duration-200">
+                    <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
+                      <TeamConfigCard
+                        label="Team 1 (Home)"
+                        teamId={team1Id}
+                        otherTeamId={team2Id}
+                        player1Id={team1Player1Id}
+                        player2Id={team1Player2Id}
+                        teams={teams || []}
+                        players={players || []}
+                        onTeamChange={setTeam1Id}
+                        onPlayer1Change={setTeam1Player1Id}
+                        onPlayer2Change={setTeam1Player2Id}
+                        onSwap={() => swapPlayers(1)}
+                        onCreateTeam={() => setIsCreatingTeam(true)}
+                      />
+          
+                      <TeamConfigCard
+                        label="Team 2 (Away)"
+                        teamId={team2Id}
+                        otherTeamId={team1Id}
+                        player1Id={team2Player1Id}
+                        player2Id={team2Player2Id}
+                        teams={teams || []}
+                        players={players || []}
+                        onTeamChange={setTeam2Id}
+                        onPlayer1Change={setTeam2Player1Id}
+                        onPlayer2Change={setTeam2Player2Id}
+                        onSwap={() => swapPlayers(2)}
+                        onCreateTeam={() => setIsCreatingTeam(true)}
+                      />
                     </div>
-                    <div>
-                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                        Player 2
-                      </label>
-                      <select
-                        value={team1Player2Id}
-                        onChange={(e) => setTeam1Player2Id(e.target.value)}
-                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                      >
-                        <option value="">-- Player --</option>
-                        {getTeamPlayers(team1Id).map((p) => (
-                          <option key={p.id} value={p.id || ''}>
-                            {p.display_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-  
-              {/* Team 2 Configuration */}
-              <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-                    <Users className="w-4 h-4" /> Team 2 (Away)
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setIsCreatingTeam(true)}
-                      className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
-                    >
-                      <Plus className="w-3 h-3" /> New
-                    </button>
-                    <button
-                      onClick={() => swapPlayers(2)}
-                      className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
-                      title="Swap Player 1 & 2"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Swap
-                    </button>
-                  </div>
-                </div>
-  
-                <select
-                  value={team2Id}
-                  onChange={(e) => setTeam2Id(e.target.value)}
-                  className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
-                >
-                  <option value="">-- Select Team --</option>
-                  {teams?.map((t) => (
-                    <option
-                      key={t.id}
-                      value={t.id || ''}
-                      disabled={t.id?.toString() === team1Id}
-                    >
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-  
-                {team2Id && (
-                  <div className="gap-2 grid grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                        Player 1 (Starts Right)
-                      </label>
-                      <select
-                        value={team2Player1Id}
-                        onChange={(e) => setTeam2Player1Id(e.target.value)}
-                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                      >
-                        <option value="">-- Player --</option>
-                        {getTeamPlayers(team2Id).map((p) => (
-                          <option key={p.id} value={p.id || ''}>
-                            {p.display_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                        Player 2
-                      </label>
-                      <select
-                        value={team2Player2Id}
-                        onChange={(e) => setTeam2Player2Id(e.target.value)}
-                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                      >
-                        <option value="">-- Player --</option>
-                        {getTeamPlayers(team2Id).map((p) => (
-                          <option key={p.id} value={p.id || ''}>
-                            {p.display_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-  
-            <div className="mt-8">
-              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+          
+                    <div className="mt-8">              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
                 <ArrowRightLeft className="w-4 h-4" /> Service Logic
               </div>
   
