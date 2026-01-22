@@ -30,7 +30,7 @@ export function MatchContainer({
 
   // 2. Optimistic Mutations
   const actionMutation = useMutation({
-    mutationFn: async (action: 'point' | 'sideout' | 'undo') => {
+    mutationFn: async (action: 'point' | 'sideout' | 'undo' | 'reset') => {
       const res = await fetch(
         `${config.API_URL}/matches/${matchId}/${action}`,
         {
@@ -44,6 +44,16 @@ export function MatchContainer({
       queryClient.setQueryData(['match', matchId], updatedMatch)
     },
   })
+
+  const handleReset = () => {
+    if (
+      window.confirm(
+        'Are you sure you want to RESET this match? This will clear all scores and game history.',
+      )
+    ) {
+      actionMutation.mutate('reset')
+    }
+  }
 
   if (isLoading) return <div className="p-8 text-white">Loading match...</div>
   if (!match) return <div className="p-8 text-red-500">Match not found</div>
@@ -73,12 +83,20 @@ export function MatchContainer({
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => actionMutation.mutate('undo')}
-              className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg font-bold"
-            >
-              <Undo className="w-4 h-4" /> Undo
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => actionMutation.mutate('undo')}
+                className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg font-bold"
+              >
+                <Undo className="w-4 h-4" /> Undo
+              </button>
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg font-bold"
+              >
+                Reset Match
+              </button>
+            </div>
           </div>
         )}
 

@@ -185,9 +185,13 @@ async def add_point(public_id: str, service: MatchService = Depends(get_match_se
 async def side_out(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.side_out(public_id)
 
-@app.post("/matches/{public_id}/undo")
+@app.post("/matches/{public_id}/undo", response_model=Match)
 async def undo_last_event(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.undo_last_event(public_id)
+
+@app.post("/matches/{public_id}/reset", response_model=Match)
+async def reset_match(public_id: str, service: MatchService = Depends(get_match_service)):
+    return await service.reset_match(public_id)
 
 if __name__ == "__main__":
     import uvicorn

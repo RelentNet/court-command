@@ -207,7 +207,34 @@ class MatchService:
             match.current_game_num = 1
             match.completed_games = []
 
-        await self.session.delete(last_event)
+        await self.session.commit()
+        await self.session.refresh(match)
+        await self._broadcast_update(match)
+        return match
+
+    async def reset_match(self, public_id: str) -> Match:
+        match = await self._get_match_with_lock(public_id)
+
+        # Logic: Reset everything but participants/court
+        match.team_1_score = 0
+        match.team_2_score = 0
+        match.current_game_num = 1
+        match.server_number = 1
+        match.serving_team = 1
+        match.status = "in_progress"
+        match.completed_games = []
+
+        # Log Event
+        seq_id = await self._get_next_sequence_id(match.id)
+        event = MatchEvent(
+            match_id=match.id,
+            sequence_id=seq_id,
+            event_type="MATCH_RESET",
+            score_snapshot=match.model_dump(mode="json"),
+            payload={"action": "reset"}
+        )
+        
+        self.session.add(event)
         self.session.add(match)
         
         await self.session.commit()
