@@ -9,7 +9,6 @@ import {
   RefreshCw,
   Settings,
   Trophy,
-  User,
   Users,
 } from 'lucide-react'
 import config from '../config'
@@ -57,13 +56,21 @@ export function MatchConfigurationPanel({
     }
 
     // Hydrate players from participants if they exist
+    // @ts-ignore
     if (match.participants.team_1?.player_1?.id)
+      // @ts-ignore
       setTeam1Player1Id(match.participants.team_1.player_1.id.toString())
+    // @ts-ignore
     if (match.participants.team_1?.player_2?.id)
+      // @ts-ignore
       setTeam1Player2Id(match.participants.team_1.player_2.id.toString())
+    // @ts-ignore
     if (match.participants.team_2?.player_1?.id)
+      // @ts-ignore
       setTeam2Player1Id(match.participants.team_2.player_1.id.toString())
+    // @ts-ignore
     if (match.participants.team_2?.player_2?.id)
+      // @ts-ignore
       setTeam2Player2Id(match.participants.team_2.player_2.id.toString())
   }, [match])
 

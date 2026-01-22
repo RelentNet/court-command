@@ -57,6 +57,9 @@ class MatchService:
     async def add_point(self, public_id: str) -> Match:
         match = await self._get_match_with_lock(public_id)
 
+        if match.status == "final":
+            raise HTTPException(status_code=400, detail="Match is already finalized")
+
         # Logic: Auto-start match if in preparing
         if match.status == "preparing":
             match.status = "in_progress"
@@ -141,6 +144,9 @@ class MatchService:
 
     async def side_out(self, public_id: str) -> Match:
         match = await self._get_match_with_lock(public_id)
+
+        if match.status == "final":
+            raise HTTPException(status_code=400, detail="Match is already finalized")
 
         old_server = match.server_number
         old_serving_team = match.serving_team
