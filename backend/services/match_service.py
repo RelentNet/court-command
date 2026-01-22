@@ -92,12 +92,30 @@ class MatchService:
             # Re-assigning triggers the flag_modified
             match.completed_games = list(match.completed_games)
             
-            # Reset for next game
-            match.team_1_score = 0
-            match.team_2_score = 0
-            match.current_game_num += 1
-            match.server_number = 1
-            match.serving_team = 1 # Or logic for who serves first in next game
+            # Check Match Over (Best of X)
+            # Parse 'best_of_X' string or default to 3
+            format_str = match.config.get("format", "best_of_3")
+            try:
+                best_of = int(format_str.split("_")[-1])
+            except:
+                best_of = 3
+                
+            games_needed = (best_of // 2) + 1
+            
+            # Count wins
+            wins_1 = sum(1 for g in match.completed_games if g.get("winner") == 1)
+            wins_2 = sum(1 for g in match.completed_games if g.get("winner") == 2)
+            
+            if wins_1 >= games_needed or wins_2 >= games_needed:
+                match.status = "final"
+                # Keep scores as is for display of final game
+            else:
+                # Reset for next game
+                match.team_1_score = 0
+                match.team_2_score = 0
+                match.current_game_num += 1
+                match.server_number = 2 # Start next game with 2nd server (standard convention)
+                match.serving_team = 1 # Usually winners serve? Or losers? (Configurable)
         
         # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
@@ -176,12 +194,18 @@ class MatchService:
             match.team_2_score = snapshot.get("team_2_score", 0)
             match.server_number = snapshot.get("server_number", 1)
             match.serving_team = snapshot.get("serving_team", 1)
+            match.status = snapshot.get("status", "in_progress")
+            match.current_game_num = snapshot.get("current_game_num", 1)
+            match.completed_games = snapshot.get("completed_games", [])
         else:
             # Reset to zero
             match.team_1_score = 0
             match.team_2_score = 0
             match.server_number = 1
             match.serving_team = 1
+            match.status = "in_progress"
+            match.current_game_num = 1
+            match.completed_games = []
 
         await self.session.delete(last_event)
         self.session.add(match)
