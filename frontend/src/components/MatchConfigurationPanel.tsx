@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect } from 'react'
-import { Settings, Users, ArrowRightLeft, User, RefreshCw } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Settings, Users, ArrowRightLeft, User, RefreshCw, Plus } from 'lucide-react'
 import config from '../config'
 import type { Team, Match, Player } from '../types/domain'
 import { Spinner } from './Spinner'
+import { CreateTeamModal } from './CreateTeamModal'
 
 interface MatchConfigurationPanelProps {
   match: Match
@@ -28,6 +30,7 @@ export function MatchConfigurationPanel({
   const [firstServer, setFirstServer] = useState<number>(
     match.first_serving_team || 1,
   )
+  const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   // Sync state if match data updates from server
   useEffect(() => {
@@ -145,14 +148,31 @@ export function MatchConfigurationPanel({
             <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
               <Users className="w-4 h-4" /> Team 1 (Home)
             </div>
-            <button
-              onClick={() => swapPlayers(1)}
-              className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
-              title="Swap Player 1 & 2"
-            >
-              <RefreshCw className="w-3 h-3" /> Swap
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsCreatingTeam(true)}
+                className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
+              >
+                <Plus className="w-3 h-3" /> New
+              </button>
+              <button
+                onClick={() => swapPlayers(1)}
+                className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
+                title="Swap Player 1 & 2"
+              >
+                <RefreshCw className="w-3 h-3" /> Swap
+              </button>
+            </div>
           </div>
+
+          {teams && teams.length < 2 && (
+            <div className="bg-amber-500/10 p-3 border border-amber-500/20 rounded text-amber-500 text-xs">
+              Not enough teams available.{' '}
+              <Link to="/registry" className="font-bold hover:underline">
+                Create teams in Registry
+              </Link>
+            </div>
+          )}
 
           <select
             value={team1Id}
@@ -316,7 +336,7 @@ export function MatchConfigurationPanel({
       <div className="flex justify-end mt-6 pt-4 border-t border-slate-700">
         <button
           onClick={() => configureMutation.mutate()}
-          disabled={configureMutation.isPending}
+          disabled={!team1Id || !team2Id || configureMutation.isPending}
           className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg"
         >
           {configureMutation.isPending
@@ -324,6 +344,13 @@ export function MatchConfigurationPanel({
             : 'Update Match Configuration'}
         </button>
       </div>
+
+      {isCreatingTeam && players && (
+        <CreateTeamModal
+          players={players}
+          onClose={() => setIsCreatingTeam(false)}
+        />
+      )}
     </div>
   )
 }

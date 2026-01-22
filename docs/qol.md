@@ -1,56 +1,40 @@
 # [QOL] Audit Report
 
-## Executive Summary (Health Score: 8/10)
+## Executive Summary (Health Score: 9/10)
 
-The application now features a polished loading experience with a dedicated `Spinner` component and has addressed critical accessibility gaps by adding `aria-labels` to icon-only buttons and inputs. The "feel" of the app is significantly improved.
+The application now boasts a highly resilient and user-friendly match configuration workflow. The "Lazy Configuration" on the referee page is robust, handling empty states gracefully and allowing for on-the-fly team and player creation. Registry management has been hardened with delete actions and validation rules (minimum 2 players per team), significantly reducing the chance of invalid game states.
 
-Remaining work focuses on adding a global notification system and modernizing confirmation dialogs.
+Remaining work is minor: adding "Edit" functionality for registry items would complete the CRUD cycle.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Missing Accessibility Labels
+### 1. Match Configuration Crash on Empty/Invalid Teams
+*(Resolved)* The configuration panel now validates input and provides a fallback workflow.
+- **Fix:** Added validation to the "Update" button and a "Create New Team" modal directly in the referee interface.
 
-_(Resolved)_ Icon-only buttons are now visible to screen readers.
+### 2. Rigid Registry Management
+*(Resolved)* Delete actions are now available.
+- **Fix:** Implemented delete buttons with confirmation for players and teams.
 
-- **Location:** `frontend/src/routes/courts.index.tsx` (Delete button)
-- **Issue:** Button containing `<Trash2 />` had no text.
-- **Fix:** Added `aria-label="Delete court"`.
-
-### 2. Missing Input Labels
-
-_(Resolved)_ Inputs relying on placeholders now have accessibility attributes.
-
-- **Location:** `frontend/src/routes/courts.index.tsx` (Create court input)
-- **Fix:** Added `aria-label` to the input.
-
-### 3. Primitive Loading & Error States
-
-_(Resolved)_ Loading states now use a polished `<Spinner />` component.
-
-- **Location:** `courts.index.tsx`, `MatchSetupForm.tsx`.
-- **Fix:** Replaced plain text loading with `Spinner` component.
+### 3. Invalid Team Composition
+*(Resolved)* Teams must now have at least 2 players.
+- **Fix:** Enforced validation in `registry.index.tsx` and `CreateTeamModal.tsx`.
 
 ## Optimization Suggestions (Long-term)
 
-### 1. Global Notification System
+### 1. "Quick Team" Creation
+Allow creating a team *directly* from the `MatchConfigurationPanel` without leaving the referee page. This keeps the flow uninterrupted.
 
-Users receive no feedback when actions succeed (e.g., "Court created successfully") or fail (apart from console errors).
-
-- **Recommendation:** Integrate `sonner` or `react-hot-toast` to provide non-intrusive feedback.
-
-### 2. Modernize Confirmation Dialogs
-
-The use of `window.confirm()` halts the browser thread and looks unprofessional.
-
-- **Recommendation:** Use a proper Modal/Dialog component (e.g., from `shadcn/ui` or `headlessui`).
+### 2. Player Availability Tracking
+Prevent selecting a player who is already active in another match to avoid state conflicts.
 
 ## Progress Checklist
 
-- [ ] **Phase 1: Accessibility & Feedback**
-  - [x] Add `aria-label` to the delete button in `courts.index.tsx`.
-  - [x] Add `aria-label` to the court creation input in `courts.index.tsx`.
-  - [x] Add `aria-label` to "Point" buttons in `Scoreboard.tsx` to specify the team (e.g., "Add point for Team 1").
+- [ ] **Phase 1: Registry Hardening**
+    - [x] Enforce minimum 2 players for Team creation in `registry.index.tsx`.
+    - [x] Implement Delete functionality for Players and Teams.
+    - [ ] Implement Edit functionality (basic modal or inline) for Players/Teams.
 
-- [x] **Phase 2: Visual Polish**
-  - [x] Create a reusable `<Spinner />` component.
-  - [x] Replace text "Loading..." with `<Spinner />` in `courts.index.tsx` and `MatchSetupForm.tsx`.
+- [ ] **Phase 2: Match Config Resilience**
+    - [x] Validate team selection in `MatchConfigurationPanel.tsx` before submitting.
+    - [x] Add a "Create New Team" link/modal directly in the configuration panel dropdown.

@@ -14,8 +14,9 @@ from models import Match, Court, Player, Team
 from services.match_service import MatchService
 from services.court_service import CourtService
 from services.registry_service import RegistryService
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from fastapi import Body
 
 # Logging Setup
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +77,11 @@ async def get_players(service: RegistryService = Depends(get_registry_service)):
 async def create_player(player: Player, service: RegistryService = Depends(get_registry_service)):
     return await service.create_player(player)
 
+@app.delete("/players/{player_id}")
+async def delete_player(player_id: int, service: RegistryService = Depends(get_registry_service)):
+    await service.delete_player(player_id)
+    return {"status": "deleted"}
+
 @app.get("/teams", response_model=List[Team])
 async def get_teams(service: RegistryService = Depends(get_registry_service)):
     return await service.get_all_teams()
@@ -83,6 +89,11 @@ async def get_teams(service: RegistryService = Depends(get_registry_service)):
 @app.post("/teams", response_model=Team)
 async def create_team(team: Team, service: RegistryService = Depends(get_registry_service)):
     return await service.create_team(team)
+
+@app.delete("/teams/{team_id}")
+async def delete_team(team_id: int, service: RegistryService = Depends(get_registry_service)):
+    await service.delete_team(team_id)
+    return {"status": "deleted"}
 
 @app.get("/teams/{team_id}", response_model=Team)
 async def get_team(team_id: int, service: RegistryService = Depends(get_registry_service)):
@@ -128,6 +139,12 @@ async def delete_court(slug: str, service: CourtService = Depends(get_court_serv
     return {"status": "deleted"}
 
 # --- Match Endpoints ---
+
+class ConfigureMatchRequest(BaseModel):
+    team_1_id: Optional[int] = None
+    team_2_id: Optional[int] = None
+    first_serving_team: Optional[int] = None
+    participants: Optional[Dict[str, Any]] = None
 
 @app.websocket("/ws/matches/{public_id}")
 async def websocket_endpoint(websocket: WebSocket, public_id: str):
@@ -192,12 +209,6 @@ async def undo_last_event(public_id: str, service: MatchService = Depends(get_ma
 @app.post("/matches/{public_id}/reset", response_model=Match)
 async def reset_match(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.reset_match(public_id)
-
-class ConfigureMatchRequest(BaseModel):
-    team_1_id: Optional[int] = None
-    team_2_id: Optional[int] = None
-    first_serving_team: Optional[int] = None
-    participants: Optional[Dict[str, Any]] = None
 
 @app.patch("/matches/{public_id}/configure", response_model=Match)
 async def configure_match(

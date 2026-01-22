@@ -20,6 +20,13 @@ class RegistryService:
         await self.session.refresh(player)
         return player
 
+    async def delete_player(self, player_id: int):
+        player = await self.session.get(Player, player_id)
+        if not player:
+            raise HTTPException(status_code=404, detail="Player not found")
+        await self.session.delete(player)
+        await self.session.commit()
+
     # --- Teams ---
     async def get_all_teams(self) -> List[Team]:
         result = await self.session.execute(select(Team).order_by(Team.name))
@@ -30,6 +37,13 @@ class RegistryService:
         await self.session.commit()
         await self.session.refresh(team)
         return team
+
+    async def delete_team(self, team_id: int):
+        team = await self.session.get(Team, team_id)
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
+        await self.session.delete(team)
+        await self.session.commit()
 
     async def get_team(self, team_id: int) -> Team:
         team = await self.session.get(Team, team_id)

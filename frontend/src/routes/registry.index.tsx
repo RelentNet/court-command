@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Plus, Shirt, User, Users } from 'lucide-react'
+import { Plus, Shirt, Trash2, User, Users } from 'lucide-react'
 import config from '../config'
 import type { Player, Team } from '../types/domain'
 
@@ -86,6 +86,17 @@ function PlayersPanel() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`${config.API_URL}/players/${id}`, {
+        method: 'DELETE',
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['players'] })
+    },
+  })
+
   return (
     <div className="space-y-6">
       {/* Create Form */}
@@ -141,6 +152,17 @@ function PlayersPanel() {
             <div className="bg-slate-900 p-2 rounded-full text-slate-500">
               <User className="w-5 h-5" />
             </div>
+            <button
+              onClick={() => {
+                if (confirm(`Delete ${player.display_name}?`)) {
+                  deleteMutation.mutate(player.id!)
+                }
+              }}
+              className="ml-4 text-slate-600 hover:text-red-500 transition-colors"
+              aria-label={`Delete ${player.display_name}`}
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
           </div>
         ))}
       </div>
@@ -192,6 +214,17 @@ function TeamsPanel() {
       setName('')
       setShortName('')
       setSelectedPlayers([])
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`${config.API_URL}/teams/${id}`, {
+        method: 'DELETE',
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] })
     },
   })
 
@@ -256,11 +289,11 @@ function TeamsPanel() {
         </div>
 
         <button
-          disabled={!name || createMutation.isPending}
+          disabled={!name || selectedPlayers.length < 2 || createMutation.isPending}
           onClick={() => createMutation.mutate()}
           className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-6 py-2 rounded-lg w-full font-bold transition-colors"
         >
-          Create Team
+          {selectedPlayers.length < 2 ? 'Select at least 2 players' : 'Create Team'}
         </button>
       </div>
 
@@ -297,6 +330,20 @@ function TeamsPanel() {
                   </span>
                 ) : null
               })}
+            </div>
+
+            <div className="top-4 right-4 absolute">
+              <button
+                onClick={() => {
+                  if (confirm(`Delete ${team.name}?`)) {
+                    deleteMutation.mutate(team.id!)
+                  }
+                }}
+                className="bg-slate-900/50 hover:bg-red-500/20 p-2 rounded text-slate-500 hover:text-red-500 transition-all"
+                aria-label={`Delete ${team.name}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}
