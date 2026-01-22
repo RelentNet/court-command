@@ -1,4 +1,4 @@
-from sqlmodel import select, func
+from sqlmodel import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 import json
@@ -207,16 +207,33 @@ class MatchService:
             match.status = snapshot.get("status", "in_progress")
             match.current_game_num = snapshot.get("current_game_num", 1)
             match.completed_games = snapshot.get("completed_games", [])
+            
+            # Restore configuration and participants
+            if "participants" in snapshot:
+                match.participants = snapshot["participants"]
+            if "config" in snapshot:
+                match.config = snapshot["config"]
+            match.team_1_id = snapshot.get("team_1_id")
+            match.team_2_id = snapshot.get("team_2_id")
+            match.first_serving_team = snapshot.get("first_serving_team")
         else:
-            # Reset to zero
+            # Reset to zero (Pre-match state)
             match.team_1_score = 0
             match.team_2_score = 0
             match.server_number = 1
             match.serving_team = 1
-            match.status = "in_progress"
+            match.status = "preparing" # Default to preparing
             match.current_game_num = 1
             match.completed_games = []
+            # Ideally we shouldn't delete the genesis event?
+            # But getting here means we undid the VERY FIRST event.
+            pass
 
+        delete_stmt = delete(MatchEvent).where(MatchEvent.id == last_event.id)
+        await self.session.execute(delete_stmt)
+        
+        self.session.add(match)
+        
         await self.session.commit()
         await self.session.refresh(match)
         await self._broadcast_update(match)
