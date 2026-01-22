@@ -37,6 +37,7 @@ export function Scoreboard({
               onClick={() => onPoint(1)}
               disabled={match.serving_team !== 1 || isPending}
               className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
+              aria-label={`Add point for ${match.participants.team_1?.name || match.team_1_name || 'Team 1'}`}
             >
               + Point
             </button>
@@ -58,6 +59,7 @@ export function Scoreboard({
               onClick={() => onPoint(2)}
               disabled={match.serving_team !== 2 || isPending}
               className="bg-lime-600 hover:bg-lime-500 disabled:opacity-20 px-6 py-3 rounded-lg font-bold transition-all disabled:cursor-not-allowed"
+              aria-label={`Add point for ${match.participants.team_2?.name || match.team_2_name || 'Team 2'}`}
             >
               + Point
             </button>

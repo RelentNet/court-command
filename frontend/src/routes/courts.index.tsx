@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
 import type { Court } from '../types/domain'
+import { Spinner } from '../components/Spinner'
 
 export const Route = createFileRoute('/courts/')({
   component: CourtsDashboard,
@@ -25,6 +26,8 @@ function CourtsDashboard() {
       return res.json()
     },
   })
+
+  // ... (mutations remain the same)
 
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -54,7 +57,12 @@ function CourtsDashboard() {
     },
   })
 
-  if (isLoading) return <div className="p-8 text-white">Loading courts...</div>
+  if (isLoading)
+    return (
+      <div className="flex justify-center items-center min-h-screen text-white">
+        <Spinner size={48} />
+      </div>
+    )
 
   return (
     <div className="bg-slate-900 p-6 min-h-screen text-white">
@@ -68,6 +76,7 @@ function CourtsDashboard() {
             value={newCourtName}
             onChange={(e) => setNewCourtName(e.target.value)}
             placeholder="Enter court name (e.g. Center Court)"
+            aria-label="New court name"
             className="flex-1 bg-slate-700 px-4 py-2 rounded text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-lime-500"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && newCourtName.trim()) {
@@ -123,6 +132,7 @@ function CourtsDashboard() {
                     }
                   }}
                   className="text-slate-600 hover:text-red-500 transition-colors"
+                  aria-label={`Delete ${court.name}`}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>

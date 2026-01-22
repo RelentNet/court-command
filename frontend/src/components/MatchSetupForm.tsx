@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Settings, Shirt, Trophy } from 'lucide-react'
 import config from '../config'
 import type { Team } from '../types/domain'
+import { Spinner } from './Spinner'
 
 interface MatchSetupFormProps {
   courtSlug: string
@@ -30,7 +31,8 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
     },
   })
 
-  // Create Match Mutation
+  // ... (createMatch mutation remains the same)
+
   const createMatch = useMutation({
     mutationFn: async () => {
       const t1 = teams?.find((t: Team) => t.id?.toString() === team1Id)
@@ -79,7 +81,12 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
     },
   })
 
-  if (isLoading) return <div className="text-white">Loading teams...</div>
+  if (isLoading)
+    return (
+      <div className="flex justify-center p-8">
+        <Spinner />
+      </div>
+    )
 
   return (
     <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200">
