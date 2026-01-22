@@ -57,6 +57,10 @@ class MatchService:
     async def add_point(self, public_id: str) -> Match:
         match = await self._get_match_with_lock(public_id)
 
+        # Logic: Auto-start match if in preparing
+        if match.status == "preparing":
+            match.status = "in_progress"
+
         # Logic: Add Point
         if match.serving_team == 1:
             match.team_1_score += 1
@@ -221,7 +225,7 @@ class MatchService:
         match.current_game_num = 1
         match.server_number = 1
         match.serving_team = 1
-        match.status = "in_progress"
+        match.status = "preparing"
         match.completed_games = []
 
         # Log Event
@@ -251,11 +255,19 @@ class MatchService:
         if "team_2_id" in config_data:
             match.team_2_id = config_data["team_2_id"]
             
+        # Update Status (e.g. Start Match)
+        if "status" in config_data:
+            match.status = config_data["status"]
+
+        # Update Match Configuration (Format, etc.)
+        if "config" in config_data:
+            match.config = config_data["config"]
+
         # Update Serving Preference
         if "first_serving_team" in config_data:
             match.first_serving_team = config_data["first_serving_team"]
             # If match hasn't started scoring yet, update current server
-            if match.team_1_score == 0 and match.team_2_score == 0 and match.current_game_num == 1:
+            if match.team_1_score == 0 and match.team_2_score == 0 and match.status == "preparing":
                 match.serving_team = match.first_serving_team
 
         # Standardize participants object for frontend

@@ -144,6 +144,8 @@ class ConfigureMatchRequest(BaseModel):
     team_1_id: Optional[int] = None
     team_2_id: Optional[int] = None
     first_serving_team: Optional[int] = None
+    status: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
     participants: Optional[Dict[str, Any]] = None
 
 @app.websocket("/ws/matches/{public_id}")

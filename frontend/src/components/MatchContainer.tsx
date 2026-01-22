@@ -107,16 +107,22 @@ export function MatchContainer({
         {/* Components */}
         <Scoreboard
           match={match}
-          onPoint={readonly ? () => {} : () => actionMutation.mutate('point')}
+          onPoint={
+            readonly || match.status === 'preparing'
+              ? () => {}
+              : () => actionMutation.mutate('point')
+          }
           onSideOut={
-            readonly ? () => {} : () => actionMutation.mutate('sideout')
+            readonly || match.status === 'preparing'
+              ? () => {}
+              : () => actionMutation.mutate('sideout')
           }
           isPending={actionMutation.isPending}
-          readonly={readonly}
+          readonly={readonly || match.status === 'preparing'}
         />
 
         {/* Debug Info (Only for referee) */}
-        {!readonly && (
+        {!readonly && match.status !== 'preparing' && (
           <div className="gap-6 grid grid-cols-2">
             <DebugConsole data={match} />
             <ControlPanel />

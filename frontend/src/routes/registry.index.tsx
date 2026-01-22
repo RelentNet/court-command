@@ -289,11 +289,15 @@ function TeamsPanel() {
         </div>
 
         <button
-          disabled={!name || selectedPlayers.length < 2 || createMutation.isPending}
+          disabled={
+            !name || selectedPlayers.length < 2 || createMutation.isPending
+          }
           onClick={() => createMutation.mutate()}
           className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-6 py-2 rounded-lg w-full font-bold transition-colors"
         >
-          {selectedPlayers.length < 2 ? 'Select at least 2 players' : 'Create Team'}
+          {selectedPlayers.length < 2
+            ? 'Select at least 2 players'
+            : 'Create Team'}
         </button>
       </div>
 

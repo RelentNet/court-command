@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Settings, Shirt, Trophy } from 'lucide-react'
 import config from '../config'
-import type { Team } from '../types/domain'
 import { Spinner } from './Spinner'
+import type { Team } from '../types/domain'
 
 interface MatchSetupFormProps {
   courtSlug: string

@@ -44,7 +44,7 @@ class CourtService:
         # 2. Fetch Active Match
         match_stmt = select(Match).where(
             Match.court_slug == slug, 
-            Match.status.in_(["in_progress", "warm_up"])
+            Match.status.in_(["in_progress", "preparing"])
         ).order_by(Match.created_at.desc()).limit(1)
         
         match_res = await self.session.execute(match_stmt)

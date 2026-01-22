@@ -4,8 +4,8 @@ import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
 import { MatchSetupForm } from '../components/MatchSetupForm'
-import type { Court, Match } from '../types/domain'
 import { Spinner } from '../components/Spinner'
+import type { Court, Match } from '../types/domain'
 
 export const Route = createFileRoute('/courts/$courtSlug/')({
   component: CourtDetail,
@@ -41,7 +41,7 @@ function CourtDetail() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           court_slug: courtSlug,
-          status: 'warm_up',
+          status: 'preparing',
           participants: {},
           config: {
             format: 'best_of_3',
@@ -59,7 +59,8 @@ function CourtDetail() {
     },
   })
 
-  if (isLoading || !court) return <div className="p-8 text-white">Loading...</div>
+  if (isLoading || !court)
+    return <div className="p-8 text-white">Loading...</div>
   if (error) return <div className="p-8 text-red-500">Court not found</div>
 
   return (

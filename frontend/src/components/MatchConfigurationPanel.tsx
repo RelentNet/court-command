@@ -1,11 +1,21 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Settings, Users, ArrowRightLeft, User, RefreshCw, Plus } from 'lucide-react'
+import {
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  RefreshCw,
+  Settings,
+  Trophy,
+  User,
+  Users,
+} from 'lucide-react'
 import config from '../config'
-import type { Team, Match, Player } from '../types/domain'
 import { Spinner } from './Spinner'
 import { CreateTeamModal } from './CreateTeamModal'
+import type { Match, Player, Team } from '../types/domain'
 
 interface MatchConfigurationPanelProps {
   match: Match
@@ -15,8 +25,10 @@ export function MatchConfigurationPanel({
   match,
 }: MatchConfigurationPanelProps) {
   const queryClient = useQueryClient()
+  const isStarted = match.status !== 'preparing'
 
   // Form State
+  const [isOpen, setIsOpen] = useState(!isStarted)
   const [team1Id, setTeam1Id] = useState<string>(
     match.team_1_id?.toString() || '',
   )
@@ -30,6 +42,9 @@ export function MatchConfigurationPanel({
   const [firstServer, setFirstServer] = useState<number>(
     match.first_serving_team || 1,
   )
+  const [bestOf, setBestOf] = useState<number>(
+    parseInt(match.config?.format?.split('_').pop() || '3'),
+  )
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   // Sync state if match data updates from server
@@ -37,15 +52,18 @@ export function MatchConfigurationPanel({
     if (match.team_1_id) setTeam1Id(match.team_1_id.toString())
     if (match.team_2_id) setTeam2Id(match.team_2_id.toString())
     if (match.first_serving_team) setFirstServer(match.first_serving_team)
+    if (match.config?.format) {
+      setBestOf(parseInt(match.config.format.split('_').pop() || '3'))
+    }
 
     // Hydrate players from participants if they exist
-    if (match.participants?.team_1?.player_1?.id)
+    if (match.participants.team_1?.player_1?.id)
       setTeam1Player1Id(match.participants.team_1.player_1.id.toString())
-    if (match.participants?.team_1?.player_2?.id)
+    if (match.participants.team_1?.player_2?.id)
       setTeam1Player2Id(match.participants.team_1.player_2.id.toString())
-    if (match.participants?.team_2?.player_1?.id)
+    if (match.participants.team_2?.player_1?.id)
       setTeam2Player1Id(match.participants.team_2.player_1.id.toString())
-    if (match.participants?.team_2?.player_2?.id)
+    if (match.participants.team_2?.player_2?.id)
       setTeam2Player2Id(match.participants.team_2.player_2.id.toString())
   }, [match])
 
@@ -83,6 +101,11 @@ export function MatchConfigurationPanel({
         team_1_id: team1Id ? parseInt(team1Id) : null,
         team_2_id: team2Id ? parseInt(team2Id) : null,
         first_serving_team: firstServer,
+        status: match.status === 'preparing' ? 'in_progress' : match.status,
+        config: {
+          ...match.config,
+          format: `best_of_${bestOf}`,
+        },
         participants: {
           team_1: {
             ...t1,
@@ -135,217 +158,273 @@ export function MatchConfigurationPanel({
     }
   }
 
-  return (
-    <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl">
-      <div className="flex items-center gap-2 mb-6 pb-4 border-b border-slate-700 font-semibold text-lime-400 text-lg">
-        <Settings className="w-5 h-5" /> Match Configuration
-      </div>
-
-      <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
-        {/* Team 1 Configuration */}
-        <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-              <Users className="w-4 h-4" /> Team 1 (Home)
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIsCreatingTeam(true)}
-                className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
-              >
-                <Plus className="w-3 h-3" /> New
-              </button>
-              <button
-                onClick={() => swapPlayers(1)}
-                className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
-                title="Swap Player 1 & 2"
-              >
-                <RefreshCw className="w-3 h-3" /> Swap
-              </button>
-            </div>
-          </div>
-
-          {teams && teams.length < 2 && (
-            <div className="bg-amber-500/10 p-3 border border-amber-500/20 rounded text-amber-500 text-xs">
-              Not enough teams available.{' '}
-              <Link to="/registry" className="font-bold hover:underline">
-                Create teams in Registry
-              </Link>
-            </div>
-          )}
-
-          <select
-            value={team1Id}
-            onChange={(e) => setTeam1Id(e.target.value)}
-            className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
-          >
-            <option value="">-- Select Team --</option>
-            {teams?.map((t) => (
-              <option
-                key={t.id}
-                value={t.id || ''}
-                disabled={t.id?.toString() === team2Id}
-              >
-                {t.name}
-              </option>
-            ))}
-          </select>
-
-          {team1Id && (
-            <div className="gap-2 grid grid-cols-2">
-              <div>
-                <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                  Player 1 (Starts Right)
-                </label>
-                <select
-                  value={team1Player1Id}
-                  onChange={(e) => setTeam1Player1Id(e.target.value)}
-                  className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                >
-                  <option value="">-- Player --</option>
-                  {getTeamPlayers(team1Id).map((p) => (
-                    <option key={p.id} value={p.id || ''}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                  Player 2
-                </label>
-                <select
-                  value={team1Player2Id}
-                  onChange={(e) => setTeam1Player2Id(e.target.value)}
-                  className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                >
-                  <option value="">-- Player --</option>
-                  {getTeamPlayers(team1Id).map((p) => (
-                    <option key={p.id} value={p.id || ''}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Team 2 Configuration */}
-        <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
-          <div className="flex justify-between items-center mb-2">
-            <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-              <Users className="w-4 h-4" /> Team 2 (Away)
-            </div>
-            <button
-              onClick={() => swapPlayers(2)}
-              className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
-              title="Swap Player 1 & 2"
-            >
-              <RefreshCw className="w-3 h-3" /> Swap
-            </button>
-          </div>
-
-          <select
-            value={team2Id}
-            onChange={(e) => setTeam2Id(e.target.value)}
-            className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
-          >
-            <option value="">-- Select Team --</option>
-            {teams?.map((t) => (
-              <option
-                key={t.id}
-                value={t.id || ''}
-                disabled={t.id?.toString() === team1Id}
-              >
-                {t.name}
-              </option>
-            ))}
-          </select>
-
-          {team2Id && (
-            <div className="gap-2 grid grid-cols-2">
-              <div>
-                <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                  Player 1 (Starts Right)
-                </label>
-                <select
-                  value={team2Player1Id}
-                  onChange={(e) => setTeam2Player1Id(e.target.value)}
-                  className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                >
-                  <option value="">-- Player --</option>
-                  {getTeamPlayers(team2Id).map((p) => (
-                    <option key={p.id} value={p.id || ''}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-slate-500 text-[10px] uppercase">
-                  Player 2
-                </label>
-                <select
-                  value={team2Player2Id}
-                  onChange={(e) => setTeam2Player2Id(e.target.value)}
-                  className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
-                >
-                  <option value="">-- Player --</option>
-                  {getTeamPlayers(team2Id).map((p) => (
-                    <option key={p.id} value={p.id || ''}>
-                      {p.display_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-8">
-        <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-          <ArrowRightLeft className="w-4 h-4" /> Service Logic
-        </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={() => setFirstServer(1)}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
-              firstServer === 1
-                ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
-                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-            }`}
-          >
-            Team 1 Serves First
-          </button>
-          <button
-            onClick={() => setFirstServer(2)}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
-              firstServer === 2
-                ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
-                : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-            }`}
-          >
-            Team 2 Serves First
-          </button>
-        </div>
-      </div>
-
-      <div className="flex justify-end mt-6 pt-4 border-t border-slate-700">
+    return (
+      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
         <button
-          onClick={() => configureMutation.mutate()}
-          disabled={!team1Id || !team2Id || configureMutation.isPending}
-          className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex justify-between items-center bg-slate-800 hover:bg-slate-750 p-4 border-b border-slate-700 w-full font-bold text-lime-400 transition-colors"
         >
-          {configureMutation.isPending
-            ? 'Updating...'
-            : 'Update Match Configuration'}
+          <div className="flex items-center gap-2">
+            <Settings className="w-5 h-5" /> Match Configuration
+            {isStarted && (
+              <span className="bg-lime-500/20 px-2 py-0.5 rounded text-[10px] text-lime-500 uppercase">
+                Locked
+              </span>
+            )}
+          </div>
+          {isOpen ? (
+            <ChevronUp className="w-5 h-5 text-slate-500" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-slate-500" />
+          )}
         </button>
-      </div>
-
-      {isCreatingTeam && players && (
+  
+        {isOpen && (
+          <div className="p-6 animate-in slide-in-from-top-2 duration-200">
+            <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
+              {/* Team 1 Configuration */}
+              <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+                    <Users className="w-4 h-4" /> Team 1 (Home)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsCreatingTeam(true)}
+                      className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> New
+                    </button>
+                    <button
+                      onClick={() => swapPlayers(1)}
+                      className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
+                      title="Swap Player 1 & 2"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Swap
+                    </button>
+                  </div>
+                </div>
+  
+                {teams && teams.length < 2 && (
+                  <div className="bg-amber-500/10 p-3 border border-amber-500/20 rounded text-amber-500 text-xs">
+                    Not enough teams available.{' '}
+                    <Link to="/registry" className="font-bold hover:underline">
+                      Create teams in Registry
+                    </Link>
+                  </div>
+                )}
+  
+                <select
+                  value={team1Id}
+                  onChange={(e) => setTeam1Id(e.target.value)}
+                  className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
+                >
+                  <option value="">-- Select Team --</option>
+                  {teams?.map((t) => (
+                    <option
+                      key={t.id}
+                      value={t.id || ''}
+                      disabled={t.id?.toString() === team2Id}
+                    >
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+  
+                {team1Id && (
+                  <div className="gap-2 grid grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
+                        Player 1 (Starts Right)
+                      </label>
+                      <select
+                        value={team1Player1Id}
+                        onChange={(e) => setTeam1Player1Id(e.target.value)}
+                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
+                      >
+                        <option value="">-- Player --</option>
+                        {getTeamPlayers(team1Id).map((p) => (
+                          <option key={p.id} value={p.id || ''}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
+                        Player 2
+                      </label>
+                      <select
+                        value={team1Player2Id}
+                        onChange={(e) => setTeam1Player2Id(e.target.value)}
+                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
+                      >
+                        <option value="">-- Player --</option>
+                        {getTeamPlayers(team1Id).map((p) => (
+                          <option key={p.id} value={p.id || ''}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+  
+              {/* Team 2 Configuration */}
+              <div className="space-y-4 bg-slate-900/30 p-4 border border-slate-700 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+                    <Users className="w-4 h-4" /> Team 2 (Away)
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsCreatingTeam(true)}
+                      className="flex items-center gap-1 text-lime-500 hover:text-lime-400 text-xs transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> New
+                    </button>
+                    <button
+                      onClick={() => swapPlayers(2)}
+                      className="flex items-center gap-1 text-slate-500 hover:text-white text-xs transition-colors"
+                      title="Swap Player 1 & 2"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Swap
+                    </button>
+                  </div>
+                </div>
+  
+                <select
+                  value={team2Id}
+                  onChange={(e) => setTeam2Id(e.target.value)}
+                  className="bg-slate-900 border-slate-600 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
+                >
+                  <option value="">-- Select Team --</option>
+                  {teams?.map((t) => (
+                    <option
+                      key={t.id}
+                      value={t.id || ''}
+                      disabled={t.id?.toString() === team1Id}
+                    >
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+  
+                {team2Id && (
+                  <div className="gap-2 grid grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
+                        Player 1 (Starts Right)
+                      </label>
+                      <select
+                        value={team2Player1Id}
+                        onChange={(e) => setTeam2Player1Id(e.target.value)}
+                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
+                      >
+                        <option value="">-- Player --</option>
+                        {getTeamPlayers(team2Id).map((p) => (
+                          <option key={p.id} value={p.id || ''}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-slate-500 text-[10px] uppercase">
+                        Player 2
+                      </label>
+                      <select
+                        value={team2Player2Id}
+                        onChange={(e) => setTeam2Player2Id(e.target.value)}
+                        className="bg-slate-800 border-slate-700 p-2 border rounded text-white text-sm w-full outline-none"
+                      >
+                        <option value="">-- Player --</option>
+                        {getTeamPlayers(team2Id).map((p) => (
+                          <option key={p.id} value={p.id || ''}>
+                            {p.display_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+  
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+                <ArrowRightLeft className="w-4 h-4" /> Service Logic
+              </div>
+  
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setFirstServer(1)}
+                  disabled={isStarted}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
+                    firstServer === 1
+                      ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                  } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  Team 1 Serves First
+                </button>
+                <button
+                  onClick={() => setFirstServer(2)}
+                  disabled={isStarted}
+                  className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
+                    firstServer === 2
+                      ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                  } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  Team 2 Serves First
+                </button>
+              </div>
+            </div>
+  
+            {/* Series Length */}
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+                <Trophy className="w-4 h-4" /> Series Length
+              </div>
+              <div className="flex gap-4">
+                {[1, 3, 5].map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setBestOf(num)}
+                    disabled={isStarted}
+                    className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                      bestOf === num
+                        ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                        : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                    } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    Best of {num}
+                  </button>
+                ))}
+              </div>
+            </div>
+  
+            <div className="flex justify-end mt-6 pt-4 border-t border-slate-700">
+              <button
+                onClick={() => configureMutation.mutate()}
+                disabled={!team1Id || !team2Id || configureMutation.isPending}
+                className={`px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg disabled:opacity-50 ${
+                  match.status === 'preparing'
+                    ? 'bg-green-600 hover:bg-green-500 ring-2 ring-green-500/20'
+                    : 'bg-lime-600 hover:bg-lime-500'
+                }`}
+              >
+                {configureMutation.isPending
+                  ? 'Updating...'
+                  : match.status === 'preparing'
+                    ? 'Start Match'
+                    : 'Update Match Configuration'}
+              </button>
+            </div>
+          </div>
+        )}      {isCreatingTeam && players && (
         <CreateTeamModal
           players={players}
           onClose={() => setIsCreatingTeam(false)}

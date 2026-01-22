@@ -39,7 +39,7 @@ class Match(SQLModel, table=True):
     public_id: str = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
     court_slug: Optional[str] = None # Link to a court
     
-    status: str = "in_progress" # warm_up, in_progress, final
+    status: str = "preparing" # preparing, in_progress, final
     
     # Track specific Team IDs for configuration
     team_1_id: Optional[int] = None

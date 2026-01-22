@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { X, Plus } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import config from '../config'
-import type { Player } from '../types/domain'
 import { CreatePlayerModal } from './CreatePlayerModal'
+import type { Player } from '../types/domain'
 
 interface CreateTeamModalProps {
-  players: Player[]
+  players: Array<Player>
   onClose: () => void
 }
 
@@ -15,7 +15,7 @@ export function CreateTeamModal({ players, onClose }: CreateTeamModalProps) {
   const [name, setName] = useState('')
   const [shortName, setShortName] = useState('')
   const [color, setColor] = useState('#3b82f6')
-  const [selectedPlayers, setSelectedPlayers] = useState<number[]>([])
+  const [selectedPlayers, setSelectedPlayers] = useState<Array<number>>([])
   const [isCreatingPlayer, setIsCreatingPlayer] = useState(false)
 
   const createMutation = useMutation({
@@ -59,7 +59,9 @@ export function CreateTeamModal({ players, onClose }: CreateTeamModalProps) {
 
         <div className="space-y-4 p-6">
           <div>
-            <label className="mb-1 block text-slate-400 text-xs">Team Name</label>
+            <label className="mb-1 block text-slate-400 text-xs">
+              Team Name
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -70,7 +72,9 @@ export function CreateTeamModal({ players, onClose }: CreateTeamModalProps) {
 
           <div className="gap-4 grid grid-cols-2">
             <div>
-              <label className="mb-1 block text-slate-400 text-xs">Abbreviation</label>
+              <label className="mb-1 block text-slate-400 text-xs">
+                Abbreviation
+              </label>
               <input
                 value={shortName}
                 onChange={(e) => setShortName(e.target.value.toUpperCase())}
@@ -124,7 +128,9 @@ export function CreateTeamModal({ players, onClose }: CreateTeamModalProps) {
 
           <button
             onClick={() => createMutation.mutate()}
-            disabled={!name || selectedPlayers.length !== 2 || createMutation.isPending}
+            disabled={
+              !name || selectedPlayers.length !== 2 || createMutation.isPending
+            }
             className="flex justify-center items-center gap-2 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 mt-4 py-3 rounded-lg w-full font-bold text-white transition-all"
           >
             {createMutation.isPending ? 'Creating...' : 'Create Team'}

@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import config from '../config'
-import type { Court } from '../types/domain'
 import { Spinner } from '../components/Spinner'
+import type { Court } from '../types/domain'
 
 export const Route = createFileRoute('/courts/')({
   component: CourtsDashboard,

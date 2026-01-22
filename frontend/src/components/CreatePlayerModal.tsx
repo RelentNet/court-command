@@ -45,7 +45,9 @@ export function CreatePlayerModal({ onClose }: CreatePlayerModalProps) {
 
         <div className="space-y-4 p-6">
           <div>
-            <label className="mb-1 block text-slate-400 text-xs">Display Name</label>
+            <label className="mb-1 block text-slate-400 text-xs">
+              Display Name
+            </label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -57,7 +59,9 @@ export function CreatePlayerModal({ onClose }: CreatePlayerModalProps) {
 
           <div className="gap-4 grid grid-cols-2">
             <div>
-              <label className="mb-1 block text-slate-400 text-xs">Handedness</label>
+              <label className="mb-1 block text-slate-400 text-xs">
+                Handedness
+              </label>
               <select
                 value={handedness}
                 onChange={(e) => setHandedness(e.target.value)}
@@ -68,7 +72,9 @@ export function CreatePlayerModal({ onClose }: CreatePlayerModalProps) {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-slate-400 text-xs">Rating (Optional)</label>
+              <label className="mb-1 block text-slate-400 text-xs">
+                Rating (Optional)
+              </label>
               <input
                 type="number"
                 step="0.1"
