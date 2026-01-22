@@ -241,3 +241,43 @@ class MatchService:
         await self.session.refresh(match)
         await self._broadcast_update(match)
         return match
+
+    async def configure_match(self, public_id: str, config_data: dict) -> Match:
+        match = await self._get_match_with_lock(public_id)
+
+        # Update Team IDs
+        if "team_1_id" in config_data:
+            match.team_1_id = config_data["team_1_id"]
+        if "team_2_id" in config_data:
+            match.team_2_id = config_data["team_2_id"]
+            
+        # Update Serving Preference
+        if "first_serving_team" in config_data:
+            match.first_serving_team = config_data["first_serving_team"]
+            # If match hasn't started scoring yet, update current server
+            if match.team_1_score == 0 and match.team_2_score == 0 and match.current_game_num == 1:
+                match.serving_team = match.first_serving_team
+
+        # Standardize participants object for frontend
+        if "participants" in config_data:
+            match.participants = config_data["participants"]
+
+        # Log Event
+        seq_id = await self._get_next_sequence_id(match.id)
+        event = MatchEvent(
+            match_id=match.id,
+            sequence_id=seq_id,
+            event_type="MATCH_CONFIGURED",
+            score_snapshot=match.model_dump(mode="json"),
+            payload={"action": "configure", "data": config_data}
+        )
+        
+        self.session.add(event)
+        self.session.add(match)
+        
+        await self.session.commit()
+        await self.session.refresh(match)
+        await self._broadcast_update(match)
+        return match
+
+
