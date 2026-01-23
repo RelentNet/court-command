@@ -2,7 +2,7 @@ import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React, { Suspense } from 'react'
 
-import Header from '../components/Header'
+import { Header } from '../components/Header'
 
 const queryClient = new QueryClient()
 
