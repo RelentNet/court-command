@@ -58,7 +58,7 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
   const getSeriesLength = () => {
     const format = match.config?.format || 'best_of_3'
     const bestOf = format.split('_').pop() || '3'
-    return `Best of ${bestOf} Sets`
+    return `Best of ${bestOf}`
   }
 
   const getMatchStatus = () => {
@@ -67,7 +67,7 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
     const wins1 = match.completed_games.filter((g) => g.winner === 1).length
     const wins2 = match.completed_games.filter((g) => g.winner === 2).length
 
-    return `${wins1} - ${wins2}`
+    return `(${wins1} - ${wins2})`
   }
 
   return (
