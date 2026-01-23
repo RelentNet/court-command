@@ -1,4 +1,4 @@
-import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { Outlet, createRootRoute, useLocation } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React, { Suspense } from 'react'
 
@@ -26,14 +26,23 @@ const ReactQueryDevtools =
       )
 
 export const Route = createRootRoute({
-  component: () => (
+  component: RootComponent,
+})
+
+function RootComponent() {
+  const location = useLocation()
+  const isTickerRoute =
+    location.pathname.endsWith('/ticker') ||
+    location.pathname === '/tickertest'
+
+  return (
     <QueryClientProvider client={queryClient}>
-      <Header />
+      {!isTickerRoute && <Header />}
       <Outlet />
       <Suspense>
         <TanStackRouterDevtools />
         <ReactQueryDevtools />
       </Suspense>
     </QueryClientProvider>
-  ),
-})
+  )
+}
