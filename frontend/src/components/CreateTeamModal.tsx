@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
-import type { Player } from '../types/domain'
 import { TeamEditor } from './TeamEditor'
+import type { Player } from '../types/domain'
 
 interface CreateTeamModalProps {
   players: Array<Player>

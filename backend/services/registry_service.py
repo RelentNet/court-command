@@ -39,6 +39,22 @@ class RegistryService:
         player = await self.session.get(Player, player_id)
         if not player:
             raise HTTPException(status_code=404, detail="Player not found")
+            
+        # Clean up teams that have this player
+        # Since player_ids is a JSON array, we can't easily query with SQL alone efficiently
+        # without native JSON operators (which we could use, but iterating logic is simpler for this scope).
+        # We'll fetch all teams and check python-side. For small scale this is fine.
+        stmt = select(Team)
+        result = await self.session.execute(stmt)
+        all_teams = result.scalars().all()
+        
+        for team in all_teams:
+            if player_id in team.player_ids:
+                team.player_ids.remove(player_id)
+                # Force SQLAlchemy to see the change in MutableList (JSON)
+                team.player_ids = list(team.player_ids) 
+                self.session.add(team)
+        
         await self.session.delete(player)
         await self.session.commit()
 
@@ -48,6 +64,12 @@ class RegistryService:
         return result.scalars().all()
 
     async def create_team(self, team: Team) -> Team:
+        # Check for duplicate name
+        stmt = select(Team).where(Team.name == team.name)
+        existing = await self.session.execute(stmt)
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Team with this name already exists")
+
         self.session.add(team)
         await self.session.commit()
         await self.session.refresh(team)
@@ -57,6 +79,13 @@ class RegistryService:
         team = await self.session.get(Team, team_id)
         if not team:
             raise HTTPException(status_code=404, detail="Team not found")
+        
+        # Check for duplicate name if name changed
+        if team_data.name != team.name:
+            stmt = select(Team).where(Team.name == team_data.name)
+            existing = await self.session.execute(stmt)
+            if existing.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Team with this name already exists")
         
         team.name = team_data.name
         team.short_name = team_data.short_name

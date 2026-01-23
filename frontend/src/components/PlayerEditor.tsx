@@ -9,20 +9,28 @@ interface PlayerEditorProps {
   initialData?: Player
 }
 
-export function PlayerEditor({ onSuccess, onCancel, initialData }: PlayerEditorProps) {
+export function PlayerEditor({
+  onSuccess,
+  onCancel,
+  initialData,
+}: PlayerEditorProps) {
   const queryClient = useQueryClient()
-  
+
   // Form State
   const [name, setName] = useState(initialData?.display_name || '')
-  const [handedness, setHandedness] = useState(initialData?.handedness || 'right')
-  const [rating, setRating] = useState(initialData?.skill_rating?.toString() || '')
+  const [handedness, setHandedness] = useState(
+    initialData?.handedness || 'right',
+  )
+  const [rating, setRating] = useState(
+    initialData?.skill_rating?.toString() || '',
+  )
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const url = initialData 
-        ? `${config.API_URL}/players/${initialData.id}` 
+      const url = initialData
+        ? `${config.API_URL}/players/${initialData.id}`
         : `${config.API_URL}/players`
-        
+
       const method = initialData ? 'PUT' : 'POST'
 
       await fetch(url, {
@@ -44,7 +52,9 @@ export function PlayerEditor({ onSuccess, onCancel, initialData }: PlayerEditorP
   return (
     <div className="space-y-4">
       <div>
-        <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Display Name</label>
+        <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+          Display Name
+        </label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -56,7 +66,9 @@ export function PlayerEditor({ onSuccess, onCancel, initialData }: PlayerEditorP
 
       <div className="gap-4 grid grid-cols-2">
         <div>
-          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Handedness</label>
+          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+            Handedness
+          </label>
           <select
             value={handedness}
             onChange={(e) => setHandedness(e.target.value)}
@@ -67,7 +79,9 @@ export function PlayerEditor({ onSuccess, onCancel, initialData }: PlayerEditorP
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Rating (Optional)</label>
+          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+            Rating (Optional)
+          </label>
           <input
             type="number"
             step="0.1"
@@ -93,7 +107,11 @@ export function PlayerEditor({ onSuccess, onCancel, initialData }: PlayerEditorP
           disabled={!name || mutation.isPending}
           className="flex-1 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 py-3 rounded-xl font-bold text-slate-900 transition-all"
         >
-          {mutation.isPending ? 'Saving...' : initialData ? 'Update Player' : 'Create Player'}
+          {mutation.isPending
+            ? 'Saving...'
+            : initialData
+              ? 'Update Player'
+              : 'Create Player'}
         </button>
       </div>
     </div>

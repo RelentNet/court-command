@@ -1,29 +1,25 @@
 # [DESIGN] Audit Report
 
-## Executive Summary (Health Score: 10/10)
+## Executive Summary (Health Score: 8/10)
 
-The application has achieved a fully unified and consistent design system for data management. Both Team and Player workflows now use shared Editor components (`TeamEditor`, `PlayerEditor`) that function identically in the Registry and the Referee modal.
+The Registry system has made great progress, but a critical regression has surfaced in the **Team Editing** workflow. The UI fails to reflect the "Edit" state, showing "Create Team" instead of "Update Team". Consequently, submitting the form attempts to create a *new* team with an existing name, triggering a backend conflict (`400 Bad Request`).
 
-The interface is touch-optimized, maintainable, and feature-complete with Create, Edit, and Delete capabilities for all entities.
+The goal is to fix the `TeamEditor` state detection to ensure it correctly identifies when it is editing an existing record.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Duplicated Player Creation Logic
-*(Resolved)* Logic is centralized.
-- **Fix:** Extracted `PlayerEditor` and integrated it into `registry.index.tsx` and `CreatePlayerModal.tsx`.
+### 1. "Edit" Mode Not Detected
+The `TeamEditor` component displays "Create Team" even when editing.
+- **Root Cause:** The `initialData.id` prop might be missing or not checked correctly in the render logic.
+- **Fix:** Debug `TeamEditor.tsx` to ensure `initialData?.id` is correctly determining the button text and mutation logic.
 
-### 2. Missing Edit Functionality
-*(Resolved)* Players can now be edited.
-- **Fix:** `PlayerEditor` supports `initialData` for editing existing records.
+### 2. Mutation Logic Flaw
+The logs show `POST /teams` being called instead of `PUT /teams/{id}`.
+- **Root Cause:** The `createMutation` logic in `TeamEditor.tsx` is defaulting to `POST` because it thinks `initialData.id` is falsy.
+- **Fix:** Trace the prop drilling from `registry.index.tsx` -> `TeamEditor.tsx`.
 
 ## Progress Checklist
 
-- [x] **Phase 1: Component Unification**
-    - [x] Create `frontend/src/components/PlayerEditor.tsx`.
-    - [x] Port logic from `CreatePlayerModal` to `PlayerEditor`.
-    - [x] Update `registry.index.tsx` to use `PlayerEditor`.
-    - [x] Update `CreatePlayerModal.tsx` to wrap `PlayerEditor`.
-
-- [ ] **Phase 2: Registry Integration**
-    - [ ] Add "Edit" button to Player list in Registry.
-    - [ ] Wire up `PlayerEditor` to handle updates via `PUT /players/{id}` (Backend endpoint may be needed).
+- [ ] **Phase 1: Diagnosis & Fix**
+    - [ ] Inspect `frontend/src/routes/registry.index.tsx` to ensure the full team object (including ID) is passed to `TeamEditor`.
+    - [ ] Inspect `frontend/src/components/TeamEditor.tsx` to verify how `initialData.id` controls the UI and API call.

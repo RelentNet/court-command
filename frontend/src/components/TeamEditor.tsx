@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Check } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import config from '../config'
-import type { Player } from '../types/domain'
 import { CreatePlayerModal } from './CreatePlayerModal'
+import type { Player } from '../types/domain'
 
 interface TeamEditorProps {
-  players: Player[]
+  players: Array<Player>
   onSuccess: () => void
   onCancel?: () => void
   initialData?: {
@@ -14,29 +14,40 @@ interface TeamEditorProps {
     name: string
     short_name: string
     primary_color: string
-    player_ids: number[]
+    player_ids: Array<number>
   }
 }
 
-export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEditorProps) {
+export function TeamEditor({
+  players,
+  onSuccess,
+  onCancel,
+  initialData,
+}: TeamEditorProps) {
   const queryClient = useQueryClient()
-  
+
   // Form State
   const [name, setName] = useState(initialData?.name || '')
   const [shortName, setShortName] = useState(initialData?.short_name || '')
   const [color, setColor] = useState(initialData?.primary_color || '#3b82f6')
-  const [selectedPlayers, setSelectedPlayers] = useState<number[]>(initialData?.player_ids || [])
-  
+
+  // Ensure selected players actually exist in the passed players list
+  const validInitialIds = (initialData?.player_ids || []).filter((id) =>
+    players.some((p) => p.id === id),
+  )
+  const [selectedPlayers, setSelectedPlayers] =
+    useState<Array<number>>(validInitialIds)
+
   // UI State
   const [search, setSearch] = useState('')
   const [isCreatingPlayer, setIsCreatingPlayer] = useState(false)
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const url = initialData?.id 
-        ? `${config.API_URL}/teams/${initialData.id}` 
+      const url = initialData?.id
+        ? `${config.API_URL}/teams/${initialData.id}`
         : `${config.API_URL}/teams`
-        
+
       const method = initialData?.id ? 'PUT' : 'POST'
 
       await fetch(url, {
@@ -64,8 +75,8 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
     }
   }
 
-  const filteredPlayers = players.filter(p => 
-    p.display_name.toLowerCase().includes(search.toLowerCase())
+  const filteredPlayers = players.filter((p) =>
+    p.display_name.toLowerCase().includes(search.toLowerCase()),
   )
 
   return (
@@ -73,7 +84,9 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
       {/* Basic Info Section */}
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Team Name</label>
+          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+            Team Name
+          </label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -84,7 +97,9 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
 
         <div className="gap-4 grid grid-cols-2">
           <div>
-            <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Abbreviation</label>
+            <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+              Abbreviation
+            </label>
             <input
               value={shortName}
               onChange={(e) => setShortName(e.target.value.toUpperCase())}
@@ -94,7 +109,9 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
             />
           </div>
           <div>
-            <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">Color</label>
+            <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+              Color
+            </label>
             <div className="flex items-center gap-2 bg-slate-900 border-slate-700 p-2 border rounded-lg h-[50px]">
               <input
                 type="color"
@@ -124,7 +141,7 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
         {/* Search Bar */}
         <div className="relative">
           <Search className="top-3 left-3 absolute w-4 h-4 text-slate-500" />
-          <input 
+          <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search players..."
@@ -142,13 +159,16 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
                 onClick={() => togglePlayer(player.id!)}
                 className={`
                   flex items-center justify-between p-3 rounded-lg border text-sm text-left transition-all
-                  ${isSelected 
-                    ? 'bg-lime-500/20 border-lime-500/50 text-white shadow-[0_0_10px_rgba(132,204,22,0.1)]' 
-                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-750'
+                  ${
+                    isSelected
+                      ? 'bg-lime-500/20 border-lime-500/50 text-white shadow-[0_0_10px_rgba(132,204,22,0.1)]'
+                      : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-750'
                   }
                 `}
               >
-                <span className="truncate font-medium">{player.display_name}</span>
+                <span className="truncate font-medium">
+                  {player.display_name}
+                </span>
                 {isSelected && <Check className="w-4 h-4 text-lime-500" />}
               </button>
             )
@@ -173,10 +193,16 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
         )}
         <button
           onClick={() => createMutation.mutate()}
-          disabled={!name || selectedPlayers.length < 2 || createMutation.isPending}
+          disabled={
+            !name || selectedPlayers.length < 2 || createMutation.isPending
+          }
           className="flex-1 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 py-3 rounded-xl font-bold text-slate-900 transition-all"
         >
-          {createMutation.isPending ? 'Saving...' : initialData?.id ? 'Update Team' : 'Create Team'}
+          {createMutation.isPending
+            ? 'Saving...'
+            : initialData?.id
+              ? 'Update Team'
+              : 'Create Team'}
         </button>
       </div>
 
