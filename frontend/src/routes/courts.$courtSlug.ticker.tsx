@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import config from '../config'
 import Ticker from '../components/Ticker'
 import { useMatchSocket } from '../hooks/useMatchSocket'
+import { useCourtSocket } from '../hooks/useCourtSocket'
 
 export const Route = createFileRoute('/courts/$courtSlug/ticker')({
   component: CourtTicker,
@@ -25,8 +26,9 @@ function CourtTicker() {
 
   const matchId = court?.active_match?.public_id
 
-  // 2. Subscribe to socket (updates cache for match)
+  // 2. Subscribe to sockets
   useMatchSocket(matchId)
+  useCourtSocket(courtSlug)
 
   // 3. Get Match Data
   const { data: match, isLoading: isMatchLoading } = useQuery({
@@ -68,7 +70,7 @@ function CourtTicker() {
 
   return (
     <div className="min-h-screen bg-transparent relative flex items-center justify-center ">
-      <Ticker match={match} />
+      <Ticker match={match} isVisible={court?.is_ticker_visible} />
     </div>
   )
 }

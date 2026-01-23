@@ -19,6 +19,7 @@ export interface Court {
   id?: number | null
   name: string
   slug: string
+  is_ticker_visible?: boolean
   created_at: string
 }
 

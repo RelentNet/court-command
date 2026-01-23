@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
-import { Home, LayoutGrid, Menu, Users, X } from 'lucide-react'
+import { Home, LayoutGrid, Menu, Monitor, Users, X } from 'lucide-react'
 
 export function Header() {
   const [isOpen, setIsOpen] = useState(false)
@@ -66,6 +66,16 @@ export function Header() {
           >
             <Users size={20} />
             <span className="font-medium">Registry</span>
+          </Link>
+
+          <Link
+            to="/tickers"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{ className: 'bg-lime-600/20 text-lime-500' }}
+          >
+            <Monitor size={20} />
+            <span className="font-medium">Tickers</span>
           </Link>
         </nav>
       </aside>

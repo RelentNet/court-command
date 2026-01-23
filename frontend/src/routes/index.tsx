@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { History, LayoutGrid, Users, Zap } from 'lucide-react'
+import { LayoutGrid, Monitor, Users, Zap } from 'lucide-react'
 
 export const Route = createFileRoute('/')({
   component: Dashboard,
@@ -58,18 +58,18 @@ function Dashboard() {
             </p>
           </Link>
 
-          <button
-            disabled
-            className="group flex flex-col items-center bg-slate-800/50 p-8 border border-slate-800 rounded-2xl opacity-50 cursor-not-allowed"
+          <Link
+            to="/tickers"
+            className="group flex flex-col items-center bg-slate-800 hover:bg-slate-750 p-8 border border-slate-700 hover:border-purple-500 rounded-2xl transition-all"
           >
-            <div className="mb-4">
-              <History className="w-12 h-12 text-slate-600" />
+            <div className="group-hover:scale-110 mb-4 transition-transform duration-300">
+              <Monitor className="w-12 h-12 text-purple-500" />
             </div>
-            <h3 className="font-bold text-xl">History</h3>
-            <p className="mt-2 text-center text-slate-500 text-sm">
-              Match logs (Coming Soon)
+            <h3 className="font-bold text-xl">Tickers</h3>
+            <p className="mt-2 text-center text-slate-400 text-sm">
+              Control broadcast overlays.
             </p>
-          </button>
+          </Link>
         </div>
       </div>
     </div>

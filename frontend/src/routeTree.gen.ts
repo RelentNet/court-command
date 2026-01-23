@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TickertestRouteImport } from './routes/tickertest'
+import { Route as TickersRouteImport } from './routes/tickers'
 import { Route as QuickMatchRouteImport } from './routes/quick-match'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistryIndexRouteImport } from './routes/registry.index'
@@ -23,6 +24,11 @@ import { Route as CourtsCourtSlugRefereeRouteImport } from './routes/courts.$cou
 const TickertestRoute = TickertestRouteImport.update({
   id: '/tickertest',
   path: '/tickertest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TickersRoute = TickersRouteImport.update({
+  id: '/tickers',
+  path: '/tickers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuickMatchRoute = QuickMatchRouteImport.update({
@@ -75,6 +81,7 @@ const CourtsCourtSlugRefereeRoute = CourtsCourtSlugRefereeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickers': typeof TickersRoute
   '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickers': typeof TickersRoute
   '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts': typeof CourtsIndexRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickers': typeof TickersRoute
   '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/quick-match'
+    | '/tickers'
     | '/tickertest'
     | '/match/$matchId'
     | '/courts/'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/quick-match'
+    | '/tickers'
     | '/tickertest'
     | '/match/$matchId'
     | '/courts'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/quick-match'
+    | '/tickers'
     | '/tickertest'
     | '/match/$matchId'
     | '/courts/'
@@ -151,6 +163,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   QuickMatchRoute: typeof QuickMatchRoute
+  TickersRoute: typeof TickersRoute
   TickertestRoute: typeof TickertestRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   CourtsIndexRoute: typeof CourtsIndexRoute
@@ -168,6 +181,13 @@ declare module '@tanstack/react-router' {
       path: '/tickertest'
       fullPath: '/tickertest'
       preLoaderRoute: typeof TickertestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tickers': {
+      id: '/tickers'
+      path: '/tickers'
+      fullPath: '/tickers'
+      preLoaderRoute: typeof TickersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quick-match': {
@@ -239,6 +259,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   QuickMatchRoute: QuickMatchRoute,
+  TickersRoute: TickersRoute,
   TickertestRoute: TickertestRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   CourtsIndexRoute: CourtsIndexRoute,

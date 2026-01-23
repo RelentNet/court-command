@@ -56,8 +56,11 @@ def get_match_service(
     return MatchService(session, redis_client)
 
 # Dependency for Court Service
-def get_court_service(session: AsyncSession = Depends(get_session)) -> CourtService:
-    return CourtService(session)
+def get_court_service(
+    session: AsyncSession = Depends(get_session),
+    redis_client = Depends(get_redis)
+) -> CourtService:
+    return CourtService(session, redis_client)
 
 # Dependency for Registry Service
 def get_registry_service(session: AsyncSession = Depends(get_session)) -> RegistryService:
@@ -118,6 +121,7 @@ class CourtSummary(BaseModel):
     id: int
     name: str
     slug: str
+    is_ticker_visible: bool = True
     created_at: datetime
     is_active: bool = False
 
@@ -125,9 +129,35 @@ class CourtWithMatch(BaseModel):
     id: int
     name: str
     slug: str
+    is_ticker_visible: bool = True
     created_at: datetime
     active_match: Optional[Match] = None
     match_history: List[Match] = []
+
+@app.websocket("/ws/courts/{slug}")
+async def websocket_court_endpoint(websocket: WebSocket, slug: str):
+    await websocket.accept()
+    
+    redis_client = websocket.app.state.redis
+    pubsub = redis_client.pubsub()
+    
+    try:
+        await pubsub.subscribe(f"court_updates_{slug}")
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                await websocket.send_text(message["data"])
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011)
+        except:
+            pass
+    finally:
+        try:
+            await pubsub.unsubscribe()
+            await pubsub.close()
+        except:
+            pass
 
 @app.get("/courts", response_model=List[CourtSummary])
 async def get_courts(service: CourtService = Depends(get_court_service)):
@@ -145,6 +175,14 @@ async def get_court(slug: str, service: CourtService = Depends(get_court_service
 async def delete_court(slug: str, service: CourtService = Depends(get_court_service)):
     await service.delete_court(slug)
     return {"status": "deleted"}
+
+@app.patch("/courts/{slug}", response_model=Court)
+async def update_court(
+    slug: str, 
+    payload: Dict[str, Any], 
+    service: CourtService = Depends(get_court_service)
+):
+    return await service.update_court(slug, payload)
 
 # --- Match Endpoints ---
 

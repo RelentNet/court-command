@@ -2,9 +2,10 @@ import type { Match } from '../types/domain'
 
 interface TickerProps {
   match: Match
+  isVisible?: boolean
 }
 
-export default function Ticker({ match }: TickerProps) {
+export default function Ticker({ match, isVisible = true }: TickerProps) {
   const getTeamName = (teamId: 1 | 2) => {
     const p =
       teamId === 1 ? match.participants.team_1 : match.participants.team_2
@@ -52,7 +53,6 @@ export default function Ticker({ match }: TickerProps) {
     match.config?.tournament_name || 'Nebula Padel Open 2026'
   const matchInfo = match.config?.match_info || 'Quarter-Finals'
   const showTeamLogos = match.config?.show_team_logos ?? true
-  const isVisible = match.config?.is_ticker_visible ?? true
 
   // Helper to parse "best_of_X"
   const getSeriesLength = () => {

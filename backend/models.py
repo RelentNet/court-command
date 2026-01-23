@@ -30,6 +30,7 @@ class Court(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     slug: str = Field(index=True)
+    is_ticker_visible: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 # --- Match Models ---
