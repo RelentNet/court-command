@@ -115,14 +115,24 @@ function CourtDetail() {
               {court.active_match.participants.team_1?.name || 'Team 1'} vs{' '}
               {court.active_match.participants.team_2?.name || 'Team 2'}
             </p>
-            <div className="flex flex-col items-center gap-4 mt-6">
-              <div className="flex justify-center gap-4">
+            <div className="flex flex-col items-center gap-4 mt-8">
+              {court.active_match.status !== 'final' && (
                 <Link
                   to="/courts/$courtSlug/referee"
                   params={{ courtSlug }}
+                  className="bg-lime-500 hover:bg-lime-400 w-full max-w-md px-8 py-4 rounded-xl font-black text-2xl text-slate-900 transition-all shadow-xl shadow-lime-500/20 text-center uppercase tracking-tighter"
+                >
+                  Enter Referee Portal
+                </Link>
+              )}
+              <div className="flex justify-center gap-4">
+                <Link
+                  to="/courts/$courtSlug/ticker"
+                  params={{ courtSlug }}
+                  target="_blank"
                   className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold text-white transition-colors"
                 >
-                  Referee Console
+                  Broadcast Ticker
                 </Link>
                 <Link
                   to="/courts/$courtSlug/scoreboard"
