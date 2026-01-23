@@ -1,15 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import {
   ArrowRightLeft,
   ChevronDown,
   ChevronUp,
-  Plus,
-  RefreshCw,
   Settings,
   Trophy,
-  Users,
 } from 'lucide-react'
 import config from '../config'
 import { Spinner } from './Spinner'
