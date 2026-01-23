@@ -15,6 +15,7 @@ import { Scoreboard } from './Scoreboard'
 import { ControlPanel } from './ControlPanel'
 import { DebugConsole } from './DebugConsole'
 import { MatchConfigurationPanel } from './MatchConfigurationPanel'
+import { Header } from './Header'
 
 interface MatchContainerProps {
   matchId: string
