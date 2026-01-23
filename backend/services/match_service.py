@@ -122,8 +122,8 @@ class MatchService:
                 match.team_1_score = 0
                 match.team_2_score = 0
                 match.current_game_num += 1
-                match.server_number = 2 # Start next game with 2nd server (standard convention)
-                match.serving_team = 1 # Usually winners serve? Or losers? (Configurable)
+                match.server_number = 1 # Start next game with 1st server (Padel/Tennis style)
+                match.serving_team = 1 # Default to Team 1 starting (or make configurable later)
         
         # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
@@ -152,12 +152,15 @@ class MatchService:
         old_server = match.server_number
         old_serving_team = match.serving_team
 
-        # Logic: Side Out / Server Switch
-        if match.server_number == 1:
-            match.server_number = 2
-        else:
-            match.server_number = 1
-            match.serving_team = 2 if match.serving_team == 1 else 1
+        # Logic: Alternating Team Rotation (Padel Style)
+        # Always switch serving team
+        match.serving_team = 2 if match.serving_team == 1 else 1
+
+        # Check if we completed a full round (both teams served with current server num)
+        # We toggle server number when control returns to the team that served FIRST in the game.
+        first_server = match.first_serving_team or 1
+        if match.serving_team == first_server:
+            match.server_number = 2 if match.server_number == 1 else 1
 
         # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
