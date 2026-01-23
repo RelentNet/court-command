@@ -70,7 +70,7 @@ export function TeamEditor({
   const togglePlayer = (id: number) => {
     if (selectedPlayers.includes(id)) {
       setSelectedPlayers(selectedPlayers.filter((p) => p !== id))
-    } else if (selectedPlayers.length < 2) {
+    } else if (selectedPlayers.length < 128) {
       setSelectedPlayers([...selectedPlayers, id])
     }
   }
@@ -128,7 +128,7 @@ export function TeamEditor({
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <label className="block text-slate-400 text-xs uppercase font-bold">
-            Select Players ({selectedPlayers.length}/2)
+            Select Players ({selectedPlayers.length}/128)
           </label>
           <button
             onClick={() => setIsCreatingPlayer(true)}
@@ -194,7 +194,7 @@ export function TeamEditor({
         <button
           onClick={() => createMutation.mutate()}
           disabled={
-            !name || selectedPlayers.length < 2 || createMutation.isPending
+            !name || selectedPlayers.length < 1 || createMutation.isPending
           }
           className="flex-1 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 py-3 rounded-xl font-bold text-slate-900 transition-all"
         >
