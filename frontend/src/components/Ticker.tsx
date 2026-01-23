@@ -48,15 +48,15 @@ export default function Ticker({ match }: TickerProps) {
 
   // Configuration & Status
   const leagueName = match.config?.league_name || 'Global Padel Association'
-  const tournamentName =
-    match.config?.tournament_name || 'Nebula Padel Open 2026'
+  const tournamentName = match.config?.tournament_name || 'Nebula Padel Open 2026'
   const matchInfo = match.config?.match_info || 'Quarter-Finals'
+  const showTeamLogos = match.config?.show_team_logos ?? true
 
   // Helper to parse "best_of_X"
   const getSeriesLength = () => {
     const format = match.config?.format || 'best_of_3'
     const bestOf = format.split('_').pop() || '3'
-    return `Best of ${bestOf}`
+    return `Best of ${bestOf} Sets`
   }
 
   const getMatchStatus = () => {
@@ -65,14 +65,14 @@ export default function Ticker({ match }: TickerProps) {
     const wins1 = match.completed_games.filter((g) => g.winner === 1).length
     const wins2 = match.completed_games.filter((g) => g.winner === 2).length
 
-    return `(${wins1} - ${wins2})`
+    return `${wins1} - ${wins2}`
   }
 
   return (
     <div className="relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col">
       {/* Header bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {leagueName} ⋅ {tournamentName}
+        {leagueName} - {tournamentName}
       </div>
 
       {/* Match body */}
@@ -90,13 +90,15 @@ export default function Ticker({ match }: TickerProps) {
         <div className="flex flex-col divide-y bg-[#636363] divide-white min-w-0 text-white size-full">
           {/* Team 1 */}
           <div className="flex flex-1">
-            <div className="flex justify-center items-center border-white border-r aspect-square">
-              <img
-                src={`https://placehold.co/60x60/${getTeamColor(1)}/FFFFFF?text=${getInitials(team1Name)}`}
-                alt={`${team1Name} logo`}
-                className="aspect-square size-full"
-              />
-            </div>
+            {showTeamLogos && (
+              <div className="flex justify-center items-center border-white border-r aspect-square">
+                <img
+                  src={`https://placehold.co/60x60/${getTeamColor(1)}/FFFFFF?text=${getInitials(team1Name)}`}
+                  alt={`${team1Name} logo`}
+                  className="aspect-square size-full"
+                />
+              </div>
+            )}
             <div className="flex flex-col flex-1 h-full justify-center pr-6 pl-2 min-w-0">
               <span className="font-bold text-lg">{team1Name}</span>
               <span className="font-bold text-sm truncate">
@@ -110,13 +112,15 @@ export default function Ticker({ match }: TickerProps) {
 
           {/* Team 2 */}
           <div className="flex flex-1">
-            <div className="flex justify-center items-center border-white border-r aspect-square">
-              <img
-                src={`https://placehold.co/60x60/${getTeamColor(2)}/FFFFFF?text=${getInitials(team2Name)}`}
-                alt={`${team2Name} logo`}
-                className="aspect-square size-full"
-              />
-            </div>
+            {showTeamLogos && (
+              <div className="flex justify-center items-center border-white border-r aspect-square">
+                <img
+                  src={`https://placehold.co/60x60/${getTeamColor(2)}/FFFFFF?text=${getInitials(team2Name)}`}
+                  alt={`${team2Name} logo`}
+                  className="aspect-square size-full"
+                />
+              </div>
+            )}
             <div className="flex flex-col flex-1 h-full justify-center pr-6 pl-2 min-w-0">
               <span className="font-bold text-lg">{team2Name}</span>
               <span className="font-bold text-sm truncate">
@@ -131,7 +135,7 @@ export default function Ticker({ match }: TickerProps) {
       </div>
       {/* Footer bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {matchInfo} ⋅ {getSeriesLength()} ⋅ {getMatchStatus()}
+        {matchInfo} - {getSeriesLength()} - {getMatchStatus()}
       </div>
     </div>
   )

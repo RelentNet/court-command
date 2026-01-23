@@ -50,6 +50,9 @@ export function MatchConfigurationPanel({
   const [matchInfo, setMatchInfo] = useState<string>(
     match.config?.match_info || 'Quarter-Finals',
   )
+  const [showTeamLogos, setShowTeamLogos] = useState<boolean>(
+    match.config?.show_team_logos ?? true,
+  )
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   // Sync state if match data updates from server
@@ -64,6 +67,8 @@ export function MatchConfigurationPanel({
     if (match.config.tournament_name)
       setTournamentName(match.config.tournament_name)
     if (match.config.match_info) setMatchInfo(match.config.match_info)
+    if (match.config.show_team_logos !== undefined)
+      setShowTeamLogos(match.config.show_team_logos)
 
     // Hydrate players from participants if they exist
     // @ts-ignore: Dynamic access to nested participants object
@@ -125,6 +130,7 @@ export function MatchConfigurationPanel({
           league_name: leagueName,
           tournament_name: tournamentName,
           match_info: matchInfo,
+          show_team_logos: showTeamLogos,
         },
         participants: {
           team_1: {
@@ -223,7 +229,7 @@ export function MatchConfigurationPanel({
             <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
               <Trophy className="w-4 h-4" /> Event Details
             </div>
-            <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+            <div className="gap-4 grid grid-cols-1 md:grid-cols-3 mb-4">
               <div>
                 <label className="block mb-1 text-slate-400 text-xs">
                   League Name
@@ -260,6 +266,19 @@ export function MatchConfigurationPanel({
                   placeholder="e.g. Quarter-Finals"
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showTeamLogos}
+                  onChange={(e) => setShowTeamLogos(e.target.checked)}
+                  className="rounded text-lime-500 focus:ring-lime-500"
+                />
+                <span className="text-slate-300 text-sm">
+                  Show Team Logos on Ticker
+                </span>
+              </label>
             </div>
           </div>
 

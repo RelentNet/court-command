@@ -45,6 +45,7 @@ export interface MatchConfig {
   league_name?: string
   tournament_name?: string
   match_info?: string
+  show_team_logos?: boolean
   [key: string]: unknown
 }
 
