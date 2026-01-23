@@ -308,6 +308,11 @@ class MatchService:
             sequence_id=seq_id,
             event_type="TEAMS_SWAPPED",
             score_snapshot=match.model_dump(mode="json"),
+            payload={"action": "swap_teams"}
+        )
+        self.session.add(event)
+        self.session.add(match)
+        
         await self.session.commit()
         await self.session.refresh(match)
         await self._broadcast_update(match)
