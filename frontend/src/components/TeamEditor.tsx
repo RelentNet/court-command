@@ -10,6 +10,7 @@ interface TeamEditorProps {
   onSuccess: () => void
   onCancel?: () => void
   initialData?: {
+    id?: number | null
     name: string
     short_name: string
     primary_color: string
@@ -32,8 +33,14 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      await fetch(`${config.API_URL}/teams`, {
-        method: 'POST',
+      const url = initialData?.id 
+        ? `${config.API_URL}/teams/${initialData.id}` 
+        : `${config.API_URL}/teams`
+        
+      const method = initialData?.id ? 'PUT' : 'POST'
+
+      await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
@@ -169,7 +176,7 @@ export function TeamEditor({ players, onSuccess, onCancel, initialData }: TeamEd
           disabled={!name || selectedPlayers.length < 2 || createMutation.isPending}
           className="flex-1 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 py-3 rounded-xl font-bold text-slate-900 transition-all"
         >
-          {createMutation.isPending ? 'Saving...' : 'Create Team'}
+          {createMutation.isPending ? 'Saving...' : initialData?.id ? 'Update Team' : 'Create Team'}
         </button>
       </div>
 

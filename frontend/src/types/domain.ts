@@ -25,6 +25,9 @@ export interface Court {
 export interface MatchParticipant {
   id?: number
   name?: string
+  display_name?: string
+  player_1?: MatchParticipant
+  player_2?: MatchParticipant
   [key: string]: unknown
 }
 

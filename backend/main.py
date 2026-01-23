@@ -77,6 +77,10 @@ async def get_players(service: RegistryService = Depends(get_registry_service)):
 async def create_player(player: Player, service: RegistryService = Depends(get_registry_service)):
     return await service.create_player(player)
 
+@app.put("/players/{player_id}", response_model=Player)
+async def update_player(player_id: int, player: Player, service: RegistryService = Depends(get_registry_service)):
+    return await service.update_player(player_id, player)
+
 @app.delete("/players/{player_id}")
 async def delete_player(player_id: int, service: RegistryService = Depends(get_registry_service)):
     await service.delete_player(player_id)
@@ -89,6 +93,10 @@ async def get_teams(service: RegistryService = Depends(get_registry_service)):
 @app.post("/teams", response_model=Team)
 async def create_team(team: Team, service: RegistryService = Depends(get_registry_service)):
     return await service.create_team(team)
+
+@app.put("/teams/{team_id}", response_model=Team)
+async def update_team(team_id: int, team: Team, service: RegistryService = Depends(get_registry_service)):
+    return await service.update_team(team_id, team)
 
 @app.delete("/teams/{team_id}")
 async def delete_team(team_id: int, service: RegistryService = Depends(get_registry_service)):

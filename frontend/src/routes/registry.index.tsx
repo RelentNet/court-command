@@ -5,6 +5,7 @@ import { Plus, Shirt, Trash2, User, Users, Pencil } from 'lucide-react'
 import config from '../config'
 import type { Player, Team } from '../types/domain'
 import { TeamEditor } from '../components/TeamEditor'
+import { PlayerEditor } from '../components/PlayerEditor'
 
 export const Route = createFileRoute('/registry/')({
   component: RegistryDashboard,
@@ -56,34 +57,14 @@ function RegistryDashboard() {
 
 function PlayersPanel() {
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [handedness, setHandedness] = useState('right')
-  const [rating, setRating] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
 
   const { data: players } = useQuery<Array<Player>>({
     queryKey: ['players'],
     queryFn: async () => {
       const res = await fetch(`${config.API_URL}/players`)
       return res.json()
-    },
-  })
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      await fetch(`${config.API_URL}/players`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          display_name: name,
-          handedness,
-          skill_rating: rating ? parseFloat(rating) : undefined,
-        }),
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['players'] })
-      setName('')
-      setRating('')
     },
   })
 
@@ -98,42 +79,36 @@ function PlayersPanel() {
     },
   })
 
+  if (isCreating || editingPlayer) {
+    return (
+      <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl">
+        <h3 className="mb-6 font-bold text-xl">
+          {editingPlayer ? 'Edit Player' : 'Create New Player'}
+        </h3>
+        <PlayerEditor
+          onSuccess={() => {
+            setIsCreating(false)
+            setEditingPlayer(null)
+          }}
+          onCancel={() => {
+            setIsCreating(false)
+            setEditingPlayer(null)
+          }}
+          initialData={editingPlayer || undefined}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Create Form */}
-      <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl">
-        <h3 className="mb-4 font-semibold text-lg">Add New Player</h3>
-        <div className="flex gap-4">
-          <input
-            className="flex-1 bg-slate-900 px-4 py-2 border border-slate-700 rounded text-white"
-            placeholder="Display Name (e.g. John Doe)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <select
-            className="bg-slate-900 px-4 py-2 border border-slate-700 rounded text-white"
-            value={handedness}
-            onChange={(e) => setHandedness(e.target.value)}
-          >
-            <option value="right">Right</option>
-            <option value="left">Left</option>
-          </select>
-          <input
-            className="bg-slate-900 px-4 py-2 border border-slate-700 rounded text-white w-24"
-            placeholder="Rating"
-            type="number"
-            step="0.1"
-            value={rating}
-            onChange={(e) => setRating(e.target.value)}
-          />
-          <button
-            disabled={!name || createMutation.isPending}
-            onClick={() => createMutation.mutate()}
-            className="flex items-center gap-2 bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-6 py-2 rounded font-bold transition-colors"
-          >
-            <Plus className="w-5 h-5" /> Add
-          </button>
-        </div>
+      <div className="flex justify-end">
+        <button
+          onClick={() => setIsCreating(true)}
+          className="flex items-center gap-2 bg-lime-600 hover:bg-lime-500 px-4 py-2 rounded-lg font-bold transition-colors"
+        >
+          <Plus className="w-5 h-5" /> Add Player
+        </button>
       </div>
 
       {/* List */}
@@ -141,7 +116,7 @@ function PlayersPanel() {
         {players?.map((player: Player) => (
           <div
             key={player.id}
-            className="flex justify-between items-center bg-slate-800 p-4 border border-slate-700 rounded-lg"
+            className="flex justify-between items-center bg-slate-800 p-4 border border-slate-700 rounded-lg group"
           >
             <div>
               <div className="font-bold text-lg">{player.display_name}</div>
@@ -150,20 +125,27 @@ function PlayersPanel() {
                 {player.skill_rating && <span>• {player.skill_rating}</span>}
               </div>
             </div>
-            <div className="bg-slate-900 p-2 rounded-full text-slate-500">
-              <User className="w-5 h-5" />
+            
+            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => setEditingPlayer(player)}
+                className="text-slate-600 hover:text-blue-500 transition-colors"
+                aria-label={`Edit ${player.display_name}`}
+              >
+                <Pencil className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete ${player.display_name}?`)) {
+                    deleteMutation.mutate(player.id!)
+                  }
+                }}
+                className="text-slate-600 hover:text-red-500 transition-colors"
+                aria-label={`Delete ${player.display_name}`}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={() => {
-                if (confirm(`Delete ${player.display_name}?`)) {
-                  deleteMutation.mutate(player.id!)
-                }
-              }}
-              className="ml-4 text-slate-600 hover:text-red-500 transition-colors"
-              aria-label={`Delete ${player.display_name}`}
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
           </div>
         ))}
       </div>
