@@ -224,6 +224,15 @@ async def reset_match(public_id: str, service: MatchService = Depends(get_match_
 async def swap_teams(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.swap_teams(public_id)
 
+@app.post("/matches/{public_id}/rematch", response_model=Match)
+async def rematch(public_id: str, service: MatchService = Depends(get_match_service)):
+    return await service.rematch(public_id)
+
+@app.delete("/matches/{public_id}")
+async def delete_match(public_id: str, service: MatchService = Depends(get_match_service)):
+    await service.delete_match(public_id)
+    return {"status": "deleted"}
+
 @app.patch("/matches/{public_id}/configure", response_model=Match)
 async def configure_match(
     public_id: str, 

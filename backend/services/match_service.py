@@ -318,6 +318,57 @@ class MatchService:
         await self._broadcast_update(match)
         return match
 
+    async def rematch(self, public_id: str) -> Match:
+        old_match = await self._get_match_with_lock(public_id)
+        
+        # Ensure old match is finalized
+        if old_match.status != "final":
+            old_match.status = "final"
+            self.session.add(old_match)
+            # Log finalization event if needed, but 'final' status is enough
+        
+        # Create new match with same config
+        import uuid
+        from datetime import datetime
+        
+        new_match = Match(
+            public_id=str(uuid.uuid4()),
+            court_slug=old_match.court_slug,
+            status="preparing",
+            team_1_id=old_match.team_1_id,
+            team_2_id=old_match.team_2_id,
+            first_serving_team=old_match.first_serving_team,
+            participants=old_match.participants,
+            config=old_match.config,
+            created_at=datetime.utcnow()
+        )
+        
+        # Initialize default state
+        new_match.team_1_score = 0
+        new_match.team_2_score = 0
+        new_match.current_game_num = 1
+        new_match.server_number = 1
+        new_match.serving_team = new_match.first_serving_team or 1
+        new_match.completed_games = []
+        
+        self.session.add(new_match)
+        await self.session.commit()
+        await self.session.refresh(new_match)
+        
+        # We might want to notify the court that the active match has changed
+        # Ideally we'd return the new match and the frontend navigates
+        return new_match
+
+    async def delete_match(self, public_id: str):
+        match = await self._get_match_with_lock(public_id)
+        
+        # Delete events first (if cascade isn't set up, but let's be safe)
+        stmt_events = delete(MatchEvent).where(MatchEvent.match_id == match.id)
+        await self.session.execute(stmt_events)
+        
+        await self.session.delete(match)
+        await self.session.commit()
+
     async def configure_match(self, public_id: str, config_data: dict) -> Match:
         match = await self._get_match_with_lock(public_id)
 
