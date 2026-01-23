@@ -1,5 +1,6 @@
 from sqlmodel import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 from fastapi import HTTPException
 import json
 import logging
@@ -96,8 +97,8 @@ class MatchService:
                 "winner": winner
             })
             # IMPORTANT: SqlAlchemy sometimes doesn't detect JSON mutation in place
-            # Re-assigning triggers the flag_modified
-            match.completed_games = list(match.completed_games)
+            # Use flag_modified to force update
+            flag_modified(match, "completed_games")
             
             # Check Match Over (Best of X)
             # Parse 'best_of_X' string or default to 3
@@ -287,6 +288,25 @@ class MatchService:
             "team_2": p1
         }
         
+        # Swap Completed Games History
+        new_completed_games = []
+        for g in match.completed_games:
+            new_g = g.copy()
+            new_g["score_team_1"] = g["score_team_2"]
+            new_g["score_team_2"] = g["score_team_1"]
+            if g.get("winner") == 1:
+                new_g["winner"] = 2
+            elif g.get("winner") == 2:
+                new_g["winner"] = 1
+            new_completed_games.append(new_g)
+        match.completed_games = new_completed_games
+        
+        # Swap First Serving Team Preference
+        if match.first_serving_team == 1:
+            match.first_serving_team = 2
+        elif match.first_serving_team == 2:
+            match.first_serving_team = 1
+
         # Swap Current Server if necessary
         # If serving_team was 1 (old team 1), it should now be 2 (new team 2 who WAS old team 1)?
         # Wait. 

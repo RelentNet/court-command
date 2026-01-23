@@ -70,7 +70,7 @@ export function MatchContainer({
       if (!res.ok) throw new Error('Failed to create rematch')
       return res.json()
     },
-    onSuccess: (newMatch) => {
+    onSuccess: () => {
       // Navigate to the new match
       navigate({
         to: `/courts/${courtSlug}/referee`,
