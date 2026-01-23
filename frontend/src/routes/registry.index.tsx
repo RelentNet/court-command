@@ -1,9 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Plus, Shirt, Trash2, User, Users } from 'lucide-react'
+import { Plus, Shirt, Trash2, User, Users, Pencil } from 'lucide-react'
 import config from '../config'
 import type { Player, Team } from '../types/domain'
+import { TeamEditor } from '../components/TeamEditor'
 
 export const Route = createFileRoute('/registry/')({
   component: RegistryDashboard,
@@ -173,185 +174,275 @@ function PlayersPanel() {
 // --- Teams Panel ---
 
 function TeamsPanel() {
+
   const queryClient = useQueryClient()
-  const [name, setName] = useState('')
-  const [shortName, setShortName] = useState('')
-  const [color, setColor] = useState('#3b82f6')
-  const [selectedPlayers, setSelectedPlayers] = useState<Array<number>>([])
+
+  const [isCreating, setIsCreating] = useState(false)
+
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null)
+
+
 
   // Fetch both teams and players (for selection)
+
   const { data: teams } = useQuery<Array<Team>>({
+
     queryKey: ['teams'],
+
     queryFn: async () => {
+
       const res = await fetch(`${config.API_URL}/teams`)
+
       return res.json()
+
     },
+
   })
+
+
 
   const { data: players } = useQuery<Array<Player>>({
+
     queryKey: ['players'],
+
     queryFn: async () => {
+
       const res = await fetch(`${config.API_URL}/players`)
+
       return res.json()
+
     },
+
   })
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      await fetch(`${config.API_URL}/teams`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          short_name: shortName,
-          primary_color: color,
-          player_ids: selectedPlayers,
-        }),
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teams'] })
-      setName('')
-      setShortName('')
-      setSelectedPlayers([])
-    },
-  })
+
 
   const deleteMutation = useMutation({
+
     mutationFn: async (id: number) => {
+
       await fetch(`${config.API_URL}/teams/${id}`, {
+
         method: 'DELETE',
+
       })
+
     },
+
     onSuccess: () => {
+
       queryClient.invalidateQueries({ queryKey: ['teams'] })
+
     },
+
   })
 
-  const togglePlayer = (id: number) => {
-    if (selectedPlayers.includes(id)) {
-      setSelectedPlayers(selectedPlayers.filter((p) => p !== id))
-    } else {
-      setSelectedPlayers([...selectedPlayers, id])
-    }
+
+
+  if (isCreating || editingTeam) {
+
+    return (
+
+      <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl">
+
+        <h3 className="mb-6 font-bold text-xl">
+
+          {editingTeam ? 'Edit Team' : 'Create New Team'}
+
+        </h3>
+
+        <TeamEditor
+
+          players={players || []}
+
+          onSuccess={() => {
+
+            setIsCreating(false)
+
+            setEditingTeam(null)
+
+          }}
+
+          onCancel={() => {
+
+            setIsCreating(false)
+
+            setEditingTeam(null)
+
+          }}
+
+          initialData={
+
+            editingTeam
+
+              ? {
+
+                  name: editingTeam.name,
+
+                  short_name: editingTeam.short_name || '',
+
+                  primary_color: editingTeam.primary_color || '#3b82f6',
+
+                  player_ids: editingTeam.player_ids,
+
+                }
+
+              : undefined
+
+          }
+
+        />
+
+      </div>
+
+    )
+
   }
 
+
+
   return (
+
     <div className="space-y-6">
-      {/* Create Form */}
-      <div className="space-y-4 bg-slate-800 p-6 border border-slate-700 rounded-xl">
-        <h3 className="font-semibold text-lg">Create Team</h3>
-        <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
-          <input
-            className="col-span-2 bg-slate-900 px-4 py-2 border border-slate-700 rounded text-white"
-            placeholder="Team Name (e.g. Nashville Night Owls)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="bg-slate-900 px-4 py-2 border border-slate-700 rounded text-white"
-            placeholder="Abbr (NSH)"
-            maxLength={4}
-            value={shortName}
-            onChange={(e) => setShortName(e.target.value.toUpperCase())}
-          />
-        </div>
 
-        <div className="flex items-center gap-4">
-          <span className="text-slate-400 text-sm">Primary Color:</span>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="bg-transparent w-12 h-8 cursor-pointer"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-slate-400 text-sm">
-            Select Players:
-          </label>
-          <div className="gap-2 grid grid-cols-2 md:grid-cols-4 bg-slate-900 p-4 rounded-lg max-h-40 overflow-y-auto">
-            {players?.map((player: Player) => (
-              <button
-                key={player.id}
-                onClick={() => togglePlayer(player.id!)}
-                className={`text-sm p-2 rounded text-left truncate transition-colors ${
-                  selectedPlayers.includes(player.id!)
-                    ? 'bg-lime-600/20 text-lime-400 border border-lime-600/50'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                {player.display_name}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="flex justify-end">
 
         <button
-          disabled={
-            !name || selectedPlayers.length < 2 || createMutation.isPending
-          }
-          onClick={() => createMutation.mutate()}
-          className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-6 py-2 rounded-lg w-full font-bold transition-colors"
+
+          onClick={() => setIsCreating(true)}
+
+          className="flex items-center gap-2 bg-lime-600 hover:bg-lime-500 px-4 py-2 rounded-lg font-bold transition-colors"
+
         >
-          {selectedPlayers.length < 2
-            ? 'Select at least 2 players'
-            : 'Create Team'}
+
+          <Plus className="w-5 h-5" /> Create Team
+
         </button>
+
       </div>
+
+
 
       {/* Team List */}
+
       <div className="gap-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+
         {teams?.map((team: Team) => (
+
           <div
+
             key={team.id}
-            className="relative bg-slate-800 p-6 border border-slate-700 rounded-xl overflow-hidden"
+
+            className="relative bg-slate-800 p-6 border border-slate-700 rounded-xl overflow-hidden group"
+
           >
+
             <div
+
               className="top-0 left-0 absolute w-1 h-full"
+
               style={{ backgroundColor: team.primary_color || undefined }}
+
             />
+
             <div className="flex justify-between items-start pl-2">
+
               <div>
+
                 <h3 className="font-bold text-xl">{team.name}</h3>
+
                 <div className="font-mono text-slate-500 text-xs">
+
                   {team.short_name}
+
                 </div>
+
               </div>
+
               <Shirt className="w-6 h-6 text-slate-600" />
+
             </div>
+
+
 
             <div className="flex flex-wrap gap-2 mt-4 pl-2">
+
               {team.player_ids.map((pid: number) => {
+
                 const p = players?.find((x: Player) => x.id === pid)
+
                 return p ? (
+
                   <span
+
                     key={pid}
+
                     className="bg-slate-900 px-2 py-1 border border-slate-700 rounded text-slate-300 text-xs"
+
                   >
+
                     {p.display_name}
+
                   </span>
+
                 ) : null
+
               })}
+
             </div>
 
-            <div className="top-4 right-4 absolute">
+
+
+            <div className="top-4 right-4 absolute flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+
+              {/* Edit functionality not fully wired in backend yet, but UI ready */}
+
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${team.name}?`)) {
-                    deleteMutation.mutate(team.id!)
-                  }
-                }}
-                className="bg-slate-900/50 hover:bg-red-500/20 p-2 rounded text-slate-500 hover:text-red-500 transition-all"
-                aria-label={`Delete ${team.name}`}
+
+                onClick={() => setEditingTeam(team)}
+
+                className="bg-slate-900/50 hover:bg-blue-500/20 p-2 rounded text-slate-500 hover:text-blue-500 transition-all"
+
+                aria-label={`Edit ${team.name}`}
+
               >
-                <Trash2 className="w-4 h-4" />
+
+                <Pencil className="w-4 h-4" />
+
               </button>
+
+              <button
+
+                onClick={() => {
+
+                  if (confirm(`Delete ${team.name}?`)) {
+
+                    deleteMutation.mutate(team.id!)
+
+                  }
+
+                }}
+
+                className="bg-slate-900/50 hover:bg-red-500/20 p-2 rounded text-slate-500 hover:text-red-500 transition-all"
+
+                aria-label={`Delete ${team.name}`}
+
+              >
+
+                <Trash2 className="w-4 h-4" />
+
+              </button>
+
             </div>
+
           </div>
+
         ))}
+
       </div>
+
     </div>
+
   )
+
 }

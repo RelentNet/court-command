@@ -1,34 +1,35 @@
 # [DESIGN] Audit Report
 
-## Executive Summary (Health Score: 8/10)
+## Executive Summary (Health Score: 9/10)
 
-The Referee Interface is functional and robust, but the **Team Configuration Card** has usability friction on touch devices. The actions for creating new teams/players ("+ New") and swapping positions ("Swap") are currently small text buttons that are hard to tap and visually ambiguous.
+The application now features a unified and robust Team Creation experience. The `TeamEditor` component centralizes the logic and UI for creating and editing teams, ensuring consistency across both the Registry and Referee pages. The player selection UI has been optimized for touch, with larger targets and search functionality.
 
-The goal of this redesign is to **optimize for touch targets**. We will replace small text links with distinct, thumb-friendly action areas.
+Remaining work focuses on visual polish for tablet screens.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Small Touch Targets
-The "+ New" and "Swap" buttons are essentially text links with tiny icons. On a tablet, these are difficult to hit accurately without accidentally triggering nearby inputs.
-- **Fix:** Replace the "Swap" text button with a large, centered, dedicated Swap Action Button between the player inputs.
-- **Fix:** Replace the "+ New" text button with a prominent "Create" button or icon-button with sufficient padding.
+### 1. Duplicated Team Creation Logic
+*(Resolved)* The logic has been centralized.
+- **Fix:** Extracted `TeamEditor` and integrated it into both `registry.index.tsx` and `CreateTeamModal.tsx`.
 
-### 2. Visual Ambiguity
-The "Swap" button is tucked away in the header, disconnected from the players it actually affects (Player 1 & Player 2).
-- **Fix:** Move the Swap action physically *between* the Player 1 and Player 2 dropdowns to visually indicate its function.
+### 2. Player Selection Usability
+*(Resolved)* The new selector features search and card-based layout.
+- **Fix:** Implemented search filter and tile-based selection in `TeamEditor`.
 
 ## Optimization Suggestions (Long-term)
 
-### 1. Drag-and-Drop Reordering
-For swapping players, a drag-and-drop interface would be the most intuitive gesture on a tablet, though harder to implement than a button.
+### 1. "Quick Add" Player
+Allow creating a new player *inside* the Team Editor without losing context (already partially implemented in Modal, needs to be standard).
 
 ## Progress Checklist
 
-- [ ] **Phase 1: Component Restructuring**
-    - [ ] Update `TeamConfigCard.tsx` layout to separate the "Swap" action from the header.
-    - [ ] Place a large `<SwapButton />` between the Player 1 and Player 2 selectors.
-    - [ ] Redesign the "+ New" button to be a distinct action button next to the Team Select dropdown or as a prominent footer action.
+- [x] **Phase 1: Component Unification**
+    - [x] Create `frontend/src/components/TeamEditor.tsx`.
+    - [x] Port logic from `CreateTeamModal` to `TeamEditor`.
+    - [x] Update `registry.index.tsx` to use `TeamEditor`.
+    - [x] Update `CreateTeamModal.tsx` to wrap `TeamEditor`.
 
-- [ ] **Phase 2: Visual Polish**
-    - [ ] Increase padding on all select inputs for tablet friendliness.
-    - [ ] Ensure buttons have active states (scale/color) for feedback.
+- [ ] **Phase 2: Visual Polish (Tablet Optimization)**
+    - [ ] Implement a Search bar for players in `TeamEditor`.
+    - [ ] increase padding and visual distinctiveness of Player selection tiles.
+    - [ ] Ensure "Selected Players" are visualized clearly (e.g., "Slots filled: 1/2").
