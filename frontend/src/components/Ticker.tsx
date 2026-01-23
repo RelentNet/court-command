@@ -37,11 +37,36 @@ export default function Ticker({ match }: TickerProps) {
   const team1Name = getTeamName(1)
   const team2Name = getTeamName(2)
 
+  // Configuration & Status
+  const leagueName = match.config?.league_name || 'Global Padel Association'
+  const tournamentName = match.config?.tournament_name || 'Nebula Padel Open 2026'
+  const matchInfo = match.config?.match_info || 'Quarter-Finals'
+
+  // Helper to parse "best_of_X"
+  const getSeriesLength = () => {
+    const format = match.config?.format || 'best_of_3'
+    const bestOf = format.split('_').pop() || '3'
+    return `Best of ${bestOf} Sets`
+  }
+
+  const getMatchStatus = () => {
+    switch (match.status) {
+      case 'preparing':
+        return 'Warm Up'
+      case 'in_progress':
+        return 'Live Match'
+      case 'final':
+        return 'Final Score'
+      default:
+        return 'Live Match'
+    }
+  }
+
   return (
     <div className="relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col">
       {/* Header bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        (league_name) - (tournament_name)
+        {leagueName} - {tournamentName}
       </div>
 
       {/* Match body */}
@@ -100,7 +125,7 @@ export default function Ticker({ match }: TickerProps) {
       </div>
       {/* Footer bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        (extra_info) - (series_length) - (match_status)
+        {matchInfo} - {getSeriesLength()} - {getMatchStatus()}
       </div>
     </div>
   )

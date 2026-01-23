@@ -41,6 +41,15 @@ export function MatchConfigurationPanel({
   const [bestOf, setBestOf] = useState<number>(
     parseInt(match.config?.format?.split('_').pop() || '3'),
   )
+  const [leagueName, setLeagueName] = useState<string>(
+    match.config?.league_name || 'Global Padel Association',
+  )
+  const [tournamentName, setTournamentName] = useState<string>(
+    match.config?.tournament_name || 'Nebula Padel Open 2026',
+  )
+  const [matchInfo, setMatchInfo] = useState<string>(
+    match.config?.match_info || 'Quarter-Finals',
+  )
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   // Sync state if match data updates from server
@@ -51,6 +60,10 @@ export function MatchConfigurationPanel({
     if (match.config.format) {
       setBestOf(parseInt(match.config.format.split('_').pop() || '3'))
     }
+    if (match.config.league_name) setLeagueName(match.config.league_name)
+    if (match.config.tournament_name)
+      setTournamentName(match.config.tournament_name)
+    if (match.config.match_info) setMatchInfo(match.config.match_info)
 
     // Hydrate players from participants if they exist
     // @ts-ignore: Dynamic access to nested participants object
@@ -109,6 +122,9 @@ export function MatchConfigurationPanel({
         config: {
           ...match.config,
           format: `best_of_${bestOf}`,
+          league_name: leagueName,
+          tournament_name: tournamentName,
+          match_info: matchInfo,
         },
         participants: {
           team_1: {
@@ -200,6 +216,51 @@ export function MatchConfigurationPanel({
             >
               <ArrowRightLeft className="w-4 h-4" /> Swap Sides (Home/Away)
             </button>
+          </div>
+
+          {/* Event Details */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+              <Trophy className="w-4 h-4" /> Event Details
+            </div>
+            <div className="gap-4 grid grid-cols-1 md:grid-cols-3">
+              <div>
+                <label className="block mb-1 text-slate-400 text-xs">
+                  League Name
+                </label>
+                <input
+                  type="text"
+                  value={leagueName}
+                  onChange={(e) => setLeagueName(e.target.value)}
+                  className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                  placeholder="e.g. Global Padel Association"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-slate-400 text-xs">
+                  Tournament Name
+                </label>
+                <input
+                  type="text"
+                  value={tournamentName}
+                  onChange={(e) => setTournamentName(e.target.value)}
+                  className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                  placeholder="e.g. Nebula Padel Open"
+                />
+              </div>
+              <div>
+                <label className="block mb-1 text-slate-400 text-xs">
+                  Match Info / Round
+                </label>
+                <input
+                  type="text"
+                  value={matchInfo}
+                  onChange={(e) => setMatchInfo(e.target.value)}
+                  className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
+                  placeholder="e.g. Quarter-Finals"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="gap-8 grid grid-cols-1 md:grid-cols-2">

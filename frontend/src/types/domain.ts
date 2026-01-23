@@ -42,6 +42,9 @@ export interface MatchConfig {
   scoring_type: string
   points_to: number
   win_by: number
+  league_name?: string
+  tournament_name?: string
+  match_info?: string
   [key: string]: unknown
 }
 
