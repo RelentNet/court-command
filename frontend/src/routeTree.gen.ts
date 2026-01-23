@@ -9,15 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TickertestRouteImport } from './routes/tickertest'
 import { Route as QuickMatchRouteImport } from './routes/quick-match'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RegistryIndexRouteImport } from './routes/registry.index'
 import { Route as CourtsIndexRouteImport } from './routes/courts.index'
 import { Route as MatchMatchIdRouteImport } from './routes/match.$matchId'
 import { Route as CourtsCourtSlugIndexRouteImport } from './routes/courts.$courtSlug.index'
+import { Route as CourtsCourtSlugTickerRouteImport } from './routes/courts.$courtSlug.ticker'
 import { Route as CourtsCourtSlugScoreboardRouteImport } from './routes/courts.$courtSlug.scoreboard'
 import { Route as CourtsCourtSlugRefereeRouteImport } from './routes/courts.$courtSlug.referee'
 
+const TickertestRoute = TickertestRouteImport.update({
+  id: '/tickertest',
+  path: '/tickertest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuickMatchRoute = QuickMatchRouteImport.update({
   id: '/quick-match',
   path: '/quick-match',
@@ -48,6 +55,11 @@ const CourtsCourtSlugIndexRoute = CourtsCourtSlugIndexRouteImport.update({
   path: '/courts/$courtSlug/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CourtsCourtSlugTickerRoute = CourtsCourtSlugTickerRouteImport.update({
+  id: '/courts/$courtSlug/ticker',
+  path: '/courts/$courtSlug/ticker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CourtsCourtSlugScoreboardRoute =
   CourtsCourtSlugScoreboardRouteImport.update({
     id: '/courts/$courtSlug/scoreboard',
@@ -63,32 +75,38 @@ const CourtsCourtSlugRefereeRoute = CourtsCourtSlugRefereeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
   '/courts/$courtSlug/': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts': typeof CourtsIndexRoute
   '/registry': typeof RegistryIndexRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
   '/courts/$courtSlug': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/quick-match': typeof QuickMatchRoute
+  '/tickertest': typeof TickertestRoute
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
+  '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
   '/courts/$courtSlug/': typeof CourtsCourtSlugIndexRoute
 }
 export interface FileRouteTypes {
@@ -96,47 +114,62 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/quick-match'
+    | '/tickertest'
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug/ticker'
     | '/courts/$courtSlug/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/quick-match'
+    | '/tickertest'
     | '/match/$matchId'
     | '/courts'
     | '/registry'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug/ticker'
     | '/courts/$courtSlug'
   id:
     | '__root__'
     | '/'
     | '/quick-match'
+    | '/tickertest'
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
+    | '/courts/$courtSlug/ticker'
     | '/courts/$courtSlug/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   QuickMatchRoute: typeof QuickMatchRoute
+  TickertestRoute: typeof TickertestRoute
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   CourtsIndexRoute: typeof CourtsIndexRoute
   RegistryIndexRoute: typeof RegistryIndexRoute
   CourtsCourtSlugRefereeRoute: typeof CourtsCourtSlugRefereeRoute
   CourtsCourtSlugScoreboardRoute: typeof CourtsCourtSlugScoreboardRoute
+  CourtsCourtSlugTickerRoute: typeof CourtsCourtSlugTickerRoute
   CourtsCourtSlugIndexRoute: typeof CourtsCourtSlugIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tickertest': {
+      id: '/tickertest'
+      path: '/tickertest'
+      fullPath: '/tickertest'
+      preLoaderRoute: typeof TickertestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/quick-match': {
       id: '/quick-match'
       path: '/quick-match'
@@ -179,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourtsCourtSlugIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/courts/$courtSlug/ticker': {
+      id: '/courts/$courtSlug/ticker'
+      path: '/courts/$courtSlug/ticker'
+      fullPath: '/courts/$courtSlug/ticker'
+      preLoaderRoute: typeof CourtsCourtSlugTickerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/courts/$courtSlug/scoreboard': {
       id: '/courts/$courtSlug/scoreboard'
       path: '/courts/$courtSlug/scoreboard'
@@ -199,11 +239,13 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   QuickMatchRoute: QuickMatchRoute,
+  TickertestRoute: TickertestRoute,
   MatchMatchIdRoute: MatchMatchIdRoute,
   CourtsIndexRoute: CourtsIndexRoute,
   RegistryIndexRoute: RegistryIndexRoute,
   CourtsCourtSlugRefereeRoute: CourtsCourtSlugRefereeRoute,
   CourtsCourtSlugScoreboardRoute: CourtsCourtSlugScoreboardRoute,
+  CourtsCourtSlugTickerRoute: CourtsCourtSlugTickerRoute,
   CourtsCourtSlugIndexRoute: CourtsCourtSlugIndexRoute,
 }
 export const routeTree = rootRouteImport

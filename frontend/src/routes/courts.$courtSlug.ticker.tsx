@@ -1,0 +1,77 @@
+import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import config from '../config'
+import Ticker from '../components/Ticker'
+import { useMatchSocket } from '../hooks/useMatchSocket'
+
+export const Route = createFileRoute('/courts/$courtSlug/ticker')({
+  component: CourtTicker,
+})
+
+function CourtTicker() {
+  const { courtSlug } = Route.useParams()
+
+  // 1. Get Court -> Active Match ID
+  const { data: court, isLoading: isCourtLoading } = useQuery({
+    queryKey: ['court', courtSlug],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/courts/${courtSlug}`)
+      if (!res.ok) throw new Error('Court not found')
+      return res.json()
+    },
+    // Refresh court data periodically in case a new match starts
+    refetchInterval: 10000,
+  })
+
+  const matchId = court?.active_match?.public_id
+
+  // 2. Subscribe to socket (updates cache for match)
+  useMatchSocket(matchId)
+
+  // 3. Get Match Data
+  const { data: match, isLoading: isMatchLoading } = useQuery({
+    queryKey: ['match', matchId],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/matches/${matchId}`)
+      if (!res.ok) throw new Error('Match not found')
+      return res.json()
+    },
+    enabled: !!matchId,
+  })
+
+  if (isCourtLoading || (matchId && isMatchLoading)) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-slate-900 text-white">
+        Loading...
+      </div>
+    )
+  }
+
+  if (!court?.active_match) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-slate-900 text-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Court Ready</h1>
+          <p className="text-slate-400">Waiting for match to start...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!match) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-slate-900 text-white">
+        Error loading match data.
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-transparent">
+      {/* Ticker is designed as an overlay, so we center it or place it as designed */}
+      <div className="pt-20">
+        <Ticker match={match} />
+      </div>
+    </div>
+  )
+}
