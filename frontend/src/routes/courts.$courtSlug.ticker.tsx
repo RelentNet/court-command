@@ -67,11 +67,8 @@ function CourtTicker() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent">
-      {/* Ticker is designed as an overlay, so we center it or place it as designed */}
-      <div className="pt-20">
-        <Ticker match={match} />
-      </div>
+    <div className="min-h-screen bg-transparent relative flex items-center justify-center ">
+      <Ticker match={match} />
     </div>
   )
 }
