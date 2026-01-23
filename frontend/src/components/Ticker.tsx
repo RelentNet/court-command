@@ -52,6 +52,7 @@ export default function Ticker({ match }: TickerProps) {
     match.config?.tournament_name || 'Nebula Padel Open 2026'
   const matchInfo = match.config?.match_info || 'Quarter-Finals'
   const showTeamLogos = match.config?.show_team_logos ?? true
+  const isVisible = match.config?.is_ticker_visible ?? true
 
   // Helper to parse "best_of_X"
   const getSeriesLength = () => {
@@ -66,11 +67,15 @@ export default function Ticker({ match }: TickerProps) {
     const wins1 = match.completed_games.filter((g) => g.winner === 1).length
     const wins2 = match.completed_games.filter((g) => g.winner === 2).length
 
-    return `(${wins1} - ${wins2})`
+    return `${wins1} - ${wins2}`
   }
 
   return (
-    <div className="relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col">
+    <div
+      className={`relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col transition-all duration-700 ease-in-out ${
+        isVisible ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
+      }`}
+    >
       {/* Header bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
         {leagueName} ⋅ {tournamentName}

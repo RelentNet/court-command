@@ -53,6 +53,9 @@ export function MatchConfigurationPanel({
   const [showTeamLogos, setShowTeamLogos] = useState<boolean>(
     match.config?.show_team_logos ?? true,
   )
+  const [isTickerVisible, setIsTickerVisible] = useState<boolean>(
+    match.config?.is_ticker_visible ?? true,
+  )
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 
   // Sync state if match data updates from server
@@ -69,6 +72,8 @@ export function MatchConfigurationPanel({
     if (match.config.match_info) setMatchInfo(match.config.match_info)
     if (match.config.show_team_logos !== undefined)
       setShowTeamLogos(match.config.show_team_logos)
+    if (match.config.is_ticker_visible !== undefined)
+      setIsTickerVisible(match.config.is_ticker_visible)
 
     // Hydrate players from participants if they exist
     // @ts-ignore: Dynamic access to nested participants object
@@ -131,6 +136,7 @@ export function MatchConfigurationPanel({
           tournament_name: tournamentName,
           match_info: matchInfo,
           show_team_logos: showTeamLogos,
+          is_ticker_visible: isTickerVisible,
         },
         participants: {
           team_1: {
@@ -267,7 +273,7 @@ export function MatchConfigurationPanel({
                 />
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-6">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -277,6 +283,17 @@ export function MatchConfigurationPanel({
                 />
                 <span className="text-slate-300 text-sm">
                   Show Team Logos on Ticker
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isTickerVisible}
+                  onChange={(e) => setIsTickerVisible(e.target.checked)}
+                  className="rounded text-lime-500 focus:ring-lime-500"
+                />
+                <span className="text-slate-300 text-sm">
+                  Broadcast Ticker Visible
                 </span>
               </label>
             </div>

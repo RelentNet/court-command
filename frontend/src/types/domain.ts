@@ -46,6 +46,7 @@ export interface MatchConfig {
   tournament_name?: string
   match_info?: string
   show_team_logos?: boolean
+  is_ticker_visible?: boolean
   [key: string]: unknown
 }
 

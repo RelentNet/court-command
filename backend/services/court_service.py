@@ -41,10 +41,10 @@ class CourtService:
         if not court:
             raise HTTPException(status_code=404, detail="Court not found")
             
-        # 2. Fetch Active Match
+        # 2. Fetch Active Match (Latest match, including finalized ones to keep ticker active)
         match_stmt = select(Match).where(
             Match.court_slug == slug, 
-            Match.status.in_(["in_progress", "preparing"])
+            Match.status.in_(["in_progress", "preparing", "final"])
         ).order_by(Match.created_at.desc()).limit(1)
         
         match_res = await self.session.execute(match_stmt)

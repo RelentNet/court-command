@@ -90,28 +90,59 @@ function CourtDetail() {
             />
           </div>
         ) : court.active_match ? (
-          <div className="bg-slate-800 p-12 border border-lime-500/50 rounded-xl text-center">
-            <div className="mb-4 font-mono text-4xl text-lime-500">● Live</div>
-            <h2 className="mb-2 font-semibold text-xl">Match In Progress</h2>
+          <div
+            className={`p-12 border rounded-xl text-center ${
+              court.active_match.status === 'final'
+                ? 'bg-slate-800/50 border-slate-700'
+                : 'bg-slate-800 border-lime-500/50'
+            }`}
+          >
+            <div
+              className={`mb-4 font-mono text-4xl ${
+                court.active_match.status === 'final'
+                  ? 'text-slate-500'
+                  : 'text-lime-500'
+              }`}
+            >
+              {court.active_match.status === 'final' ? '🏁 Final' : '● Live'}
+            </div>
+            <h2 className="mb-2 font-semibold text-xl">
+              {court.active_match.status === 'final'
+                ? 'Match Complete'
+                : 'Match In Progress'}
+            </h2>
             <p className="text-slate-400">
               {court.active_match.participants.team_1?.name || 'Team 1'} vs{' '}
               {court.active_match.participants.team_2?.name || 'Team 2'}
             </p>
-            <div className="flex justify-center gap-4 mt-6">
-              <Link
-                to="/courts/$courtSlug/referee"
-                params={{ courtSlug }}
-                className="bg-lime-600 hover:bg-lime-500 px-6 py-3 rounded-lg font-bold text-white transition-colors"
-              >
-                Referee Console
-              </Link>
-              <Link
-                to="/courts/$courtSlug/scoreboard"
-                params={{ courtSlug }}
-                className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold text-white transition-colors"
-              >
-                Scoreboard Display
-              </Link>
+            <div className="flex flex-col items-center gap-4 mt-6">
+              <div className="flex justify-center gap-4">
+                <Link
+                  to="/courts/$courtSlug/referee"
+                  params={{ courtSlug }}
+                  className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold text-white transition-colors"
+                >
+                  Referee Console
+                </Link>
+                <Link
+                  to="/courts/$courtSlug/scoreboard"
+                  params={{ courtSlug }}
+                  className="bg-slate-700 hover:bg-slate-600 px-6 py-3 rounded-lg font-bold text-white transition-colors"
+                >
+                  Scoreboard Display
+                </Link>
+              </div>
+              {court.active_match.status === 'final' && (
+                <button
+                  onClick={() => createMatchMutation.mutate()}
+                  disabled={createMatchMutation.isPending}
+                  className="bg-lime-600 hover:bg-lime-500 mt-4 px-8 py-3 rounded-lg font-bold text-white transition-colors shadow-lg animate-in slide-in-from-bottom-2"
+                >
+                  {createMatchMutation.isPending
+                    ? 'Starting...'
+                    : 'Start New Match'}
+                </button>
+              )}
             </div>
           </div>
         ) : (
