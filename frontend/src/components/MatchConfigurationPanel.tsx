@@ -48,26 +48,26 @@ export function MatchConfigurationPanel({
     if (match.team_1_id) setTeam1Id(match.team_1_id.toString())
     if (match.team_2_id) setTeam2Id(match.team_2_id.toString())
     if (match.first_serving_team) setFirstServer(match.first_serving_team)
-    if (match.config?.format) {
+    if (match.config.format) {
       setBestOf(parseInt(match.config.format.split('_').pop() || '3'))
     }
 
     // Hydrate players from participants if they exist
-    // @ts-ignore
+    // @ts-ignore: Dynamic access to nested participants object
     if (match.participants.team_1?.player_1?.id)
-      // @ts-ignore
+      // @ts-ignore: Dynamic access to nested participants object
       setTeam1Player1Id(match.participants.team_1.player_1.id.toString())
-    // @ts-ignore
+    // @ts-ignore: Dynamic access to nested participants object
     if (match.participants.team_1?.player_2?.id)
-      // @ts-ignore
+      // @ts-ignore: Dynamic access to nested participants object
       setTeam1Player2Id(match.participants.team_1.player_2.id.toString())
-    // @ts-ignore
+    // @ts-ignore: Dynamic access to nested participants object
     if (match.participants.team_2?.player_1?.id)
-      // @ts-ignore
+      // @ts-ignore: Dynamic access to nested participants object
       setTeam2Player1Id(match.participants.team_2.player_1.id.toString())
-    // @ts-ignore
+    // @ts-ignore: Dynamic access to nested participants object
     if (match.participants.team_2?.player_2?.id)
-      // @ts-ignore
+      // @ts-ignore: Dynamic access to nested participants object
       setTeam2Player2Id(match.participants.team_2.player_2.id.toString())
   }, [match])
 
@@ -142,146 +142,147 @@ export function MatchConfigurationPanel({
     },
   })
 
-    if (teamsLoading || playersLoading) return <Spinner />
-  
-    const swapPlayers = (team: 1 | 2) => {
-      if (team === 1) {
-        const temp = team1Player1Id
-        setTeam1Player1Id(team1Player2Id)
-        setTeam1Player2Id(temp)
-      } else {
-        const temp = team2Player1Id
-        setTeam2Player1Id(team2Player2Id)
-        setTeam2Player2Id(temp)
-      }
+  if (teamsLoading || playersLoading) return <Spinner />
+
+  const swapPlayers = (team: 1 | 2) => {
+    if (team === 1) {
+      const temp = team1Player1Id
+      setTeam1Player1Id(team1Player2Id)
+      setTeam1Player2Id(temp)
+    } else {
+      const temp = team2Player1Id
+      setTeam2Player1Id(team2Player2Id)
+      setTeam2Player2Id(temp)
     }
-  
-    return (      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex justify-between items-center bg-slate-800 hover:bg-slate-750 p-4 border-b border-slate-700 w-full font-bold text-lime-400 transition-colors"
-        >
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5" /> Match Configuration
-            {isStarted && (
-              <span className="bg-lime-500/20 px-2 py-0.5 rounded text-[10px] text-lime-500 uppercase">
-                Locked
-              </span>
-            )}
-          </div>
-          {isOpen ? (
-            <ChevronUp className="w-5 h-5 text-slate-500" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-slate-500" />
+  }
+
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex justify-between items-center bg-slate-800 hover:bg-slate-750 p-4 border-b border-slate-700 w-full font-bold text-lime-400 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5" /> Match Configuration
+          {isStarted && (
+            <span className="bg-lime-500/20 px-2 py-0.5 rounded text-[10px] text-lime-500 uppercase">
+              Locked
+            </span>
           )}
-        </button>
-  
-        {isOpen && (
-                  <div className="p-6 animate-in slide-in-from-top-2 duration-200">
-                    <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
-                      <TeamConfigCard
-                        label="Team 1 (Home)"
-                        teamId={team1Id}
-                        otherTeamId={team2Id}
-                        player1Id={team1Player1Id}
-                        player2Id={team1Player2Id}
-                        teams={teams || []}
-                        players={players || []}
-                        onTeamChange={setTeam1Id}
-                        onPlayer1Change={setTeam1Player1Id}
-                        onPlayer2Change={setTeam1Player2Id}
-                        onSwap={() => swapPlayers(1)}
-                        onCreateTeam={() => setIsCreatingTeam(true)}
-                      />
-          
-                      <TeamConfigCard
-                        label="Team 2 (Away)"
-                        teamId={team2Id}
-                        otherTeamId={team1Id}
-                        player1Id={team2Player1Id}
-                        player2Id={team2Player2Id}
-                        teams={teams || []}
-                        players={players || []}
-                        onTeamChange={setTeam2Id}
-                        onPlayer1Change={setTeam2Player1Id}
-                        onPlayer2Change={setTeam2Player2Id}
-                        onSwap={() => swapPlayers(2)}
-                        onCreateTeam={() => setIsCreatingTeam(true)}
-                      />
-                    </div>
-          
-                    <div className="mt-8">              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-                <ArrowRightLeft className="w-4 h-4" /> Service Logic
-              </div>
-  
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setFirstServer(1)}
-                  disabled={isStarted}
-                  className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
-                    firstServer === 1
-                      ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
-                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-                  } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  Team 1 Serves First
-                </button>
-                <button
-                  onClick={() => setFirstServer(2)}
-                  disabled={isStarted}
-                  className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
-                    firstServer === 2
-                      ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
-                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-                  } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  Team 2 Serves First
-                </button>
-              </div>
+        </div>
+        {isOpen ? (
+          <ChevronUp className="w-5 h-5 text-slate-500" />
+        ) : (
+          <ChevronDown className="w-5 h-5 text-slate-500" />
+        )}
+      </button>
+      {isOpen && (
+        <div className="p-6 animate-in slide-in-from-top-2 duration-200">
+          <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
+            <TeamConfigCard
+              label="Team 1 (Home)"
+              teamId={team1Id}
+              otherTeamId={team2Id}
+              player1Id={team1Player1Id}
+              player2Id={team1Player2Id}
+              teams={teams || []}
+              players={players || []}
+              onTeamChange={setTeam1Id}
+              onPlayer1Change={setTeam1Player1Id}
+              onPlayer2Change={setTeam1Player2Id}
+              onSwap={() => swapPlayers(1)}
+              onCreateTeam={() => setIsCreatingTeam(true)}
+            />
+
+            <TeamConfigCard
+              label="Team 2 (Away)"
+              teamId={team2Id}
+              otherTeamId={team1Id}
+              player1Id={team2Player1Id}
+              player2Id={team2Player2Id}
+              teams={teams || []}
+              players={players || []}
+              onTeamChange={setTeam2Id}
+              onPlayer1Change={setTeam2Player1Id}
+              onPlayer2Change={setTeam2Player2Id}
+              onSwap={() => swapPlayers(2)}
+              onCreateTeam={() => setIsCreatingTeam(true)}
+            />
+          </div>
+
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+              <ArrowRightLeft className="w-4 h-4" /> Service Logic
             </div>
-  
-            {/* Series Length */}
-            <div className="mt-8">
-              <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
-                <Trophy className="w-4 h-4" /> Series Length
-              </div>
-              <div className="flex gap-4">
-                {[1, 3, 5].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() => setBestOf(num)}
-                    disabled={isStarted}
-                    className={`flex-1 p-3 rounded-lg border-2 transition-all ${
-                      bestOf === num
-                        ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
-                        : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-                    } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    Best of {num}
-                  </button>
-                ))}
-              </div>
-            </div>
-  
-            <div className="flex justify-end mt-6 pt-4 border-t border-slate-700">
+            <div className="flex gap-4">
               <button
-                onClick={() => configureMutation.mutate()}
-                disabled={!team1Id || !team2Id || configureMutation.isPending}
-                className={`px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg disabled:opacity-50 ${
-                  match.status === 'preparing'
-                    ? 'bg-green-600 hover:bg-green-500 ring-2 ring-green-500/20'
-                    : 'bg-lime-600 hover:bg-lime-500'
-                }`}
+                onClick={() => setFirstServer(1)}
+                disabled={isStarted}
+                className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
+                  firstServer === 1
+                    ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                {configureMutation.isPending
-                  ? 'Updating...'
-                  : match.status === 'preparing'
-                    ? 'Start Match'
-                    : 'Update Match Configuration'}
+                Team 1 Serves First
+              </button>
+              <button
+                onClick={() => setFirstServer(2)}
+                disabled={isStarted}
+                className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
+                  firstServer === 2
+                    ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                Team 2 Serves First
               </button>
             </div>
           </div>
-        )}      {isCreatingTeam && players && (
+
+          {/* Series Length */}
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4 font-semibold text-slate-300 text-sm uppercase tracking-wider">
+              <Trophy className="w-4 h-4" /> Series Length
+            </div>
+            <div className="flex gap-4">
+              {[1, 3, 5].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setBestOf(num)}
+                  disabled={isStarted}
+                  className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                    bestOf === num
+                      ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
+                      : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                  } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  Best of {num}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end mt-6 pt-4 border-t border-slate-700">
+            <button
+              onClick={() => configureMutation.mutate()}
+              disabled={!team1Id || !team2Id || configureMutation.isPending}
+              className={`px-8 py-3 rounded-lg font-bold text-white transition-all shadow-lg disabled:opacity-50 ${
+                match.status === 'preparing'
+                  ? 'bg-green-600 hover:bg-green-500 ring-2 ring-green-500/20'
+                  : 'bg-lime-600 hover:bg-lime-500'
+              }`}
+            >
+              {configureMutation.isPending
+                ? 'Updating...'
+                : match.status === 'preparing'
+                  ? 'Start Match'
+                  : 'Update Match Configuration'}
+            </button>
+          </div>
+        </div>
+      )}{' '}
+      {isCreatingTeam && players && (
         <CreateTeamModal
           players={players}
           onClose={() => setIsCreatingTeam(false)}

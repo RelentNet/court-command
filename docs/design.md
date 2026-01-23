@@ -2,35 +2,33 @@
 
 ## Executive Summary (Health Score: 8/10)
 
-The Referee Interface is functional and robust, but the **Match Configuration Panel** has become dense. The "Team Selection" and "Player Creation" controls are crammed into a grid that feels overwhelming, especially when trying to quickly set up a match on a tablet.
+The Referee Interface is functional and robust, but the **Team Configuration Card** has usability friction on touch devices. The actions for creating new teams/players ("+ New") and swapping positions ("Swap") are currently small text buttons that are hard to tap and visually ambiguous.
 
-The goal of this redesign is to **decompose the complexity**. Instead of one monolithic form, we will visually separate the concerns into distinct, clear zones.
+The goal of this redesign is to **optimize for touch targets**. We will replace small text links with distinct, thumb-friendly action areas.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Cluttered Configuration Panel
-The current `MatchConfigurationPanel` mixes Team Selection, Player Assignment, Coin Toss, and Rules into one dense block.
-- **Fix:** Split the panel into three distinct vertical sections (or "Cards"):
-    1.  **Home Team** (Team 1 Selection & Players)
-    2.  **Away Team** (Team 2 Selection & Players)
-    3.  **Match Settings** (First Server & Series Length)
+### 1. Small Touch Targets
+The "+ New" and "Swap" buttons are essentially text links with tiny icons. On a tablet, these are difficult to hit accurately without accidentally triggering nearby inputs.
+- **Fix:** Replace the "Swap" text button with a large, centered, dedicated Swap Action Button between the player inputs.
+- **Fix:** Replace the "+ New" text button with a prominent "Create" button or icon-button with sufficient padding.
 
-### 2. Dense Dropdowns
-The player selection dropdowns are small and crowded next to each other.
-- **Fix:** Use full-width rows for player selection within the Team Card, giving them breathing room.
+### 2. Visual Ambiguity
+The "Swap" button is tucked away in the header, disconnected from the players it actually affects (Player 1 & Player 2).
+- **Fix:** Move the Swap action physically *between* the Player 1 and Player 2 dropdowns to visually indicate its function.
 
 ## Optimization Suggestions (Long-term)
 
-### 1. Stepper Workflow
-For a brand new match, a "Wizard" or "Stepper" (Step 1: Teams -> Step 2: Settings -> Step 3: Start) might be even cleaner than a single page.
+### 1. Drag-and-Drop Reordering
+For swapping players, a drag-and-drop interface would be the most intuitive gesture on a tablet, though harder to implement than a button.
 
 ## Progress Checklist
 
-- [ ] **Phase 1: Visual Restructuring**
-    - [ ] Refactor `MatchConfigurationPanel` to use a `grid-cols-1 lg:grid-cols-3` layout for larger screens, stacking vertically on mobile/tablet.
-    - [ ] Create a dedicated `<TeamConfigCard />` sub-component to encapsulate the logic for selecting a team and its players.
-    - [ ] Create a `<MatchSettingsCard />` for the rules.
+- [ ] **Phase 1: Component Restructuring**
+    - [ ] Update `TeamConfigCard.tsx` layout to separate the "Swap" action from the header.
+    - [ ] Place a large `<SwapButton />` between the Player 1 and Player 2 selectors.
+    - [ ] Redesign the "+ New" button to be a distinct action button next to the Team Select dropdown or as a prominent footer action.
 
-- [ ] **Phase 2: UI Polish**
-    - [ ] Increase padding and font sizes for touch friendliness.
-    - [ ] Use clearer visual grouping (borders/backgrounds) for Home vs Away.
+- [ ] **Phase 2: Visual Polish**
+    - [ ] Increase padding on all select inputs for tablet friendliness.
+    - [ ] Ensure buttons have active states (scale/color) for feedback.

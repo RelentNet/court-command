@@ -108,16 +108,12 @@ export function MatchContainer({
         <Scoreboard
           match={match}
           onPoint={
-            readonly ||
-            match.status === 'preparing' ||
-            match.status === 'final'
+            readonly || match.status === 'preparing' || match.status === 'final'
               ? () => {}
               : () => actionMutation.mutate('point')
           }
           onSideOut={
-            readonly ||
-            match.status === 'preparing' ||
-            match.status === 'final'
+            readonly || match.status === 'preparing' || match.status === 'final'
               ? () => {}
               : () => actionMutation.mutate('sideout')
           }
@@ -138,10 +134,10 @@ export function MatchContainer({
               Winner:{' '}
               {(() => {
                 const wins1 = match.completed_games.filter(
-                  (g: any) => g.winner === 1,
+                  (g: Record<string, unknown>) => g.winner === 1,
                 ).length
                 const wins2 = match.completed_games.filter(
-                  (g: any) => g.winner === 2,
+                  (g: Record<string, unknown>) => g.winner === 2,
                 ).length
                 return wins1 > wins2
                   ? match.participants.team_1?.name || 'Team 1'
