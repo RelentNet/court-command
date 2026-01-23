@@ -88,7 +88,7 @@ export function TeamConfigCard({
           {/* Player 1 */}
           <div>
             <label className="mb-1 block text-slate-500 text-[10px] uppercase font-bold">
-              Player 1 (First Server)
+              Player 1 (First Server / BAND)
             </label>
             <select
               value={player1Id}
