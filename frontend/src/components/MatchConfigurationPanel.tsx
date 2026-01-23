@@ -321,23 +321,21 @@ export function MatchConfigurationPanel({
             <div className="flex gap-4">
               <button
                 onClick={() => setFirstServer(1)}
-                disabled={isStarted}
                 className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
                   firstServer === 1
                     ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
                     : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-                } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                }`}
               >
                 Team 1 Serves First
               </button>
               <button
                 onClick={() => setFirstServer(2)}
-                disabled={isStarted}
                 className={`flex-1 p-4 rounded-lg border-2 transition-all flex items-center justify-center gap-3 ${
                   firstServer === 2
                     ? 'border-lime-500 bg-lime-500/10 text-lime-400 font-bold'
                     : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
-                } ${isStarted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                }`}
               >
                 Team 2 Serves First
               </button>

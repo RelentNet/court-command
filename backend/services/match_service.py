@@ -412,8 +412,8 @@ class MatchService:
         # Update Serving Preference
         if "first_serving_team" in config_data:
             match.first_serving_team = config_data["first_serving_team"]
-            # If match hasn't started scoring yet, update current server
-            if match.team_1_score == 0 and match.team_2_score == 0 and match.status == "preparing":
+            # If match hasn't started scoring yet (in this game), update current server
+            if match.team_1_score == 0 and match.team_2_score == 0:
                 match.serving_team = match.first_serving_team
 
         # Standardize participants object for frontend
