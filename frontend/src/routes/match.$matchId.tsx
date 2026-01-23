@@ -7,5 +7,5 @@ export const Route = createFileRoute('/match/$matchId')({
 
 function MatchDebugConsole() {
   const { matchId } = Route.useParams()
-  return <MatchContainer matchId={matchId} />
+  return <MatchContainer matchId={matchId} readonly={true} />
 }
