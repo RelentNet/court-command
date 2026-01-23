@@ -15,7 +15,6 @@ import { Scoreboard } from './Scoreboard'
 import { ControlPanel } from './ControlPanel'
 import { DebugConsole } from './DebugConsole'
 import { MatchConfigurationPanel } from './MatchConfigurationPanel'
-import { Header } from './Header'
 
 interface MatchContainerProps {
   matchId: string
@@ -121,9 +120,6 @@ export function MatchContainer({
   // 2. Render
   return (
     <div className="relative flex flex-col bg-slate-900 min-h-screen text-white">
-      {/* HEADER */}
-      <Header />
-
       {/* MAIN CONTENT */}
       <main className="flex-1 p-4 pb-24 overflow-y-auto">
         <div className="mx-auto max-w-5xl">

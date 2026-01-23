@@ -171,7 +171,7 @@ export function MatchConfigurationPanel({
   }
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+    <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl mb-6">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex justify-between items-center bg-slate-800 hover:bg-slate-750 p-4 border-b border-slate-700 w-full font-bold text-lime-400 transition-colors"
