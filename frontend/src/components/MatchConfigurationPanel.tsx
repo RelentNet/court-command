@@ -195,8 +195,8 @@ export function MatchConfigurationPanel({
           <div className="flex justify-center mb-6">
             <button
               onClick={() => swapSidesMutation.mutate()}
-              disabled={swapSidesMutation.isPending}
-              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-6 py-2 border border-slate-600 hover:border-slate-500 rounded-full font-bold text-slate-200 text-sm transition-all"
+              disabled={swapSidesMutation.isPending || !team1Id || !team2Id}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-6 py-2 border border-slate-600 hover:border-slate-500 rounded-full font-bold text-slate-200 text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowRightLeft className="w-4 h-4" /> Swap Sides (Home/Away)
             </button>
