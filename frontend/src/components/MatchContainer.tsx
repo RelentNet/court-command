@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
+  AlertTriangle,
   ArrowLeft,
-  Trophy,
-  Undo,
   RotateCcw,
   Save,
   Trash2,
-  AlertTriangle,
+  Trophy,
+  Undo,
 } from 'lucide-react'
 import config from '../config'
 import { useMatchSocket } from '../hooks/useMatchSocket'
@@ -227,7 +227,9 @@ export function MatchContainer({
           )}
 
           {/* Configuration Panel (Referee Only) */}
-          {!readonly && <MatchConfigurationPanel match={match} />}
+          {!readonly && !isMatchOver && (
+            <MatchConfigurationPanel match={match} />
+          )}
 
           {/* Components */}
           <Scoreboard
