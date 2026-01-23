@@ -220,6 +220,10 @@ async def undo_last_event(public_id: str, service: MatchService = Depends(get_ma
 async def reset_match(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.reset_match(public_id)
 
+@app.post("/matches/{public_id}/swap-teams", response_model=Match)
+async def swap_teams(public_id: str, service: MatchService = Depends(get_match_service)):
+    return await service.swap_teams(public_id)
+
 @app.patch("/matches/{public_id}/configure", response_model=Match)
 async def configure_match(
     public_id: str, 

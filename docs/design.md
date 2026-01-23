@@ -1,25 +1,29 @@
 # [DESIGN] Audit Report
 
-## Executive Summary (Health Score: 8/10)
+## Executive Summary (Health Score: 9/10)
 
-The Registry system has made great progress, but a critical regression has surfaced in the **Team Editing** workflow. The UI fails to reflect the "Edit" state, showing "Create Team" instead of "Update Team". Consequently, submitting the form attempts to create a *new* team with an existing name, triggering a backend conflict (`400 Bad Request`).
+The Referee Interface is highly functional, but referees currently lack a quick way to swap Home/Away team assignments if they were entered incorrectly or if teams switch sides physically.
 
-The goal is to fix the `TeamEditor` state detection to ensure it correctly identifies when it is editing an existing record.
+The goal is to implement a **"Swap Teams"** action that reverses the Team 1/Team 2 assignment while preserving the game state (scores, serving sequence relative to the new assignment).
 
 ## Critical Findings (Immediate Action)
 
-### 1. "Edit" Mode Not Detected
-The `TeamEditor` component displays "Create Team" even when editing.
-- **Root Cause:** The `initialData.id` prop might be missing or not checked correctly in the render logic.
-- **Fix:** Debug `TeamEditor.tsx` to ensure `initialData?.id` is correctly determining the button text and mutation logic.
+### 1. Missing "Swap Sides" Feature
+Referees cannot easily swap Team 1 (Home) and Team 2 (Away) without manually re-entering data.
+- **Fix:** Implement a `swap_teams` endpoint in the backend and a prominent "Swap Sides" button in the `MatchConfigurationPanel`.
 
-### 2. Mutation Logic Flaw
-The logs show `POST /teams` being called instead of `PUT /teams/{id}`.
-- **Root Cause:** The `createMutation` logic in `TeamEditor.tsx` is defaulting to `POST` because it thinks `initialData.id` is falsy.
-- **Fix:** Trace the prop drilling from `registry.index.tsx` -> `TeamEditor.tsx`.
+## Optimization Suggestions (Long-term)
+
+### 1. Auto-Swap Logic
+For "Best of 3" games, consider prompting the referee to swap sides automatically between games.
 
 ## Progress Checklist
 
-- [ ] **Phase 1: Diagnosis & Fix**
-    - [ ] Inspect `frontend/src/routes/registry.index.tsx` to ensure the full team object (including ID) is passed to `TeamEditor`.
-    - [ ] Inspect `frontend/src/components/TeamEditor.tsx` to verify how `initialData.id` controls the UI and API call.
+- [ ] **Phase 1: Backend Logic**
+    - [ ] Add `swap_teams(public_id)` method to `MatchService`.
+    - [ ] Create `POST /matches/{id}/swap-teams` endpoint.
+    - [ ] Ensure `team_1_id`, `team_2_id`, `team_1_score`, `team_2_score`, and `serving_team` are swapped atomically.
+
+- [ ] **Phase 2: Frontend UI**
+    - [ ] Add a "Swap Sides" button to `MatchConfigurationPanel` (likely near the team headers).
+    - [ ] Wire up the button to the new endpoint.

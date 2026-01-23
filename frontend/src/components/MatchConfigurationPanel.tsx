@@ -142,6 +142,20 @@ export function MatchConfigurationPanel({
     },
   })
 
+  const swapSidesMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(
+        `${config.API_URL}/matches/${match.public_id}/swap-teams`,
+        { method: 'POST' },
+      )
+      if (!res.ok) throw new Error('Failed to swap teams')
+      return res.json()
+    },
+    onSuccess: (updatedMatch) => {
+      queryClient.setQueryData(['match', match.public_id], updatedMatch)
+    },
+  })
+
   if (teamsLoading || playersLoading) return <Spinner />
 
   const swapPlayers = (team: 1 | 2) => {
@@ -178,6 +192,16 @@ export function MatchConfigurationPanel({
       </button>
       {isOpen && (
         <div className="p-6 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={() => swapSidesMutation.mutate()}
+              disabled={swapSidesMutation.isPending}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-6 py-2 border border-slate-600 hover:border-slate-500 rounded-full font-bold text-slate-200 text-sm transition-all"
+            >
+              <ArrowRightLeft className="w-4 h-4" /> Swap Sides (Home/Away)
+            </button>
+          </div>
+
           <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
             <TeamConfigCard
               label="Team 1 (Home)"
