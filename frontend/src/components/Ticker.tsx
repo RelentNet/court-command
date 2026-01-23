@@ -48,7 +48,8 @@ export default function Ticker({ match }: TickerProps) {
 
   // Configuration & Status
   const leagueName = match.config?.league_name || 'Global Padel Association'
-  const tournamentName = match.config?.tournament_name || 'Nebula Padel Open 2026'
+  const tournamentName =
+    match.config?.tournament_name || 'Nebula Padel Open 2026'
   const matchInfo = match.config?.match_info || 'Quarter-Finals'
   const showTeamLogos = match.config?.show_team_logos ?? true
 
@@ -65,14 +66,14 @@ export default function Ticker({ match }: TickerProps) {
     const wins1 = match.completed_games.filter((g) => g.winner === 1).length
     const wins2 = match.completed_games.filter((g) => g.winner === 2).length
 
-    return `${wins1} - ${wins2}`
+    return `(${wins1} - ${wins2})`
   }
 
   return (
     <div className="relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col">
       {/* Header bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {leagueName} - {tournamentName}
+        {leagueName} ⋅ {tournamentName}
       </div>
 
       {/* Match body */}
@@ -135,7 +136,7 @@ export default function Ticker({ match }: TickerProps) {
       </div>
       {/* Footer bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {matchInfo} - {getSeriesLength()} - {getMatchStatus()}
+        {matchInfo} ⋅ {getSeriesLength()} ⋅ {getMatchStatus()}
       </div>
     </div>
   )
