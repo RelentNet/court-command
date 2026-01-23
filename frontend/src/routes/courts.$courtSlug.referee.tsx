@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Navigate, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import config from '../config'
 import { MatchContainer } from '../components/MatchContainer'
@@ -26,12 +26,11 @@ function CourtReferee() {
         Loading...
       </div>
     )
-  if (!court?.active_match)
-    return (
-      <div className="flex justify-center items-center bg-slate-900 min-h-screen text-white">
-        No active match on this court.
-      </div>
-    )
+  
+  // If no active match, or if the active match is FINAL, redirect to court detail
+  if (!court?.active_match || court.active_match.status === 'final') {
+    return <Navigate to="/courts/$courtSlug" params={{ courtSlug }} />
+  }
 
   return (
     <div className="bg-slate-900 min-h-screen">
