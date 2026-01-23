@@ -37,36 +37,42 @@ export default function Ticker({ match }: TickerProps) {
   const team1Name = getTeamName(1)
   const team2Name = getTeamName(2)
 
+  // Team Colors
+  const getTeamColor = (teamId: 1 | 2) => {
+    const p =
+      teamId === 1 ? match.participants.team_1 : match.participants.team_2
+    // @ts-ignore: Dynamic access
+    const color = (p?.primary_color as string) || '#CCCCCC'
+    return color.replace('#', '')
+  }
+
   // Configuration & Status
   const leagueName = match.config?.league_name || 'Global Padel Association'
-  const tournamentName = match.config?.tournament_name || 'Nebula Padel Open 2026'
+  const tournamentName =
+    match.config?.tournament_name || 'Nebula Padel Open 2026'
   const matchInfo = match.config?.match_info || 'Quarter-Finals'
 
   // Helper to parse "best_of_X"
   const getSeriesLength = () => {
     const format = match.config?.format || 'best_of_3'
     const bestOf = format.split('_').pop() || '3'
-    return `Best of ${bestOf} Sets`
+    return `Best of ${bestOf}`
   }
 
   const getMatchStatus = () => {
-    switch (match.status) {
-      case 'preparing':
-        return 'Warm Up'
-      case 'in_progress':
-        return 'Live Match'
-      case 'final':
-        return 'Final Score'
-      default:
-        return 'Live Match'
-    }
+    if (match.status === 'preparing') return 'Warm Up'
+
+    const wins1 = match.completed_games.filter((g) => g.winner === 1).length
+    const wins2 = match.completed_games.filter((g) => g.winner === 2).length
+
+    return `(${wins1} - ${wins2})`
   }
 
   return (
     <div className="relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col">
       {/* Header bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {leagueName} - {tournamentName}
+        {leagueName} ⋅ {tournamentName}
       </div>
 
       {/* Match body */}
@@ -86,7 +92,7 @@ export default function Ticker({ match }: TickerProps) {
           <div className="flex flex-1">
             <div className="flex justify-center items-center border-white border-r aspect-square">
               <img
-                src={`https://placehold.co/60x60?text=${getInitials(team1Name)}`}
+                src={`https://placehold.co/60x60/${getTeamColor(1)}/FFFFFF?text=${getInitials(team1Name)}`}
                 alt={`${team1Name} logo`}
                 className="aspect-square size-full"
               />
@@ -106,7 +112,7 @@ export default function Ticker({ match }: TickerProps) {
           <div className="flex flex-1">
             <div className="flex justify-center items-center border-white border-r aspect-square">
               <img
-                src={`https://placehold.co/60x60?text=${getInitials(team2Name)}`}
+                src={`https://placehold.co/60x60/${getTeamColor(2)}/FFFFFF?text=${getInitials(team2Name)}`}
                 alt={`${team2Name} logo`}
                 className="aspect-square size-full"
               />
@@ -125,7 +131,7 @@ export default function Ticker({ match }: TickerProps) {
       </div>
       {/* Footer bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {matchInfo} - {getSeriesLength()} - {getMatchStatus()}
+        {matchInfo} ⋅ {getSeriesLength()} ⋅ {getMatchStatus()}
       </div>
     </div>
   )
