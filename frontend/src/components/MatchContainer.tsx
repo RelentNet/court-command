@@ -224,6 +224,21 @@ export function MatchContainer({
                 >
                   Reset Match
                 </button>
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        'Are you sure you want to DELETE this match completely? This cannot be undone and will return you to the court dashboard.',
+                      )
+                    ) {
+                      deleteMatchMutation.mutate()
+                    }
+                  }}
+                  className="flex items-center gap-2 bg-red-900/50 hover:bg-red-800 px-3 py-2 border border-red-800/50 rounded-lg text-red-200 hover:text-white transition-all"
+                  title="Delete Match"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
             </div>
           )}
