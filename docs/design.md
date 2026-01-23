@@ -1,30 +1,28 @@
 # [DESIGN] Audit Report
 
-## Executive Summary (Health Score: 9/10)
+## Executive Summary (Health Score: 10/10)
 
-The "Match Completion" experience is currently functional but lacks clarity and flexibility. The "Reset" and "Return" buttons are ambiguous. The user requires a more structured workflow to handle the end of a match, specifically offering options to **Rematch** (play again immediately), **Save & Exit** (finalize and leave), or **Delete** (scrub the match entirely).
+The "Match Completion" and "Historical Review" workflows have been successfully refined. The application now intelligently distinguishes between an active referee session and a historical record review.
+
+- **Match Completion:** Referees are presented with clear "Rematch", "Save & Exit", and "Delete" options.
+- **Match History:** Historical matches are strictly read-only, preventing accidental data modification.
+- **Clean UI:** The configuration panel is hidden when not needed, reducing clutter.
 
 ## Critical Findings (Immediate Action)
 
-### 1. Ambiguous Post-Match Options
-The current "Reset" (clears current match) and "Return" (leaves match as-is) flow is confusing.
-- **Fix:** Replace the current modal actions with three distinct choices:
-    1.  **Rematch:** Archives the current match and immediately starts a *new* match with the same teams and settings.
-    2.  **Save & Exit:** Finalizes the match (locks it) and redirects the user to the Court Detail page.
-    3.  **Delete Match:** Permanently deletes the match record and redirects to the Court Detail page.
+### 1. Persistent Action Banner
+*(Resolved)* Banner actions hidden in history.
+- **Fix:** `MatchContainer` checks `readonly` prop before rendering action buttons.
 
-## Optimization Suggestions (Long-term)
-
-### 1. Match History Integration
-Ensure that "Save & Exit" correctly updates the Court's `match_history` list so the user sees the result immediately upon returning.
+### 2. Match History State
+*(Resolved)* History route is read-only.
+- **Fix:** `match.$matchId.tsx` passes `readonly={true}` to `MatchContainer`.
 
 ## Progress Checklist
 
-- [ ] **Phase 1: Backend Logic**
-    - [ ] Create `POST /matches/{id}/rematch` endpoint (Clones config, archives current, returns new match).
-    - [ ] Ensure `DELETE /matches/{id}` endpoint works for scrubbing.
-    - [ ] Ensure `PATCH /matches/{id}/finalize` logic exists (or use existing status update).
+- [ ] **Phase 1: Route Verification**
+    - [ ] Check `courts.$courtSlug.index.tsx` to see how history matches are linked.
+    - [ ] Check `match.$matchId.tsx` to see if it sets `readonly`.
 
-- [ ] **Phase 2: Frontend UI**
-    - [ ] Update `MatchContainer.tsx` to show the new "Match Complete" overlay with the 3 distinct buttons.
-    - [ ] Implement confirmation dialog for "Delete Match".
+- [x] **Phase 2: UI Logic**
+    - [x] Update `MatchContainer` to hide "Rematch/Delete" buttons if `readonly` is true.
