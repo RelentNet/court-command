@@ -1,5 +1,4 @@
 services:
-  # Postgres Database
   db:
     image: postgres:17-alpine
     restart: always
@@ -15,7 +14,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis for Real-time Pub/Sub
   redis:
     image: redis:alpine
     restart: always
@@ -27,7 +25,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API
   backend:
     build: ./backend
     restart: always
@@ -39,20 +36,15 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-courtcommand}
       REDIS_URL: redis://redis:6379
-    ports:
-      - "8000:8000"
+    # No ports mapping here for production!
 
-  # Frontend
   frontend:
     build:
       context: ./frontend
       args:
-        # Defaults to hitting localhost:8000 from the browser
-        # For production/coolify, this should be the public URL of the backend
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_API_URL: ${VITE_API_URL}
     restart: always
-    ports:
-      - "3000:80"
+    # No ports mapping here for production!
 
 volumes:
   postgres_data:
