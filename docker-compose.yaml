@@ -1,0 +1,59 @@
+services:
+  # Postgres Database
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-courtcommand}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Real-time Pub/Sub
+  redis:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-courtcommand}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8000:8000"
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Defaults to hitting localhost:8000 from the browser
+        # For production/coolify, this should be the public URL of the backend
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    restart: always
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  redis_data:
