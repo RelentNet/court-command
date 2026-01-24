@@ -21,6 +21,7 @@ export interface Court {
   slug: string
   is_ticker_visible?: boolean
   created_at: string
+  active_match?: Match | null
 }
 
 export interface MatchParticipant {

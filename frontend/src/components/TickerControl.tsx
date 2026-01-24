@@ -23,18 +23,24 @@ export function TickerControl({ court, className = '' }: TickerControlProps) {
     },
     onSuccess: (updatedCourt) => {
       // Update individual court cache
-      queryClient.setQueryData(['court', court.slug], (old: any) => ({
-        ...old,
-        ...updatedCourt,
-      }))
+      queryClient.setQueryData(
+        ['court', court.slug],
+        (old: Court | undefined) => {
+          if (!old) return updatedCourt
+          return { ...old, ...updatedCourt }
+        },
+      )
 
       // Update list cache (for /tickers page)
-      queryClient.setQueryData(['courts'], (oldCourts: Court[] | undefined) => {
-        if (!oldCourts) return oldCourts
-        return oldCourts.map((c) =>
-          c.slug === court.slug ? { ...c, ...updatedCourt } : c,
-        )
-      })
+      queryClient.setQueryData(
+        ['courts'],
+        (oldCourts: Array<Court> | undefined) => {
+          if (!oldCourts) return oldCourts
+          return oldCourts.map((c) =>
+            c.slug === court.slug ? { ...c, ...updatedCourt } : c,
+          )
+        },
+      )
     },
   })
 

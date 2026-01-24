@@ -39,19 +39,19 @@ export function MatchConfigurationPanel({
     match.first_serving_team || 1,
   )
   const [bestOf, setBestOf] = useState<number>(
-    parseInt(match.config?.format?.split('_').pop() || '3'),
+    parseInt(match.config.format.split('_').pop() || '3'),
   )
   const [leagueName, setLeagueName] = useState<string>(
-    match.config?.league_name || 'Global Padel Association',
+    match.config.league_name || 'Global Padel Association',
   )
   const [tournamentName, setTournamentName] = useState<string>(
-    match.config?.tournament_name || 'Nebula Padel Open 2026',
+    match.config.tournament_name || 'Nebula Padel Open 2026',
   )
   const [matchInfo, setMatchInfo] = useState<string>(
-    match.config?.match_info || 'Quarter-Finals',
+    match.config.match_info || 'Quarter-Finals',
   )
   const [showTeamLogos, setShowTeamLogos] = useState<boolean>(
-    match.config?.show_team_logos ?? true,
+    match.config.show_team_logos ?? true,
   )
   const [isCreatingTeam, setIsCreatingTeam] = useState(false)
 

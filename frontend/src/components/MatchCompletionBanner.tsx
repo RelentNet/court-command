@@ -26,8 +26,8 @@ export function MatchCompletionBanner({
   ).length
   const winnerName =
     wins1 > wins2
-      ? (match.participants?.team_1?.name ?? 'Team 1')
-      : (match.participants?.team_2?.name ?? 'Team 2')
+      ? (match.participants.team_1?.name ?? 'Team 1')
+      : (match.participants.team_2?.name ?? 'Team 2')
 
   return (
     <div className="mb-6 p-6 border border-lime-500/50 rounded-xl bg-gradient-to-r from-lime-900/40 to-slate-900/40 text-center animate-in slide-in-from-top-4">

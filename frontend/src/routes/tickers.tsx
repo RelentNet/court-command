@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Monitor } from 'lucide-react'
 import config from '../config'
@@ -16,7 +16,7 @@ interface CourtSummary extends Court {
 }
 
 function TickersPage() {
-  const { data: courts, isLoading } = useQuery<CourtSummary[]>({
+  const { data: courts, isLoading } = useQuery<Array<CourtSummary>>({
     queryKey: ['courts'],
     queryFn: async () => {
       const res = await fetch(`${config.API_URL}/courts`)

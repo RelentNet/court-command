@@ -34,7 +34,7 @@ export function TeamConfigCard({
   const getTeamPlayers = (tid: string) => {
     const team = teams.find((t) => t.id?.toString() === tid)
     if (!team) return []
-    return players.filter((p) => team.player_ids.includes(p.id!)) || []
+    return players.filter((p) => team.player_ids.includes(p.id!))
   }
 
   return (

@@ -1,6 +1,6 @@
 import { RefreshCw, Trophy } from 'lucide-react'
-import type { Match } from '../types/domain'
 import { PlayerCard } from './PlayerCard'
+import type { Match } from '../types/domain'
 
 interface ScoreboardProps {
   match: Match
