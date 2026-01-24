@@ -74,15 +74,16 @@ class PickleballEngine:
         old_server = match.server_number
         old_serving_team = match.serving_team
 
-        # Logic: Alternating Team Rotation (Padel Style)
-        # Always switch serving team
-        match.serving_team = 2 if match.serving_team == 1 else 1
-
-        # Check if we completed a full round (both teams served with current server num)
-        # We toggle server number when control returns to the team that served FIRST in the game.
-        first_server = match.first_serving_team or 1
-        if match.serving_team == first_server:
-            match.server_number = 2 if match.server_number == 1 else 1
+        # Logic: Standard Pickleball Double Rotation
+        # T1P1 -> T1P2 -> Side Out -> T2P1 -> T2P2 -> Side Out -> T1P1
+        
+        if match.server_number == 1:
+            # First server lost serve, move to second server of SAME team
+            match.server_number = 2
+        else:
+            # Second server lost serve, Side Out to OTHER team, reset to Server 1
+            match.server_number = 1
+            match.serving_team = 2 if match.serving_team == 1 else 1
             
         return {
             "prev_server": old_server,
