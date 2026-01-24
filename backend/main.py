@@ -11,6 +11,7 @@ import logging
 
 from database import init_db, get_session
 from models import Match, Court, Player, Team
+from schemas import CreateCourtRequest, CourtSummary, CourtWithMatch, ConfigureMatchRequest
 from services.match_service import MatchService
 from services.court_service import CourtService
 from services.registry_service import RegistryService
@@ -70,6 +71,35 @@ def get_registry_service(session: AsyncSession = Depends(get_session)) -> Regist
 def health_check():
     return {"status": "healthy"}
 
+# --- WebSocket Helper ---
+
+async def handle_websocket_subscription(websocket: WebSocket, channel_name: str):
+    await websocket.accept()
+    redis_client = websocket.app.state.redis
+    pubsub = redis_client.pubsub()
+    try:
+        await pubsub.subscribe(channel_name)
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                await websocket.send_text(message["data"])
+    except RedisConnectionError:
+         logger.error(f"Redis connection failed for {channel_name}")
+         await websocket.close(code=1011, reason="Redis Connection Failed")
+    except WebSocketDisconnect:
+        logger.info(f"Client disconnected from {channel_name}")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try:
+             await websocket.close(code=1011)
+        except:
+             pass
+    finally:
+        try:
+            await pubsub.unsubscribe()
+            await pubsub.close()
+        except:
+            pass
+
 # --- Registry Endpoints ---
 
 @app.get("/players", response_model=List[Player])
@@ -112,52 +142,9 @@ async def get_team(team_id: int, service: RegistryService = Depends(get_registry
 
 # --- Courts Endpoints ---
 
-class CreateCourtRequest(BaseModel):
-    name: str
-
-from datetime import datetime
-
-class CourtSummary(BaseModel):
-    id: int
-    name: str
-    slug: str
-    is_ticker_visible: bool = True
-    created_at: datetime
-    is_active: bool = False
-
-class CourtWithMatch(BaseModel):
-    id: int
-    name: str
-    slug: str
-    is_ticker_visible: bool = True
-    created_at: datetime
-    active_match: Optional[Match] = None
-    match_history: List[Match] = []
-
 @app.websocket("/ws/courts/{slug}")
 async def websocket_court_endpoint(websocket: WebSocket, slug: str):
-    await websocket.accept()
-    
-    redis_client = websocket.app.state.redis
-    pubsub = redis_client.pubsub()
-    
-    try:
-        await pubsub.subscribe(f"court_updates_{slug}")
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                await websocket.send_text(message["data"])
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        try:
-            await websocket.close(code=1011)
-        except:
-            pass
-    finally:
-        try:
-            await pubsub.unsubscribe()
-            await pubsub.close()
-        except:
-            pass
+    await handle_websocket_subscription(websocket, f"court_updates_{slug}")
 
 @app.get("/courts", response_model=List[CourtSummary])
 async def get_courts(service: CourtService = Depends(get_court_service)):
@@ -186,53 +173,9 @@ async def update_court(
 
 # --- Match Endpoints ---
 
-class ConfigureMatchRequest(BaseModel):
-    team_1_id: Optional[int] = None
-    team_2_id: Optional[int] = None
-    first_serving_team: Optional[int] = None
-    status: Optional[str] = None
-    config: Optional[Dict[str, Any]] = None
-    participants: Optional[Dict[str, Any]] = None
-
 @app.websocket("/ws/matches/{public_id}")
 async def websocket_endpoint(websocket: WebSocket, public_id: str):
-    await websocket.accept()
-    
-    # Access redis from app state (websocket has access to app)
-    redis_client = websocket.app.state.redis
-    pubsub = redis_client.pubsub()
-    
-    try:
-        await pubsub.subscribe(f"match_updates_{public_id}")
-        
-        # Async iterator is more efficient than polling
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                await websocket.send_text(message["data"])
-            
-    except RedisConnectionError:
-        logger.error(f"Redis connection failed for match {public_id}")
-        # Close with status code indicating internal error to trigger client reconnect
-        await websocket.close(code=1011, reason="Redis Connection Failed")
-            
-    except WebSocketDisconnect:
-        # Normal client disconnect
-        logger.info(f"Client disconnected from match {public_id}")
-        
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        try:
-            await websocket.close(code=1011)
-        except:
-            pass
-        
-    finally:
-        # Cleanup resources
-        try:
-            await pubsub.unsubscribe()
-            await pubsub.close()
-        except:
-            pass
+    await handle_websocket_subscription(websocket, f"match_updates_{public_id}")
 
 @app.post("/matches", response_model=Match)
 async def create_match(match: Match, service: MatchService = Depends(get_match_service)):

@@ -7,6 +7,7 @@ import logging
 from redis.asyncio import Redis
 
 from models import Match, MatchEvent
+from logic.pickleball import PickleballEngine
 
 logger = logging.getLogger("MatchService")
 
@@ -17,7 +18,6 @@ class MatchService:
 
     async def _get_match_with_lock(self, public_id: str) -> Match:
         """Fetches a match by public_id with a database lock for update."""
-        # 'with_for_update' locks the row until the transaction is committed
         statement = select(Match).where(Match.public_id == public_id).with_for_update()
         result = await self.session.execute(statement)
         match = result.scalar_one_or_none()
@@ -26,22 +26,26 @@ class MatchService:
         return match
 
     async def _get_next_sequence_id(self, match_id: int) -> int:
-        """Calculates the next sequence ID for the event log."""
         statement = select(func.count()).select_from(MatchEvent).where(MatchEvent.match_id == match_id)
         result = await self.session.execute(statement)
         count = result.scalar_one()
         return count + 1
 
     async def _broadcast_update(self, match: Match):
-        """Publishes the current match state to Redis."""
         try:
             data = match.model_dump(mode="json")
             await self.redis.publish(f"match_updates_{match.public_id}", json.dumps(data))
         except Exception as e:
             logger.error(f"Redis publish failed: {e}")
 
+    async def _commit_and_broadcast(self, match: Match, event: MatchEvent):
+        self.session.add(event)
+        self.session.add(match)
+        await self.session.commit()
+        await self.session.refresh(match)
+        await self._broadcast_update(match)
+
     async def get_match(self, public_id: str) -> Match:
-        """ReadOnly fetch of a match."""
         statement = select(Match).where(Match.public_id == public_id)
         result = await self.session.execute(statement)
         match = result.scalar_one_or_none()
@@ -61,86 +65,24 @@ class MatchService:
         if match.status == "final":
             raise HTTPException(status_code=400, detail="Match is already finalized")
 
-        # Logic: Auto-start match if in preparing
         if match.status == "preparing":
             match.status = "in_progress"
 
-        # Logic: Add Point
-        if match.serving_team == 1:
-            match.team_1_score += 1
-        else:
-            match.team_2_score += 1
-            
-        # Check for Game Over
-        points_to = match.config.get("points_to", 11)
-        win_by = match.config.get("win_by", 2)
+        payload = PickleballEngine.process_point(match)
         
-        t1 = match.team_1_score
-        t2 = match.team_2_score
+        if payload.get("game_won"):
+             flag_modified(match, "completed_games")
         
-        game_won = False
-        winner = None
-        
-        if t1 >= points_to and (t1 - t2) >= win_by:
-            game_won = True
-            winner = 1
-        elif t2 >= points_to and (t2 - t1) >= win_by:
-            game_won = True
-            winner = 2
-            
-        if game_won:
-            # Archive Result
-            match.completed_games.append({
-                "game_num": match.current_game_num,
-                "score_team_1": t1,
-                "score_team_2": t2,
-                "winner": winner
-            })
-            # IMPORTANT: SqlAlchemy sometimes doesn't detect JSON mutation in place
-            # Use flag_modified to force update
-            flag_modified(match, "completed_games")
-            
-            # Check Match Over (Best of X)
-            # Parse 'best_of_X' string or default to 3
-            format_str = match.config.get("format", "best_of_3")
-            try:
-                best_of = int(format_str.split("_")[-1])
-            except:
-                best_of = 3
-                
-            games_needed = (best_of // 2) + 1
-            
-            # Count wins
-            wins_1 = sum(1 for g in match.completed_games if g.get("winner") == 1)
-            wins_2 = sum(1 for g in match.completed_games if g.get("winner") == 2)
-            
-            if wins_1 >= games_needed or wins_2 >= games_needed:
-                match.status = "final"
-                # Keep scores as is for display of final game
-            else:
-                # Reset for next game
-                match.team_1_score = 0
-                match.team_2_score = 0
-                match.current_game_num += 1
-                match.server_number = 1 # Start next game with 1st server (Padel/Tennis style)
-                match.serving_team = 1 # Default to Team 1 starting (or make configurable later)
-        
-        # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
-
         event = MatchEvent(
             match_id=match.id,
             sequence_id=seq_id,
             event_type="POINT_SCORED",
             score_snapshot=match.model_dump(mode="json"),
-            payload={"action": "point", "team": match.serving_team}
+            payload=payload
         )
-        self.session.add(event)
-        self.session.add(match)
         
-        await self.session.commit()
-        await self.session.refresh(match)
-        await self._broadcast_update(match)
+        await self._commit_and_broadcast(match, event)
         return match
 
     async def side_out(self, public_id: str) -> Match:
@@ -149,43 +91,43 @@ class MatchService:
         if match.status == "final":
             raise HTTPException(status_code=400, detail="Match is already finalized")
 
-        old_server = match.server_number
-        old_serving_team = match.serving_team
+        payload = PickleballEngine.process_side_out(match)
 
-        # Logic: Alternating Team Rotation (Padel Style)
-        # Always switch serving team
-        match.serving_team = 2 if match.serving_team == 1 else 1
-
-        # Check if we completed a full round (both teams served with current server num)
-        # We toggle server number when control returns to the team that served FIRST in the game.
-        first_server = match.first_serving_team or 1
-        if match.serving_team == first_server:
-            match.server_number = 2 if match.server_number == 1 else 1
-
-        # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
         event = MatchEvent(
             match_id=match.id,
             sequence_id=seq_id,
             event_type="SIDE_OUT",
             score_snapshot=match.model_dump(mode="json"),
-            payload={
-                "prev_server": old_server,
-                "prev_team": old_serving_team,
-                "new_server": match.server_number,
-                "new_team": match.serving_team
-            }
+            payload=payload
         )
-        self.session.add(event)
-        self.session.add(match)
         
-        await self.session.commit()
-        await self.session.refresh(match)
-        await self._broadcast_update(match)
+        await self._commit_and_broadcast(match, event)
         return match
 
+    def _restore_snapshot(self, match: Match, snapshot: dict):
+        match.team_1_score = snapshot.get("team_1_score", 0)
+        match.team_2_score = snapshot.get("team_2_score", 0)
+        match.server_number = snapshot.get("server_number", 1)
+        match.serving_team = snapshot.get("serving_team", 1)
+        match.status = snapshot.get("status", "in_progress")
+        match.current_game_num = snapshot.get("current_game_num", 1)
+        match.completed_games = snapshot.get("completed_games", [])
+        
+        if "participants" in snapshot:
+            match.participants = snapshot["participants"]
+        if "config" in snapshot:
+            match.config = snapshot["config"]
+        match.team_1_id = snapshot.get("team_1_id")
+        match.team_2_id = snapshot.get("team_2_id")
+        match.first_serving_team = snapshot.get("first_serving_team")
+        
+        # Flag modified for JSON fields to be safe
+        flag_modified(match, "completed_games")
+        flag_modified(match, "participants")
+        flag_modified(match, "config")
+
     async def undo_last_event(self, public_id: str) -> Match:
-        # Note: We lock here too to prevent new events while undoing
         match = await self._get_match_with_lock(public_id)
 
         # Get last event
@@ -194,7 +136,7 @@ class MatchService:
         last_event = result_last.scalar_one_or_none()
         
         if not last_event:
-            return match # Nothing to undo
+            return match
 
         # Get the event before the last one
         stmt_prev = select(MatchEvent).where(MatchEvent.match_id == match.id).where(MatchEvent.sequence_id < last_event.sequence_id).order_by(MatchEvent.sequence_id.desc()).limit(1)
@@ -202,42 +144,22 @@ class MatchService:
         prev_event = result_prev.scalar_one_or_none()
 
         if prev_event:
-            # Restore
-            snapshot = prev_event.score_snapshot
-            match.team_1_score = snapshot.get("team_1_score", 0)
-            match.team_2_score = snapshot.get("team_2_score", 0)
-            match.server_number = snapshot.get("server_number", 1)
-            match.serving_team = snapshot.get("serving_team", 1)
-            match.status = snapshot.get("status", "in_progress")
-            match.current_game_num = snapshot.get("current_game_num", 1)
-            match.completed_games = snapshot.get("completed_games", [])
-            
-            # Restore configuration and participants
-            if "participants" in snapshot:
-                match.participants = snapshot["participants"]
-            if "config" in snapshot:
-                match.config = snapshot["config"]
-            match.team_1_id = snapshot.get("team_1_id")
-            match.team_2_id = snapshot.get("team_2_id")
-            match.first_serving_team = snapshot.get("first_serving_team")
+            self._restore_snapshot(match, prev_event.score_snapshot)
         else:
             # Reset to zero (Pre-match state)
             match.team_1_score = 0
             match.team_2_score = 0
             match.server_number = 1
             match.serving_team = 1
-            match.status = "preparing" # Default to preparing
+            match.status = "preparing"
             match.current_game_num = 1
             match.completed_games = []
-            # Ideally we shouldn't delete the genesis event?
-            # But getting here means we undid the VERY FIRST event.
-            pass
+            flag_modified(match, "completed_games")
 
         delete_stmt = delete(MatchEvent).where(MatchEvent.id == last_event.id)
         await self.session.execute(delete_stmt)
         
         self.session.add(match)
-        
         await self.session.commit()
         await self.session.refresh(match)
         await self._broadcast_update(match)
@@ -246,7 +168,6 @@ class MatchService:
     async def reset_match(self, public_id: str) -> Match:
         match = await self._get_match_with_lock(public_id)
 
-        # Logic: Reset everything but participants/court
         match.team_1_score = 0
         match.team_2_score = 0
         match.current_game_num = 1
@@ -254,8 +175,8 @@ class MatchService:
         match.serving_team = 1
         match.status = "preparing"
         match.completed_games = []
+        flag_modified(match, "completed_games")
 
-        # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
         event = MatchEvent(
             match_id=match.id,
@@ -265,24 +186,15 @@ class MatchService:
             payload={"action": "reset"}
         )
         
-        self.session.add(event)
-        self.session.add(match)
-        
-        await self.session.commit()
-        await self.session.refresh(match)
-        await self._broadcast_update(match)
+        await self._commit_and_broadcast(match, event)
         return match
 
     async def swap_teams(self, public_id: str) -> Match:
         match = await self._get_match_with_lock(public_id)
 
-        # Swap IDs
         match.team_1_id, match.team_2_id = match.team_2_id, match.team_1_id
-        
-        # Swap Scores
         match.team_1_score, match.team_2_score = match.team_2_score, match.team_1_score
         
-        # Swap Participants Metadata
         p1 = match.participants.get("team_1")
         p2 = match.participants.get("team_2")
         match.participants = {
@@ -290,8 +202,8 @@ class MatchService:
             "team_1": p2,
             "team_2": p1
         }
+        flag_modified(match, "participants")
         
-        # Swap Completed Games History
         new_completed_games = []
         for g in match.completed_games:
             new_g = g.copy()
@@ -303,28 +215,18 @@ class MatchService:
                 new_g["winner"] = 1
             new_completed_games.append(new_g)
         match.completed_games = new_completed_games
+        flag_modified(match, "completed_games")
         
-        # Swap First Serving Team Preference
         if match.first_serving_team == 1:
             match.first_serving_team = 2
         elif match.first_serving_team == 2:
             match.first_serving_team = 1
 
-        # Swap Current Server if necessary
-        # If serving_team was 1 (old team 1), it should now be 2 (new team 2 who WAS old team 1)?
-        # Wait. 
-        # Team A is T1. Team B is T2.
-        # Serving Team = 1 (Team A).
-        # SWAP.
-        # Team B is T1. Team A is T2.
-        # Who is serving? Team A. Team A is now T2.
-        # So serving_team should become 2.
         if match.serving_team == 1:
             match.serving_team = 2
         else:
             match.serving_team = 1
             
-        # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
         event = MatchEvent(
             match_id=match.id,
@@ -333,24 +235,17 @@ class MatchService:
             score_snapshot=match.model_dump(mode="json"),
             payload={"action": "swap_teams"}
         )
-        self.session.add(event)
-        self.session.add(match)
         
-        await self.session.commit()
-        await self.session.refresh(match)
-        await self._broadcast_update(match)
+        await self._commit_and_broadcast(match, event)
         return match
 
     async def rematch(self, public_id: str) -> Match:
         old_match = await self._get_match_with_lock(public_id)
         
-        # Ensure old match is finalized
         if old_match.status != "final":
             old_match.status = "final"
             self.session.add(old_match)
-            # Log finalization event if needed, but 'final' status is enough
         
-        # Create new match with same config
         import uuid
         from datetime import datetime
         
@@ -366,7 +261,6 @@ class MatchService:
             created_at=datetime.utcnow()
         )
         
-        # Initialize default state
         new_match.team_1_score = 0
         new_match.team_2_score = 0
         new_match.current_game_num = 1
@@ -377,15 +271,11 @@ class MatchService:
         self.session.add(new_match)
         await self.session.commit()
         await self.session.refresh(new_match)
-        
-        # We might want to notify the court that the active match has changed
-        # Ideally we'd return the new match and the frontend navigates
         return new_match
 
     async def delete_match(self, public_id: str):
         match = await self._get_match_with_lock(public_id)
         
-        # Delete events first (if cascade isn't set up, but let's be safe)
         stmt_events = delete(MatchEvent).where(MatchEvent.match_id == match.id)
         await self.session.execute(stmt_events)
         
@@ -395,32 +285,23 @@ class MatchService:
     async def configure_match(self, public_id: str, config_data: dict) -> Match:
         match = await self._get_match_with_lock(public_id)
 
-        # Update Team IDs
         if "team_1_id" in config_data:
             match.team_1_id = config_data["team_1_id"]
         if "team_2_id" in config_data:
             match.team_2_id = config_data["team_2_id"]
-            
-        # Update Status (e.g. Start Match)
         if "status" in config_data:
             match.status = config_data["status"]
-
-        # Update Match Configuration (Format, etc.)
         if "config" in config_data:
             match.config = config_data["config"]
-
-        # Update Serving Preference
+            flag_modified(match, "config")
         if "first_serving_team" in config_data:
             match.first_serving_team = config_data["first_serving_team"]
-            # If match hasn't started scoring yet (in this game), update current server
             if match.team_1_score == 0 and match.team_2_score == 0:
                 match.serving_team = match.first_serving_team
-
-        # Standardize participants object for frontend
         if "participants" in config_data:
             match.participants = config_data["participants"]
+            flag_modified(match, "participants")
 
-        # Log Event
         seq_id = await self._get_next_sequence_id(match.id)
         event = MatchEvent(
             match_id=match.id,
@@ -430,12 +311,5 @@ class MatchService:
             payload={"action": "configure", "data": config_data}
         )
         
-        self.session.add(event)
-        self.session.add(match)
-        
-        await self.session.commit()
-        await self.session.refresh(match)
-        await self._broadcast_update(match)
+        await self._commit_and_broadcast(match, event)
         return match
-
-

@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import config from '../config'
 
 type WebSocketStatus = 'CONNECTING' | 'OPEN' | 'CLOSED'
 
-export function useCourtSocket(courtSlug: string) {
+interface UseWebSocketOptions {
+  url: string
+  queryKey: unknown[]
+  onMessage?: (data: any, queryClient: any, queryKey: unknown[]) => void
+}
+
+export function useWebSocket({ url, queryKey, onMessage }: UseWebSocketOptions) {
   const [status, setStatus] = useState<WebSocketStatus>('CLOSED')
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (!courtSlug) return
+    if (!url) return
 
     setStatus('CONNECTING')
-    const wsUrl = `${config.WS_URL}/ws/courts/${courtSlug}`
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(url)
 
     ws.onopen = () => setStatus('OPEN')
     ws.onclose = () => setStatus('CLOSED')
@@ -21,11 +25,14 @@ export function useCourtSocket(courtSlug: string) {
     ws.onmessage = (event) => {
       try {
         const update = JSON.parse(event.data)
-        // Instant update of React Query cache for 'court'
-        queryClient.setQueryData(['court', courtSlug], (oldData: any) => {
-            if (!oldData) return update
-            return { ...oldData, ...update }
-        })
+        
+        if (onMessage) {
+            onMessage(update, queryClient, queryKey)
+        } else {
+            // Default behavior: Replace cache
+             queryClient.setQueryData(queryKey, update)
+        }
+       
       } catch (err) {
         console.error('Failed to parse WS message', err)
       }
@@ -34,7 +41,7 @@ export function useCourtSocket(courtSlug: string) {
     return () => {
       ws.close()
     }
-  }, [courtSlug, queryClient])
+  }, [url, queryClient, JSON.stringify(queryKey)]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return status
 }

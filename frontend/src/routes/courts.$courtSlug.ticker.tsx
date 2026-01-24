@@ -2,8 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import config from '../config'
 import Ticker from '../components/Ticker'
-import { useMatchSocket } from '../hooks/useMatchSocket'
-import { useCourtSocket } from '../hooks/useCourtSocket'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 export const Route = createFileRoute('/courts/$courtSlug/ticker')({
   component: CourtTicker,
@@ -27,8 +26,21 @@ function CourtTicker() {
   const matchId = court?.active_match?.public_id
 
   // 2. Subscribe to sockets
-  useMatchSocket(matchId)
-  useCourtSocket(courtSlug)
+  useWebSocket({
+    url: matchId ? `${config.WS_URL}/ws/matches/${matchId}` : '',
+    queryKey: ['match', matchId],
+  })
+
+  useWebSocket({
+    url: courtSlug ? `${config.WS_URL}/ws/courts/${courtSlug}` : '',
+    queryKey: ['court', courtSlug],
+    onMessage: (update, queryClient, key) => {
+      queryClient.setQueryData(key, (oldData: any) => {
+        if (!oldData) return update
+        return { ...oldData, ...update }
+      })
+    },
+  })
 
   // 3. Get Match Data
   const { data: match, isLoading: isMatchLoading } = useQuery({
