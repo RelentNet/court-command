@@ -58,6 +58,7 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
   const getSeriesLength = () => {
     const format = match.config.format || 'best_of_3'
     const bestOf = format.split('_').pop() || '3'
+    if (bestOf === '1') return ''
     return `Best of ${bestOf}`
   }
 
@@ -69,6 +70,12 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
 
     return `(${wins1} - ${wins2})`
   }
+
+  const footerSegments = [
+    matchInfo,
+    getSeriesLength(),
+    getMatchStatus(),
+  ].filter(Boolean)
 
   return (
     <div
@@ -141,7 +148,7 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
       </div>
       {/* Footer bar */}
       <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
-        {matchInfo} ⋅ {getSeriesLength()} ⋅ {getMatchStatus()}
+        {footerSegments.join(' ⋅ ')}
       </div>
     </div>
   )
