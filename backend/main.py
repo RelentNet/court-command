@@ -95,6 +95,16 @@ async def run_migrations():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.post("/reset-db")
+async def reset_db_endpoint():
+    from reset_db import reset_database
+    try:
+        await reset_database()
+        return {"status": "success", "message": "Database reset successfully"}
+    except Exception as e:
+        logger.error(f"Reset DB failed: {e}")
+        return {"status": "error", "message": str(e)}
+
 # --- WebSocket Helper ---
 
 async def handle_websocket_subscription(websocket: WebSocket, channel_name: str):
