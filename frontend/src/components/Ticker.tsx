@@ -48,10 +48,9 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
   }
 
   // Configuration & Status
-  const leagueName = match.config.league_name || 'Global Padel Association'
-  const tournamentName =
-    match.config.tournament_name || 'Nebula Padel Open 2026'
-  const matchInfo = match.config.match_info || 'Quarter-Finals'
+  const leagueName = match.league_name || 'Global Padel Association'
+  const tournamentName = match.tournament_name || 'Nebula Padel Open 2026'
+  const matchInfo = match.match_info || 'Quarter-Finals'
   const showTeamLogos = match.config.show_team_logos ?? true
 
   // Helper to parse "best_of_X"
