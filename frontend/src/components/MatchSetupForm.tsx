@@ -291,23 +291,3 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
     </div>
   )
 }
-
-
-      <div className="mt-8 pt-6 border-t border-slate-700">
-        <button
-          onClick={() => createMatch.mutate()}
-          disabled={!team1Id || !team2Id || createMatch.isPending}
-          className="flex justify-center items-center gap-2 bg-lime-500 hover:bg-lime-400 disabled:opacity-50 shadow-lg disabled:shadow-none py-4 rounded-xl w-full font-bold text-slate-900 text-lg transition-all"
-        >
-          {createMatch.isPending ? (
-            'Starting...'
-          ) : (
-            <>
-              <Trophy className="w-5 h-5" /> Start Match
-            </>
-          )}
-        </button>
-      </div>
-    </div>
-  )
-}
