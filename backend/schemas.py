@@ -28,5 +28,8 @@ class ConfigureMatchRequest(BaseModel):
     team_2_id: Optional[int] = None
     first_serving_team: Optional[int] = None
     status: Optional[str] = None
+    league_name: Optional[str] = None
+    tournament_name: Optional[str] = None
+    match_info: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
     participants: Optional[Dict[str, Any]] = None

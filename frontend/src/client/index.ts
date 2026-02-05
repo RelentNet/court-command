@@ -14,6 +14,7 @@ export type { CourtWithMatch } from './models/CourtWithMatch';
 export type { CreateCourtRequest } from './models/CreateCourtRequest';
 export type { HTTPValidationError } from './models/HTTPValidationError';
 export type { Match } from './models/Match';
+export type { MatchPreset } from './models/MatchPreset';
 export type { Player } from './models/Player';
 export type { Team } from './models/Team';
 export type { ValidationError } from './models/ValidationError';

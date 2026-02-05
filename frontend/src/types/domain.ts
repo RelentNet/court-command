@@ -58,6 +58,11 @@ export interface Match {
   court_slug?: string | null
   status: 'warm_up' | 'in_progress' | 'final' | string
 
+  // Metadata
+  league_name?: string | null
+  tournament_name?: string | null
+  match_info?: string | null
+
   // Configuration
   team_1_id?: number | null
   team_2_id?: number | null
@@ -80,4 +85,10 @@ export interface Match {
   // Legacy / Hydrated fields (potentially used in frontend but not in raw DB model)
   team_1_name?: string
   team_2_name?: string
+}
+
+export interface MatchPreset {
+  id?: number
+  category: 'league' | 'tournament' | 'round'
+  value: string
 }

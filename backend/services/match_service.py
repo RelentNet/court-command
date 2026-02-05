@@ -327,6 +327,12 @@ class MatchService:
             match.team_2_id = config_data["team_2_id"]
         if "status" in config_data:
             match.status = config_data["status"]
+        if "league_name" in config_data:
+            match.league_name = config_data["league_name"]
+        if "tournament_name" in config_data:
+            match.tournament_name = config_data["tournament_name"]
+        if "match_info" in config_data:
+            match.match_info = config_data["match_info"]
         if "config" in config_data:
             match.config = config_data["config"]
             flag_modified(match, "config")

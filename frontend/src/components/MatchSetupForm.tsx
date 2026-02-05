@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Settings, Shirt, Trophy } from 'lucide-react'
+import { Layout, Settings, Shirt, Trophy } from 'lucide-react'
 import config from '../config'
 import { Spinner } from './Spinner'
-import type { Team } from '../types/domain'
+import type { MatchPreset, Team } from '../types/domain'
 
 interface MatchSetupFormProps {
   courtSlug: string
@@ -17,12 +17,15 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
   // Form State
   const [team1Id, setTeam1Id] = useState<string>('')
   const [team2Id, setTeam2Id] = useState<string>('')
+  const [leagueName, setLeagueName] = useState('')
+  const [tournamentName, setTournamentName] = useState('')
+  const [matchInfo, setMatchInfo] = useState('')
   const [pointsTo, setPointsTo] = useState(11)
   const [winBy, setWinBy] = useState(2)
   const [bestOf, setBestOf] = useState(3)
 
   // Fetch Teams
-  const { data: teams, isLoading } = useQuery<Array<Team>>({
+  const { data: teams, isLoading: teamsLoading } = useQuery<Array<Team>>({
     queryKey: ['teams'],
     queryFn: async () => {
       const res = await fetch(`${config.API_URL}/teams`)
@@ -30,6 +33,21 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
       return res.json()
     },
   })
+
+  // Fetch Presets
+  const { data: presets, isLoading: presetsLoading } = useQuery<Array<MatchPreset>>({
+    queryKey: ['presets'],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/presets`)
+      return res.json()
+    },
+  })
+
+  const isLoading = teamsLoading || presetsLoading
+
+  const leagues = presets?.filter((p) => p.category === 'league') || []
+  const tournaments = presets?.filter((p) => p.category === 'tournament') || []
+  const rounds = presets?.filter((p) => p.category === 'round') || []
 
   // ... (createMatch mutation remains the same)
 
@@ -43,6 +61,9 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
       const payload = {
         court_slug: courtSlug,
         status: 'in_progress',
+        league_name: leagueName || null,
+        tournament_name: tournamentName || null,
+        match_info: matchInfo || null,
         participants: {
           team_1: t1,
           team_2: t2,
@@ -89,7 +110,7 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
     )
 
   return (
-    <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200">
+    <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl w-full max-w-4xl animate-in fade-in zoom-in-95 duration-200">
       <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
         <h2 className="font-bold text-2xl text-white">Start Match</h2>
         <button onClick={onCancel} className="text-slate-400 hover:text-white">
@@ -97,9 +118,58 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
         </button>
       </div>
 
-      <div className="gap-8 grid grid-cols-1 md:grid-cols-2">
+      <div className="gap-8 grid grid-cols-1 lg:grid-cols-3">
+        {/* Metadata Section */}
+        <div className="space-y-4 lg:col-span-1">
+          <div className="flex items-center gap-2 mb-2 font-semibold text-lime-400 text-sm uppercase tracking-wider">
+            <Layout className="w-4 h-4" /> Metadata
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-slate-400 text-xs">League</label>
+            <select
+              value={leagueName}
+              onChange={(e) => setLeagueName(e.target.value)}
+              className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
+            >
+              <option value="">Select League (Optional)</option>
+              {leagues.map((p) => (
+                <option key={p.id} value={p.value}>{p.value}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-slate-400 text-xs">Tournament</label>
+            <select
+              value={tournamentName}
+              onChange={(e) => setTournamentName(e.target.value)}
+              className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
+            >
+              <option value="">Select Tournament (Optional)</option>
+              {tournaments.map((p) => (
+                <option key={p.id} value={p.value}>{p.value}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-slate-400 text-xs">Match Info / Round</label>
+            <select
+              value={matchInfo}
+              onChange={(e) => setMatchInfo(e.target.value)}
+              className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none"
+            >
+              <option value="">Select Round (Optional)</option>
+              {rounds.map((p) => (
+                <option key={p.id} value={p.value}>{p.value}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         {/* Teams Selection */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:col-span-1">
           <div className="flex items-center gap-2 mb-2 font-semibold text-lime-400 text-sm uppercase tracking-wider">
             <Shirt className="w-4 h-4" /> Teams
           </div>
@@ -127,7 +197,7 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
           </div>
 
           <div className="flex justify-center">
-            <span className="font-bold text-slate-500 text-xs">VS</span>
+            <span className="font-bold text-slate-500 text-xs text-center">VS</span>
           </div>
 
           <div className="space-y-2">
@@ -152,7 +222,7 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
         </div>
 
         {/* Configuration */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:col-span-1">
           <div className="flex items-center gap-2 mb-2 font-semibold text-lime-400 text-sm uppercase tracking-wider">
             <Settings className="w-4 h-4" /> Rules
           </div>
@@ -202,6 +272,26 @@ export function MatchSetupForm({ courtSlug, onCancel }: MatchSetupFormProps) {
           </div>
         </div>
       </div>
+
+      <div className="mt-8 pt-6 border-t border-slate-700">
+        <button
+          onClick={() => createMatch.mutate()}
+          disabled={!team1Id || !team2Id || createMatch.isPending}
+          className="flex justify-center items-center gap-2 bg-lime-500 hover:bg-lime-400 disabled:opacity-50 shadow-lg disabled:shadow-none py-4 rounded-xl w-full font-bold text-slate-900 text-lg transition-all"
+        >
+          {createMatch.isPending ? (
+            'Starting...'
+          ) : (
+            <>
+              <Trophy className="w-5 h-5" /> Start Match
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 
       <div className="mt-8 pt-6 border-t border-slate-700">
         <button

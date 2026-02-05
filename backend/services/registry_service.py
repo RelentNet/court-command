@@ -3,11 +3,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from typing import List
 
-from models import Player, Team
+from models import Player, Team, MatchPreset
 
 class RegistryService:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    # --- Presets ---
+    async def get_all_presets(self) -> List[MatchPreset]:
+        result = await self.session.execute(select(MatchPreset).order_by(MatchPreset.category, MatchPreset.value))
+        return result.scalars().all()
+
+    async def create_preset(self, preset: MatchPreset) -> MatchPreset:
+        self.session.add(preset)
+        await self.session.commit()
+        await self.session.refresh(preset)
+        return preset
+
+    async def delete_preset(self, preset_id: int):
+        preset = await self.session.get(MatchPreset, preset_id)
+        if not preset:
+            raise HTTPException(status_code=404, detail="Preset not found")
+        await self.session.delete(preset)
+        await self.session.commit()
 
     # --- Players ---
     async def get_all_players(self) -> List[Player]:

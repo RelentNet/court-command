@@ -1,17 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Pencil, Plus, Shirt, Trash2, User, Users } from 'lucide-react'
+import { Pencil, Plus, Settings, Shirt, Trash2, User, Users } from 'lucide-react'
 import config from '../config'
 import { TeamEditor } from '../components/TeamEditor'
 import { PlayerEditor } from '../components/PlayerEditor'
-import type { Player, Team } from '../types/domain'
+import type { MatchPreset, Player, Team } from '../types/domain'
 
 export const Route = createFileRoute('/registry/')({
   component: RegistryDashboard,
 })
 
-type Tab = 'players' | 'teams'
+type Tab = 'players' | 'teams' | 'presets'
 
 function RegistryDashboard() {
   const [activeTab, setActiveTab] = useState<Tab>('players')
@@ -44,10 +44,136 @@ function RegistryDashboard() {
             >
               <Users className="w-4 h-4" /> Teams
             </button>
+            <button
+              onClick={() => setActiveTab('presets')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all ${
+                activeTab === 'presets'
+                  ? 'bg-lime-600 text-white font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Settings className="w-4 h-4" /> Presets
+            </button>
           </div>
         </div>
 
-        {activeTab === 'players' ? <PlayersPanel /> : <TeamsPanel />}
+        {activeTab === 'players' && <PlayersPanel />}
+        {activeTab === 'teams' && <TeamsPanel />}
+        {activeTab === 'presets' && <PresetsPanel />}
+      </div>
+    </div>
+  )
+}
+
+// --- Presets Panel ---
+
+function PresetsPanel() {
+  const queryClient = useQueryClient()
+  const [newCategory, setNewCategory] = useState<'league' | 'tournament' | 'round'>('league')
+  const [newValue, setNewValue] = useState('')
+
+  const { data: presets } = useQuery<Array<MatchPreset>>({
+    queryKey: ['presets'],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/presets`)
+      return res.json()
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationFn: async (preset: Partial<MatchPreset>) => {
+      await fetch(`${config.API_URL}/presets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preset),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['presets'] })
+      setNewValue('')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await fetch(`${config.API_URL}/presets/${id}`, {
+        method: 'DELETE',
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['presets'] })
+    },
+  })
+
+  const categories: Array<{ id: typeof newCategory; label: string }> = [
+    { id: 'league', label: 'Leagues' },
+    { id: 'tournament', label: 'Tournaments' },
+    { id: 'round', label: 'Match Info / Rounds' },
+  ]
+
+  return (
+    <div className="space-y-8">
+      {/* Quick Add */}
+      <div className="bg-slate-800 p-6 border border-slate-700 rounded-xl">
+        <h3 className="mb-4 font-bold text-xl">Add New Preset</h3>
+        <div className="flex gap-4">
+          <select
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value as any)}
+            className="bg-slate-900 border-slate-700 px-4 py-2 border rounded-lg text-white"
+          >
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+            placeholder={`Enter ${newCategory} name...`}
+            className="flex-1 bg-slate-900 border-slate-700 px-4 py-2 border rounded-lg text-white"
+          />
+          <button
+            onClick={() => createMutation.mutate({ category: newCategory, value: newValue })}
+            disabled={!newValue || createMutation.isPending}
+            className="bg-lime-600 hover:bg-lime-500 disabled:opacity-50 px-6 py-2 rounded-lg font-bold"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      <div className="gap-8 grid grid-cols-1 md:grid-cols-3">
+        {categories.map((cat) => (
+          <div key={cat.id} className="space-y-4">
+            <h4 className="flex items-center gap-2 font-bold text-lime-400 uppercase tracking-wider text-sm">
+              {cat.label}
+            </h4>
+            <div className="space-y-2">
+              {presets
+                ?.filter((p) => p.category === cat.id)
+                .map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="flex justify-between items-center bg-slate-800 px-4 py-2 border border-slate-700 rounded-lg group"
+                  >
+                    <span>{preset.value}</span>
+                    <button
+                      onClick={() => deleteMutation.mutate(preset.id!)}
+                      className="text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              {presets?.filter((p) => p.category === cat.id).length === 0 && (
+                <div className="italic text-slate-500 text-sm">No {cat.label.toLowerCase()} added yet.</div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

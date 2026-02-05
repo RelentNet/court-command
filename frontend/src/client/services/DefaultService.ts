@@ -8,6 +8,7 @@ import type { CourtSummary } from '../models/CourtSummary';
 import type { CourtWithMatch } from '../models/CourtWithMatch';
 import type { CreateCourtRequest } from '../models/CreateCourtRequest';
 import type { Match } from '../models/Match';
+import type { MatchPreset } from '../models/MatchPreset';
 import type { Player } from '../models/Player';
 import type { Team } from '../models/Team';
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -23,6 +24,56 @@ export class DefaultService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/health',
+        });
+    }
+    /**
+     * Get Presets
+     * @returns MatchPreset Successful Response
+     * @throws ApiError
+     */
+    public static getPresetsPresetsGet(): CancelablePromise<Array<MatchPreset>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/presets',
+        });
+    }
+    /**
+     * Create Preset
+     * @param requestBody
+     * @returns MatchPreset Successful Response
+     * @throws ApiError
+     */
+    public static createPresetPresetsPost(
+        requestBody: MatchPreset,
+    ): CancelablePromise<MatchPreset> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/presets',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Delete Preset
+     * @param presetId
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static deletePresetPresetsPresetIdDelete(
+        presetId: number,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/presets/{preset_id}',
+            path: {
+                'preset_id': presetId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
         });
     }
     /**

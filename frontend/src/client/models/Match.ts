@@ -7,6 +7,9 @@ export type Match = {
     public_id?: string;
     court_slug?: (string | null);
     status?: string;
+    league_name?: (string | null);
+    tournament_name?: (string | null);
+    match_info?: (string | null);
     team_1_id?: (number | null);
     team_2_id?: (number | null);
     first_serving_team?: (number | null);

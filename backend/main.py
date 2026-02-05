@@ -10,7 +10,7 @@ import asyncio
 import logging
 
 from database import init_db, get_session
-from models import Match, Court, Player, Team
+from models import Match, Court, Player, Team, MatchPreset
 from schemas import CreateCourtRequest, CourtSummary, CourtWithMatch, ConfigureMatchRequest
 from services.match_service import MatchService
 from services.court_service import CourtService
@@ -101,6 +101,19 @@ async def handle_websocket_subscription(websocket: WebSocket, channel_name: str)
             pass
 
 # --- Registry Endpoints ---
+
+@app.get("/presets", response_model=List[MatchPreset])
+async def get_presets(service: RegistryService = Depends(get_registry_service)):
+    return await service.get_all_presets()
+
+@app.post("/presets", response_model=MatchPreset)
+async def create_preset(preset: MatchPreset, service: RegistryService = Depends(get_registry_service)):
+    return await service.create_preset(preset)
+
+@app.delete("/presets/{preset_id}")
+async def delete_preset(preset_id: int, service: RegistryService = Depends(get_registry_service)):
+    await service.delete_preset(preset_id)
+    return {"status": "deleted"}
 
 @app.get("/players", response_model=List[Player])
 async def get_players(service: RegistryService = Depends(get_registry_service)):

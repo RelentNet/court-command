@@ -33,6 +33,12 @@ class Court(SQLModel, table=True):
     is_ticker_visible: bool = Field(default=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+class MatchPreset(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("category", "value"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    category: str # league, tournament, round
+    value: str
+
 # --- Match Models ---
 
 class Match(SQLModel, table=True):
@@ -41,6 +47,11 @@ class Match(SQLModel, table=True):
     court_slug: Optional[str] = None # Link to a court
     
     status: str = "preparing" # preparing, in_progress, final
+
+    # Metadata
+    league_name: Optional[str] = None
+    tournament_name: Optional[str] = None
+    match_info: Optional[str] = None # e.g. "Round of 16", "Finals"
     
     # Track specific Team IDs for configuration
     team_1_id: Optional[int] = None
