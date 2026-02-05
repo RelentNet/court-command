@@ -1,4 +1,4 @@
-import { RefreshCw, Trophy } from 'lucide-react'
+import { RefreshCw, Trophy, Undo } from 'lucide-react'
 import { PlayerCard } from './PlayerCard'
 import type { Match } from '../types/domain'
 
@@ -6,6 +6,7 @@ interface ScoreboardProps {
   match: Match
   onPoint: (team: number) => void
   onSideOut: () => void
+  onUndo: () => void
   isPending: boolean
   readonly?: boolean
 }
@@ -14,6 +15,7 @@ export function Scoreboard({
   match,
   onPoint,
   onSideOut,
+  onUndo,
   isPending,
   readonly = false,
 }: ScoreboardProps) {
@@ -102,11 +104,20 @@ export function Scoreboard({
 
       {/* Unified Action Controls */}
       {!readonly && (
-        <div className="flex gap-4 h-28">
+        <div className="grid grid-cols-4 gap-4 h-28">
+          <button
+            onClick={onUndo}
+            disabled={isPending}
+            className="col-span-1 flex flex-col justify-center items-center gap-2 bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 rounded-2xl font-bold text-slate-900 shadow-lg transition-all active:scale-95"
+          >
+            <Undo className="w-8 h-8" />
+            <span className="uppercase tracking-widest text-sm">Undo</span>
+          </button>
+
           <button
             onClick={onSideOut}
             disabled={isPending}
-            className="flex flex-col justify-center items-center gap-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 px-8 rounded-2xl w-1/3 font-bold text-slate-200 shadow-lg transition-all active:scale-95"
+            className="col-span-1 flex flex-col justify-center items-center gap-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-2xl font-bold text-slate-200 shadow-lg transition-all active:scale-95"
           >
             <RefreshCw className="w-8 h-8" />
             <span className="uppercase tracking-widest text-sm">Side Out</span>
@@ -115,7 +126,7 @@ export function Scoreboard({
           <button
             onClick={() => onPoint(match.serving_team || 1)}
             disabled={isPending}
-            className="flex flex-col justify-center items-center gap-2 bg-lime-500 hover:bg-lime-400 disabled:opacity-50 shadow-xl shadow-lime-500/20 rounded-2xl w-2/3 font-black text-3xl text-slate-900 uppercase tracking-tighter transition-all active:scale-95"
+            className="col-span-2 flex flex-col justify-center items-center gap-2 bg-lime-500 hover:bg-lime-400 disabled:opacity-50 shadow-xl shadow-lime-500/20 rounded-2xl font-black text-3xl text-slate-900 uppercase tracking-tighter transition-all active:scale-95"
           >
             <Trophy className="w-10 h-10" />
             Point Scored

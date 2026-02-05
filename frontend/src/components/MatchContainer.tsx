@@ -137,7 +137,6 @@ export function MatchContainer({
               wsStatus={wsStatus}
               actions={
                 <ActionButtons
-                  onUndo={() => actionMutation.mutate('undo')}
                   onReset={handleReset}
                   onDelete={() => deleteMatchMutation.mutate()}
                   onEndGame={() => actionMutation.mutate('end-game')}
@@ -169,6 +168,7 @@ export function MatchContainer({
                 ? () => {}
                 : () => actionMutation.mutate('sideout')
             }
+            onUndo={() => actionMutation.mutate('undo')}
             isPending={actionMutation.isPending}
             readonly={
               readonly ||

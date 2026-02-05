@@ -1,7 +1,6 @@
-import { Trash2, Undo } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 
 interface ActionButtonsProps {
-  onUndo: () => void
   onReset: () => void
   onDelete: () => void
   onEndGame: () => void
@@ -9,7 +8,6 @@ interface ActionButtonsProps {
 }
 
 export function ActionButtons({
-  onUndo,
   onReset,
   onDelete,
   onEndGame,
@@ -32,12 +30,6 @@ export function ActionButtons({
         className="flex items-center gap-2 bg-green-700 hover:bg-green-600 px-4 py-2 rounded-lg font-bold"
       >
         End Match
-      </button>
-      <button
-        onClick={onUndo}
-        className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg font-bold"
-      >
-        <Undo className="w-4 h-4" /> Undo
       </button>
       <button
         onClick={onReset}
