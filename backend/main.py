@@ -45,6 +45,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
+
 # Dependency for Redis
 def get_redis(request: Request):
     return request.app.state.redis
@@ -70,6 +85,15 @@ def get_registry_service(session: AsyncSession = Depends(get_session)) -> Regist
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+@app.post("/migrate")
+async def run_migrations():
+    from migrate import migrate as run_migrate
+    try:
+        await run_migrate()
+        return {"status": "success", "message": "Migrations completed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # --- WebSocket Helper ---
 
