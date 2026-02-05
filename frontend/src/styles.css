@@ -11,22 +11,6 @@
   --safe-right: env(safe-area-inset-right);
 }
 
-html, body {
-  overscroll-behavior: none;
-  overflow: hidden;
-  height: 100%;
-  width: 100%;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-}
-
-#root {
-  height: 100%;
-  width: 100%;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
 body {
   @apply m-0;
   font-family:

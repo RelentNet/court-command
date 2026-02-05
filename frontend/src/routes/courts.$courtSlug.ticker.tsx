@@ -82,7 +82,7 @@ function CourtTicker() {
   }
 
   return (
-    <div className="min-h-screen bg-transparent relative flex items-center justify-center px-4 padding-safe">
+    <div className="fixed inset-0 bg-transparent flex items-center justify-center px-4 padding-safe overflow-hidden overscroll-none touch-none select-none">
       <Ticker match={match} isVisible={court.is_ticker_visible} />
     </div>
   )
