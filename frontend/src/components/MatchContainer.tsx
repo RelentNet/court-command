@@ -45,13 +45,12 @@ export function MatchContainer({
 
   // 2. Optimistic Mutations
   const actionMutation = useMutation({
-    mutationFn: async (action: 'point' | 'sideout' | 'undo' | 'reset') => {
-      const res = await fetch(
-        `${config.API_URL}/matches/${matchId}/${action}`,
-        {
-          method: 'POST',
-        },
-      )
+    mutationFn: async (
+      action: 'point' | 'sideout' | 'undo' | 'reset' | 'end-game' | 'end-match',
+    ) => {
+      const res = await fetch(`${config.API_URL}/matches/${matchId}/${action}`, {
+        method: 'POST',
+      })
       if (!res.ok) throw new Error('Action failed')
       return res.json()
     },
@@ -141,6 +140,8 @@ export function MatchContainer({
                   onUndo={() => actionMutation.mutate('undo')}
                   onReset={handleReset}
                   onDelete={() => deleteMatchMutation.mutate()}
+                  onEndGame={() => actionMutation.mutate('end-game')}
+                  onEndMatch={() => actionMutation.mutate('end-match')}
                 />
               }
             />

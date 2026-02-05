@@ -193,6 +193,14 @@ async def add_point(public_id: str, service: MatchService = Depends(get_match_se
 async def side_out(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.side_out(public_id)
 
+@app.post("/matches/{public_id}/end-game", response_model=Match)
+async def end_game(public_id: str, service: MatchService = Depends(get_match_service)):
+    return await service.end_game(public_id)
+
+@app.post("/matches/{public_id}/end-match", response_model=Match)
+async def end_match(public_id: str, service: MatchService = Depends(get_match_service)):
+    return await service.end_match(public_id)
+
 @app.post("/matches/{public_id}/undo", response_model=Match)
 async def undo_last_event(public_id: str, service: MatchService = Depends(get_match_service)):
     return await service.undo_last_event(public_id)

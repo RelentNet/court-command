@@ -4,15 +4,35 @@ interface ActionButtonsProps {
   onUndo: () => void
   onReset: () => void
   onDelete: () => void
+  onEndGame: () => void
+  onEndMatch: () => void
 }
 
 export function ActionButtons({
   onUndo,
   onReset,
   onDelete,
+  onEndGame,
+  onEndMatch,
 }: ActionButtonsProps) {
   return (
     <>
+      <button
+        onClick={onEndGame}
+        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg font-bold"
+      >
+        End Game
+      </button>
+      <button
+        onClick={() => {
+          if (confirm('Are you sure you want to END the match?')) {
+            onEndMatch()
+          }
+        }}
+        className="flex items-center gap-2 bg-green-700 hover:bg-green-600 px-4 py-2 rounded-lg font-bold"
+      >
+        End Match
+      </button>
       <button
         onClick={onUndo}
         className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded-lg font-bold"

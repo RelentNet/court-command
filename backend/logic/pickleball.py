@@ -14,56 +14,43 @@ class PickleballEngine:
         else:
             match.team_2_score += 1
             
-        # 2. Check Game Over
-        points_to = match.config.get("points_to", 11)
-        win_by = match.config.get("win_by", 2)
-        
+        return {"action": "point", "team": match.serving_team}
+
+    @staticmethod
+    def process_end_game(match: Match) -> Dict[str, Any]:
+        """
+        Manually ends the current game, archives the score, and resets for the next game.
+        """
         t1 = match.team_1_score
         t2 = match.team_2_score
         
-        game_won = False
-        winner = None
+        # Determine winner based on current score
+        winner = 1 if t1 > t2 else 2
         
-        if t1 >= points_to and (t1 - t2) >= win_by:
-            game_won = True
-            winner = 1
-        elif t2 >= points_to and (t2 - t1) >= win_by:
-            game_won = True
-            winner = 2
-            
-        if game_won:
-            # Archive Result
-            match.completed_games.append({
-                "game_num": match.current_game_num,
-                "score_team_1": t1,
-                "score_team_2": t2,
-                "winner": winner
-            })
-            
-            # Check Match Over (Best of X)
-            format_str = match.config.get("format", "best_of_3")
-            try:
-                best_of = int(format_str.split("_")[-1])
-            except:
-                best_of = 3
-                
-            games_needed = (best_of // 2) + 1
-            
-            # Count wins
-            wins_1 = sum(1 for g in match.completed_games if g.get("winner") == 1)
-            wins_2 = sum(1 for g in match.completed_games if g.get("winner") == 2)
-            
-            if wins_1 >= games_needed or wins_2 >= games_needed:
-                match.status = "final"
-            else:
-                # Reset for next game
-                match.team_1_score = 0
-                match.team_2_score = 0
-                match.current_game_num += 1
-                match.server_number = 1
-                match.serving_team = 1 # Default to Team 1
+        # Archive Result
+        match.completed_games.append({
+            "game_num": match.current_game_num,
+            "score_team_1": t1,
+            "score_team_2": t2,
+            "winner": winner
+        })
         
-        return {"action": "point", "team": match.serving_team, "game_won": game_won, "match_over": match.status == "final"}
+        # Reset for next game
+        match.team_1_score = 0
+        match.team_2_score = 0
+        match.current_game_num += 1
+        match.server_number = 1
+        match.serving_team = 1 # Default to Team 1
+        
+        return {"action": "end_game", "winner": winner}
+
+    @staticmethod
+    def process_end_match(match: Match) -> Dict[str, Any]:
+        """
+        Manually ends the match and sets status to final.
+        """
+        match.status = "final"
+        return {"action": "end_match"}
 
     @staticmethod
     def process_side_out(match: Match) -> Dict[str, Any]:

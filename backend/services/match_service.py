@@ -70,9 +70,6 @@ class MatchService:
 
         payload = PickleballEngine.process_point(match)
         
-        if payload.get("game_won"):
-             flag_modified(match, "completed_games")
-        
         seq_id = await self._get_next_sequence_id(match.id)
         event = MatchEvent(
             match_id=match.id,
@@ -98,6 +95,45 @@ class MatchService:
             match_id=match.id,
             sequence_id=seq_id,
             event_type="SIDE_OUT",
+            score_snapshot=match.model_dump(mode="json"),
+            payload=payload
+        )
+        
+        await self._commit_and_broadcast(match, event)
+        return match
+
+    async def end_game(self, public_id: str) -> Match:
+        match = await self._get_match_with_lock(public_id)
+
+        if match.status == "final":
+            raise HTTPException(status_code=400, detail="Match is already finalized")
+
+        payload = PickleballEngine.process_end_game(match)
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(match, "completed_games")
+        
+        seq_id = await self._get_next_sequence_id(match.id)
+        event = MatchEvent(
+            match_id=match.id,
+            sequence_id=seq_id,
+            event_type="GAME_COMPLETE",
+            score_snapshot=match.model_dump(mode="json"),
+            payload=payload
+        )
+        
+        await self._commit_and_broadcast(match, event)
+        return match
+
+    async def end_match(self, public_id: str) -> Match:
+        match = await self._get_match_with_lock(public_id)
+
+        payload = PickleballEngine.process_end_match(match)
+        
+        seq_id = await self._get_next_sequence_id(match.id)
+        event = MatchEvent(
+            match_id=match.id,
+            sequence_id=seq_id,
+            event_type="MATCH_COMPLETE",
             score_snapshot=match.model_dump(mode="json"),
             payload=payload
         )

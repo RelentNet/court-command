@@ -79,6 +79,90 @@
         }
       }
     },
+    "/players/{player_id}": {
+      "put": {
+        "summary": "Update Player",
+        "operationId": "update_player_players__player_id__put",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Player Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Player"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Player"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Player",
+        "operationId": "delete_player_players__player_id__delete",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Player Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/teams": {
       "get": {
         "summary": "Get Teams",
@@ -138,6 +222,88 @@
       }
     },
     "/teams/{team_id}": {
+      "put": {
+        "summary": "Update Team",
+        "operationId": "update_team_teams__team_id__put",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Team"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Team"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Team",
+        "operationId": "delete_team_teams__team_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
         "summary": "Get Team",
         "operationId": "get_team_teams__team_id__get",
@@ -306,6 +472,55 @@
             }
           }
         }
+      },
+      "patch": {
+        "summary": "Update Court",
+        "operationId": "update_court_courts__slug__patch",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Court"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/matches": {
@@ -369,6 +584,41 @@
                 "schema": {
                   "$ref": "#/components/schemas/Match"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Match",
+        "operationId": "delete_match_matches__public_id__delete",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -459,6 +709,84 @@
         }
       }
     },
+    "/matches/{public_id}/end-game": {
+      "post": {
+        "summary": "End Game",
+        "operationId": "end_game_matches__public_id__end_game_post",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/matches/{public_id}/end-match": {
+      "post": {
+        "summary": "End Match",
+        "operationId": "end_match_matches__public_id__end_match_post",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/matches/{public_id}/undo": {
       "post": {
         "summary": "Undo Last Event",
@@ -479,7 +807,175 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/matches/{public_id}/reset": {
+      "post": {
+        "summary": "Reset Match",
+        "operationId": "reset_match_matches__public_id__reset_post",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/matches/{public_id}/swap-teams": {
+      "post": {
+        "summary": "Swap Teams",
+        "operationId": "swap_teams_matches__public_id__swap_teams_post",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/matches/{public_id}/rematch": {
+      "post": {
+        "summary": "Rematch",
+        "operationId": "rematch_matches__public_id__rematch_post",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/matches/{public_id}/configure": {
+      "patch": {
+        "summary": "Configure Match",
+        "operationId": "configure_match_matches__public_id__configure_patch",
+        "parameters": [
+          {
+            "name": "public_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Public Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureMatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Match"
+                }
               }
             }
           },
@@ -499,6 +995,80 @@
   },
   "components": {
     "schemas": {
+      "ConfigureMatchRequest": {
+        "properties": {
+          "team_1_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team 1 Id"
+          },
+          "team_2_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team 2 Id"
+          },
+          "first_serving_team": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Serving Team"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participants"
+          }
+        },
+        "type": "object",
+        "title": "ConfigureMatchRequest"
+      },
       "Court": {
         "properties": {
           "id": {
@@ -520,6 +1090,11 @@
             "type": "string",
             "title": "Slug"
           },
+          "is_ticker_visible": {
+            "type": "boolean",
+            "title": "Is Ticker Visible",
+            "default": true
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -527,7 +1102,10 @@
           }
         },
         "type": "object",
-        "required": ["name", "slug"],
+        "required": [
+          "name",
+          "slug"
+        ],
         "title": "Court"
       },
       "CourtSummary": {
@@ -544,6 +1122,11 @@
             "type": "string",
             "title": "Slug"
           },
+          "is_ticker_visible": {
+            "type": "boolean",
+            "title": "Is Ticker Visible",
+            "default": true
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -556,7 +1139,12 @@
           }
         },
         "type": "object",
-        "required": ["id", "name", "slug", "created_at"],
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "created_at"
+        ],
         "title": "CourtSummary"
       },
       "CourtWithMatch": {
@@ -572,6 +1160,11 @@
           "slug": {
             "type": "string",
             "title": "Slug"
+          },
+          "is_ticker_visible": {
+            "type": "boolean",
+            "title": "Is Ticker Visible",
+            "default": true
           },
           "created_at": {
             "type": "string",
@@ -598,7 +1191,12 @@
           }
         },
         "type": "object",
-        "required": ["id", "name", "slug", "created_at"],
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "created_at"
+        ],
         "title": "CourtWithMatch"
       },
       "CreateCourtRequest": {
@@ -609,7 +1207,9 @@
           }
         },
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "title": "CreateCourtRequest"
       },
       "HTTPValidationError": {
@@ -656,7 +1256,41 @@
           "status": {
             "type": "string",
             "title": "Status",
-            "default": "in_progress"
+            "default": "preparing"
+          },
+          "team_1_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team 1 Id"
+          },
+          "team_2_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team 2 Id"
+          },
+          "first_serving_team": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Serving Team",
+            "default": 1
           },
           "participants": {
             "additionalProperties": true,
@@ -763,7 +1397,9 @@
           }
         },
         "type": "object",
-        "required": ["display_name"],
+        "required": [
+          "display_name"
+        ],
         "title": "Player"
       },
       "Team": {
@@ -826,7 +1462,9 @@
           }
         },
         "type": "object",
-        "required": ["name"],
+        "required": [
+          "name"
+        ],
         "title": "Team"
       },
       "ValidationError": {
@@ -852,10 +1490,21 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
       }
     }

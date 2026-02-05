@@ -2,12 +2,14 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { Match } from './Match'
+import type { Match } from './Match';
 export type CourtWithMatch = {
-  id: number
-  name: string
-  slug: string
-  created_at: string
-  active_match?: Match | null
-  match_history?: Array<Match>
-}
+    id: number;
+    name: string;
+    slug: string;
+    is_ticker_visible?: boolean;
+    created_at: string;
+    active_match?: (Match | null);
+    match_history?: Array<Match>;
+};
+
