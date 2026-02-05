@@ -11,7 +11,7 @@ import config from '../config'
 import { Spinner } from './Spinner'
 import { CreateTeamModal } from './CreateTeamModal'
 import { TeamConfigCard } from './TeamConfigCard'
-import type { Match, Player, Team } from '../types/domain'
+import type { Match, MatchPreset, Player, Team } from '../types/domain'
 
 interface MatchConfigurationPanelProps {
   match: Match
@@ -42,13 +42,13 @@ export function MatchConfigurationPanel({
     parseInt(match.config.format.split('_').pop() || '3'),
   )
   const [leagueName, setLeagueName] = useState<string>(
-    match.config.league_name || 'Global Padel Association',
+    match.league_name || '',
   )
   const [tournamentName, setTournamentName] = useState<string>(
-    match.config.tournament_name || 'Nebula Padel Open 2026',
+    match.tournament_name || '',
   )
   const [matchInfo, setMatchInfo] = useState<string>(
-    match.config.match_info || 'Quarter-Finals',
+    match.match_info || '',
   )
   const [showTeamLogos, setShowTeamLogos] = useState<boolean>(
     match.config.show_team_logos ?? true,
@@ -63,10 +63,9 @@ export function MatchConfigurationPanel({
     if (match.config.format) {
       setBestOf(parseInt(match.config.format.split('_').pop() || '3'))
     }
-    if (match.config.league_name) setLeagueName(match.config.league_name)
-    if (match.config.tournament_name)
-      setTournamentName(match.config.tournament_name)
-    if (match.config.match_info) setMatchInfo(match.config.match_info)
+    setLeagueName(match.league_name || '')
+    setTournamentName(match.tournament_name || '')
+    setMatchInfo(match.match_info || '')
     if (match.config.show_team_logos !== undefined)
       setShowTeamLogos(match.config.show_team_logos)
 
@@ -108,6 +107,15 @@ export function MatchConfigurationPanel({
     },
   })
 
+  // Fetch Presets
+  const { data: presets, isLoading: presetsLoading } = useQuery<Array<MatchPreset>>({
+    queryKey: ['presets'],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/presets`)
+      return res.json()
+    },
+  })
+
   // Configure Match Mutation
   const configureMutation = useMutation({
     mutationFn: async () => {
@@ -124,15 +132,16 @@ export function MatchConfigurationPanel({
         team_2_id: team2Id ? parseInt(team2Id) : null,
         first_serving_team: firstServer,
         status: match.status === 'preparing' ? 'in_progress' : match.status,
-                  config: {
-                  ...match.config,
-                  format: `best_of_${bestOf}`,
-                  league_name: leagueName,
-                  tournament_name: tournamentName,
-                  match_info: matchInfo,
-                  show_team_logos: showTeamLogos,
-                },
-                participants: {          team_1: {
+        league_name: leagueName || null,
+        tournament_name: tournamentName || null,
+        match_info: matchInfo || null,
+        config: {
+          ...match.config,
+          format: `best_of_${bestOf}`,
+          show_team_logos: showTeamLogos,
+        },
+        participants: {
+          team_1: {
             ...t1,
             name: t1?.name || 'Team 1',
             player_1: p1_1,
@@ -177,7 +186,11 @@ export function MatchConfigurationPanel({
     },
   })
 
-  if (teamsLoading || playersLoading) return <Spinner />
+  if (teamsLoading || playersLoading || presetsLoading) return <Spinner />
+
+  const leagues = presets?.filter((p) => p.category === 'league') || []
+  const tournaments = presets?.filter((p) => p.category === 'tournament') || []
+  const rounds = presets?.filter((p) => p.category === 'round') || []
 
   const swapPlayers = (team: 1 | 2) => {
     if (team === 1) {
@@ -233,37 +246,46 @@ export function MatchConfigurationPanel({
                 <label className="block mb-1 text-slate-400 text-xs">
                   League Name
                 </label>
-                <input
-                  type="text"
+                <select
                   value={leagueName}
                   onChange={(e) => setLeagueName(e.target.value)}
                   className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
-                  placeholder="e.g. Global Padel Association"
-                />
+                >
+                  <option value="">Select League</option>
+                  {leagues.map((p) => (
+                    <option key={p.id} value={p.value}>{p.value}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block mb-1 text-slate-400 text-xs">
                   Tournament Name
                 </label>
-                <input
-                  type="text"
+                <select
                   value={tournamentName}
                   onChange={(e) => setTournamentName(e.target.value)}
                   className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
-                  placeholder="e.g. Nebula Padel Open"
-                />
+                >
+                  <option value="">Select Tournament</option>
+                  {tournaments.map((p) => (
+                    <option key={p.id} value={p.value}>{p.value}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block mb-1 text-slate-400 text-xs">
                   Match Info / Round
                 </label>
-                <input
-                  type="text"
+                <select
                   value={matchInfo}
                   onChange={(e) => setMatchInfo(e.target.value)}
                   className="bg-slate-900 px-4 py-2 border border-slate-700 rounded-lg w-full text-white focus:outline-none focus:ring-2 focus:ring-lime-500"
-                  placeholder="e.g. Quarter-Finals"
-                />
+                >
+                  <option value="">Select Round</option>
+                  {rounds.map((p) => (
+                    <option key={p.id} value={p.value}>{p.value}</option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-3">
