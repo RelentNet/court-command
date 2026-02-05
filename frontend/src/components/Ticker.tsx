@@ -83,75 +83,76 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
 
   return (
     <div
-      className={`relative w-135 h-45 bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col transition-all duration-700 ease-in-out ${
+      className={`relative w-full max-w-[540px] aspect-[3/1] bg-red-500 overflow-hidden shrink-0 flex items-center justify-center flex-col transition-all duration-700 ease-in-out shadow-2xl ${
         isVisible ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0'
       }`}
+      style={{ fontSize: 'min(2vw, 14px)' }}
     >
       {/* Header bar */}
-      <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
+      <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-[0.9em] text-center truncate shrink-0 w-full border-b border-white/20">
         {leagueName} ⋅ {tournamentName}
       </div>
 
       {/* Match body */}
-      <div className="flex items-center justify-between size-full">
+      <div className="flex items-center justify-between flex-1 w-full min-h-0">
         {/* Association logo */}
-        <div className="bg-white h-full aspect-square border-r border-white">
+        <div className="bg-white h-full aspect-square border-r border-white flex items-center justify-center p-2">
           <img
             src="/wilson.webp"
             alt="Global Padel Association"
-            className="object-contain z-10 size-30 pointer-events-none select-none"
+            className="max-w-full max-h-full object-contain z-10 pointer-events-none select-none"
           />
         </div>
 
         {/* Teams */}
-        <div className="flex flex-col divide-y bg-[#636363] divide-white min-w-0 text-white size-full">
+        <div className="flex flex-col divide-y bg-[#636363] divide-white min-w-0 text-white flex-1 h-full">
           {/* Team 1 */}
-          <div className="flex flex-1">
+          <div className="flex flex-1 min-h-0">
             {showTeamLogos && (
-              <div className="flex justify-center items-center border-white border-r aspect-square">
+              <div className="flex justify-center items-center border-white border-r aspect-square h-full">
                 <img
-                  src={`https://placehold.co/60x60/${getTeamColor(1)}/FFFFFF?text=${getInitials(team1Name)}`}
+                  src={`https://placehold.co/100x100/${getTeamColor(1)}/FFFFFF?text=${getInitials(team1Name)}`}
                   alt={`${team1Name} logo`}
-                  className="aspect-square size-full"
+                  className="aspect-square h-full object-cover"
                 />
               </div>
             )}
-            <div className="flex flex-col flex-1 h-full justify-center pr-6 pl-2 min-w-0">
-              <span className="font-bold text-lg">{team1Name}</span>
-              <span className="font-bold text-sm truncate">
+            <div className="flex flex-col flex-1 h-full justify-center px-3 min-w-0">
+              <span className="font-bold text-[1.2em] leading-tight truncate">{team1Name}</span>
+              <span className="font-bold text-[0.8em] opacity-90 truncate uppercase tracking-tight">
                 {getPlayerNames(1)}
               </span>
             </div>
-            <div className="flex justify-center items-center bg-[#0E8044] border-white border-x aspect-square font-bold text-4xl">
+            <div className="flex justify-center items-center bg-[#0E8044] border-white border-l aspect-square h-full font-black text-[2.5em]">
               {match.team_1_score}
             </div>
           </div>
 
           {/* Team 2 */}
-          <div className="flex flex-1">
+          <div className="flex flex-1 min-h-0">
             {showTeamLogos && (
-              <div className="flex justify-center items-center border-white border-r aspect-square">
+              <div className="flex justify-center items-center border-white border-r aspect-square h-full">
                 <img
-                  src={`https://placehold.co/60x60/${getTeamColor(2)}/FFFFFF?text=${getInitials(team2Name)}`}
+                  src={`https://placehold.co/100x100/${getTeamColor(2)}/FFFFFF?text=${getInitials(team2Name)}`}
                   alt={`${team2Name} logo`}
-                  className="aspect-square size-full"
+                  className="aspect-square h-full object-cover"
                 />
               </div>
             )}
-            <div className="flex flex-col flex-1 h-full justify-center pr-6 pl-2 min-w-0">
-              <span className="font-bold text-lg">{team2Name}</span>
-              <span className="font-bold text-sm truncate">
+            <div className="flex flex-col flex-1 h-full justify-center px-3 min-w-0">
+              <span className="font-bold text-[1.2em] leading-tight truncate">{team2Name}</span>
+              <span className="font-bold text-[0.8em] opacity-90 truncate uppercase tracking-tight">
                 {getPlayerNames(2)}
               </span>
             </div>
-            <div className="flex justify-center items-center bg-[#0E8044] border-white border-x aspect-square font-bold text-4xl shrink-0">
+            <div className="flex justify-center items-center bg-[#0E8044] border-white border-l aspect-square h-full font-black text-[2.5em]">
               {match.team_2_score}
             </div>
           </div>
         </div>
       </div>
       {/* Footer bar */}
-      <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-sm text-center truncate shrink-0 w-full">
+      <div className="bg-[#b3b3b3] px-4 py-1 font-bold text-[#c9062a] uppercase text-[0.9em] text-center truncate shrink-0 w-full border-t border-white/20">
         {footerSegments.join(' ⋅ ')}
       </div>
     </div>
