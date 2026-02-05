@@ -64,6 +64,11 @@ export default function Ticker({ match, isVisible = true }: TickerProps) {
   const getMatchStatus = () => {
     if (match.status === 'preparing') return 'Warm Up'
 
+    // If best of 1, don't show series wins
+    const format = match.config.format || 'best_of_3'
+    const bestOf = format.split('_').pop() || '3'
+    if (bestOf === '1') return ''
+
     const wins1 = match.completed_games.filter((g) => g.winner === 1).length
     const wins2 = match.completed_games.filter((g) => g.winner === 2).length
 

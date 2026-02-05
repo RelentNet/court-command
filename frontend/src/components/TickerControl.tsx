@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Monitor, MonitorOff } from 'lucide-react'
+import { ExternalLink, Monitor, MonitorOff } from 'lucide-react'
 import config from '../config'
 import type { Court } from '../types/domain'
 
@@ -66,19 +66,30 @@ export function TickerControl({ court, className = '' }: TickerControlProps) {
         </div>
       </div>
 
-      <button
-        onClick={() => mutation.mutate(!isVisible)}
-        disabled={mutation.isPending}
-        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 focus:ring-offset-slate-900 cursor-pointer ${
-          isVisible ? 'bg-lime-600' : 'bg-slate-600'
-        }`}
-      >
-        <span
-          className={`${
-            isVisible ? 'translate-x-7' : 'translate-x-1'
-          } inline-block h-6 w-6 transform rounded-full bg-white transition-transform`}
-        />
-      </button>
+      <div className="flex items-center gap-4">
+        <a
+          href={`/courts/${court.slug}/ticker`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg font-bold text-slate-200 text-xs transition-all"
+        >
+          <ExternalLink className="w-3.5 h-3.5" /> Open Ticker
+        </a>
+
+        <button
+          onClick={() => mutation.mutate(!isVisible)}
+          disabled={mutation.isPending}
+          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-lime-500 focus:ring-offset-2 focus:ring-offset-slate-900 cursor-pointer ${
+            isVisible ? 'bg-lime-600' : 'bg-slate-600'
+          }`}
+        >
+          <span
+            className={`${
+              isVisible ? 'translate-x-7' : 'translate-x-1'
+            } inline-block h-6 w-6 transform rounded-full bg-white transition-transform`}
+          />
+        </button>
+      </div>
     </div>
   )
 }
