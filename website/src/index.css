@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0A0A14;
+  /* Deep Void */
+  --color-accent: #7B61FF;
+  /* Plasma */
+  --color-dark-bg: #05050A;
+  /* Darker than Void */
+  --color-dark-card: #0A0A14;
+  --color-dark-border: #18181B;
+  /* Graphite */
+
+  --color-vapor-glow: #7B61FF33;
+  --color-vapor-text: #F0EFF4;
+  /* Ghost */
+}
+
+@layer base {
+  body {
+    @apply bg-[#05050A] text-[#F0EFF4] overflow-x-hidden;
+    font-family: 'Sora', system-ui, -apple-system, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Sora', system-ui, sans-serif;
+    letter-spacing: -0.04em;
+  }
+
+  .font-drama {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .font-data {
+    font-family: 'Fira Code', 'Courier New', monospace;
+  }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 30px rgba(123, 97, 255, 0.4);
+  }
+
+  .glass-card {
+    @apply bg-[#0A0A14] border border-[#18181B] rounded-[2.5rem] shadow-2xl;
+  }
+
+  .magnetic-btn {
+    overflow: hidden;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition-duration: 300ms;
+  }
+
+  .magnetic-btn:hover {
+    transform: scale(1.03) translateY(-1px);
+  }
+}
+
+/* Global Noise Overlay matching the skill's spec */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  pointer-events: none;
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  z-index: 50;
+  mix-blend-mode: overlay;
+}
