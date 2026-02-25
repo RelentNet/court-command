@@ -1,14 +1,16 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Hero, Features, MultiSport, Pricing } from './components';
+import DocsPage from './components/DocsPage';
 import Preloader from './components/Preloader';
 
-function App() {
+function LandingPage() {
     const [ready, setReady] = useState(false);
     const handlePreloaderComplete = useCallback(() => setReady(true), []);
 
     return (
-        <div className="min-h-screen relative overflow-hidden font-sans">
+        <div className="relative font-sans" style={{ overflow: 'clip' }}>
             <div className="bg-noise"></div>
 
             {/* Cinematic Preloader */}
@@ -22,7 +24,7 @@ function App() {
                 className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto z-[60] bg-[#05050A]/60 backdrop-blur-xl border border-[#18181B] rounded-full px-6 md:px-8 py-3 transition-all duration-300"
             >
                 <div className="flex items-center justify-between gap-8 md:gap-16">
-                    <div className="flex items-center gap-3 group cursor-pointer">
+                    <Link to="/" className="flex items-center gap-3 group cursor-pointer">
                         {/* Upgraded Radar Logo Mark */}
                         <div className="relative w-6 h-6 flex items-center justify-center">
                             <div className="absolute inset-0 border border-[#7B61FF]/40 rounded-full group-hover:scale-125 transition-transform duration-500 ease-out" />
@@ -36,15 +38,15 @@ function App() {
                             <span className="text-[#F0EFF4]/30 font-data text-sm mx-1.5 font-medium -translate-y-0.5">/&#8205;/</span>
                             <span className="font-drama text-[#7B61FF] italic text-2xl lowercase animate-breathe">command</span>
                         </div>
-                    </div>
+                    </Link>
 
                     <div className="hidden md:flex gap-8 items-center text-sm font-data text-[#F0EFF4]/70">
                         <a href="#features" className="hover:text-[#F0EFF4] hover:-translate-y-px transition-all duration-300">Features</a>
                         <a href="#sports" className="hover:text-[#F0EFF4] hover:-translate-y-px transition-all duration-300">Sports</a>
                         <a href="#pricing" className="hover:text-[#F0EFF4] hover:-translate-y-px transition-all duration-300">Pricing</a>
-                        <button className="magnetic-btn bg-[#7B61FF] text-white px-5 py-2 rounded-full font-bold uppercase tracking-widest text-[#F0EFF4]">
-                            Go Pro
-                        </button>
+                        <Link to="/docs" className="magnetic-btn bg-[#7B61FF] text-white px-5 py-2 rounded-full font-bold uppercase tracking-widest text-[#F0EFF4]">
+                            Docs
+                        </Link>
                     </div>
                 </div>
             </motion.nav>
@@ -59,7 +61,7 @@ function App() {
             {/* Footer - Vapor Clinic */}
             <footer className="bg-[#05050A] border-t border-[#18181B] rounded-t-[4rem] py-16 px-6 mt-[-4rem] relative z-20">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 md:gap-6">
-                    <div className="flex items-center gap-3">
+                    <Link to="/" className="flex items-center gap-3">
                         <div className="relative w-5 h-5 flex items-center justify-center grayscale opacity-50">
                             <div className="absolute inset-0 border border-[#27272A] rounded-full" />
                             <div className="w-1.5 h-1.5 bg-[#27272A] rounded-full" />
@@ -69,18 +71,38 @@ function App() {
                             <span className="text-[#F0EFF4]/30 font-data text-xs mx-1.5 font-medium -translate-y-px">/&#8205;/</span>
                             <span className="font-drama text-[#7B61FF] italic text-lg lowercase">command</span>
                         </div>
-                    </div>
+                    </Link>
                     <div className="flex items-center gap-2 text-[#F0EFF4]/50 text-xs font-data uppercase tracking-widest bg-[#0A0A14] px-4 py-2 rounded-full border border-[#18181B]">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                         System Operational
                     </div>
                     <div className="flex gap-6 font-data text-sm">
-                        <a href="#" className="text-[#F0EFF4]/50 hover:text-[#7B61FF] transition-colors">GitHub</a>
-                        <a href="#" className="text-[#F0EFF4]/50 hover:text-[#7B61FF] transition-colors">Twitter</a>
+                        <a href="https://github.com/brandon-relentnet/court-command" target="_blank" rel="noopener noreferrer" className="text-[#F0EFF4]/50 hover:text-[#7B61FF] transition-colors">GitHub</a>
+                        <Link to="/docs" className="text-[#F0EFF4]/50 hover:text-[#7B61FF] transition-colors">Docs</Link>
                     </div>
                 </div>
             </footer>
         </div>
+    );
+}
+
+function ScrollToTop() {
+    const { pathname } = useLocation();
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [pathname]);
+    return null;
+}
+
+function App() {
+    return (
+        <>
+            <ScrollToTop />
+            <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/docs" element={<DocsPage />} />
+            </Routes>
+        </>
     );
 }
 
