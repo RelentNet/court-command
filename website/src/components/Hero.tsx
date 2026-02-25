@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 interface HeroProps {
     ready?: boolean;
@@ -69,7 +70,7 @@ export default function Hero({ ready = false }: HeroProps) {
                     transition={{ duration: 0.8, delay: 0.8, ease: [0.16, 1, 0.3, 1] }}
                     className="flex flex-col sm:flex-row gap-6 mt-8 w-full sm:w-auto"
                 >
-                    <button className="magnetic-btn relative group px-8 py-5 rounded-full bg-[#7B61FF] text-white font-bold tracking-wide uppercase text-sm w-full sm:w-auto shadow-[0_0_40px_rgba(123,97,255,0.3)] border-none">
+                    <Link to="/docs" className="magnetic-btn relative group px-8 py-5 rounded-full bg-[#7B61FF] text-white font-bold tracking-wide uppercase text-sm w-full sm:w-auto shadow-[0_0_40px_rgba(123,97,255,0.3)] border-none text-center">
                         <span className="relative z-10 flex items-center justify-center gap-2">
                             Deploy Instantly
                             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -77,11 +78,11 @@ export default function Hero({ ready = false }: HeroProps) {
                             </svg>
                         </span>
                         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-full" />
-                    </button>
+                    </Link>
 
-                    <button className="magnetic-btn px-8 py-5 rounded-full bg-[#0A0A14] border border-[#18181B] text-[#F0EFF4] hover:bg-[#18181B] font-data text-sm w-full sm:w-auto transition-colors">
+                    <Link to="/docs" className="magnetic-btn px-8 py-5 rounded-full bg-[#0A0A14] border border-[#18181B] text-[#F0EFF4] hover:bg-[#18181B] font-data text-sm w-full sm:w-auto transition-colors text-center">
                         View Documentation
-                    </button>
+                    </Link>
                 </motion.div>
             </div>
         </section>

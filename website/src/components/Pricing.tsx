@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { Check } from 'lucide-react';
 
 export default function Pricing() {
@@ -40,9 +41,9 @@ export default function Pricing() {
                             ))}
                         </ul>
 
-                        <button className="magnetic-btn w-full py-5 border border-[#18181B] font-data text-sm tracking-widest uppercase bg-[#0A0A14] text-[#F0EFF4] hover:bg-[#18181B]">
+                        <Link to="/docs" className="magnetic-btn block w-full py-5 border border-[#18181B] font-data text-sm tracking-widest uppercase bg-[#0A0A14] text-[#F0EFF4] hover:bg-[#18181B] text-center rounded-xl">
                             Read the Docs
-                        </button>
+                        </Link>
                     </motion.div>
 
                     {/* Pro Card */}
