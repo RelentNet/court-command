@@ -1,12 +1,26 @@
+import { useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Hero, Features, MultiSport, Pricing } from './components';
+import Preloader from './components/Preloader';
 
 function App() {
+    const [ready, setReady] = useState(false);
+    const handlePreloaderComplete = useCallback(() => setReady(true), []);
+
     return (
         <div className="min-h-screen relative overflow-hidden font-sans">
             <div className="bg-noise"></div>
 
-            {/* Navbar - Vapor Clinic */}
-            <nav className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto z-[60] bg-[#05050A]/60 backdrop-blur-xl border border-[#18181B] rounded-full px-6 md:px-8 py-3 transition-all duration-300">
+            {/* Cinematic Preloader */}
+            {!ready && <Preloader onComplete={handlePreloaderComplete} />}
+
+            {/* Navbar - Vapor Clinic — slides down after preloader */}
+            <motion.nav
+                initial={{ y: -80, opacity: 0 }}
+                animate={ready ? { y: 0, opacity: 1 } : { y: -80, opacity: 0 }}
+                transition={{ duration: 0.8, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto z-[60] bg-[#05050A]/60 backdrop-blur-xl border border-[#18181B] rounded-full px-6 md:px-8 py-3 transition-all duration-300"
+            >
                 <div className="flex items-center justify-between gap-8 md:gap-16">
                     <div className="flex items-center gap-3 group cursor-pointer">
                         {/* Upgraded Radar Logo Mark */}
@@ -19,7 +33,7 @@ function App() {
                         {/* Extreme Contrast Typography */}
                         <div className="flex items-baseline uppercase">
                             <span className="font-black text-[#F0EFF4] tracking-[0.2em] text-lg">COURT</span>
-                            <span className="text-[#F0EFF4]/30 font-data text-sm mx-1.5 font-medium -translate-y-0.5">/&zwj;/</span>
+                            <span className="text-[#F0EFF4]/30 font-data text-sm mx-1.5 font-medium -translate-y-0.5">/&#8205;/</span>
                             <span className="font-drama text-[#7B61FF] italic text-2xl lowercase animate-breathe">command</span>
                         </div>
                     </div>
@@ -33,10 +47,10 @@ function App() {
                         </button>
                     </div>
                 </div>
-            </nav>
+            </motion.nav>
 
             <main className="isolate bg-[#05050A]">
-                <Hero />
+                <Hero ready={ready} />
                 <Features />
                 <MultiSport />
                 <Pricing />
@@ -52,7 +66,7 @@ function App() {
                         </div>
                         <div className="flex items-baseline uppercase opacity-70">
                             <span className="font-black text-[#F0EFF4] tracking-[0.1em] text-sm">COURT</span>
-                            <span className="text-[#F0EFF4]/30 font-data text-xs mx-1.5 font-medium -translate-y-px">/&zwj;/</span>
+                            <span className="text-[#F0EFF4]/30 font-data text-xs mx-1.5 font-medium -translate-y-px">/&#8205;/</span>
                             <span className="font-drama text-[#7B61FF] italic text-lg lowercase">command</span>
                         </div>
                     </div>
