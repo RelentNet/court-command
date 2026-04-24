@@ -85,8 +85,10 @@ services:
     expose:
       - "80"
     healthcheck:
-      # nginx:alpine ships with wget (BusyBox).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
+      # Use 127.0.0.1 explicitly — nginx:alpine binds only to IPv4, and
+      # BusyBox wget resolves "localhost" to IPv6 (::1) first, causing a
+      # spurious "connection refused" even when nginx is healthy.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
