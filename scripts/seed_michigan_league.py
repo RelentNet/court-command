@@ -5,17 +5,38 @@ Idempotent: reuses existing players/teams/presets by name instead of duplicating
 Usage:
     python3 scripts/seed_michigan_league.py               # uses http://localhost:8000
     API_URL=http://host:port python3 scripts/seed_michigan_league.py
+
+    # If the target hostname hasn't propagated in your local DNS yet, you can
+    # override the IP lookup for just this run:
+    API_URL=https://v1api.courtcommand.app \\
+        RESOLVE_HOST=v1api.courtcommand.app=178.156.234.86 \\
+        python3 scripts/seed_michigan_league.py
 """
 from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import urllib.error
 import urllib.request
 from typing import Any
 
 API_URL = os.getenv("API_URL", "http://localhost:8000").rstrip("/")
+
+# Optional: RESOLVE_HOST=host=ip override (useful when local DNS is lagging).
+_resolve_override = os.getenv("RESOLVE_HOST", "").strip()
+if _resolve_override and "=" in _resolve_override:
+    _host, _ip = _resolve_override.split("=", 1)
+    _orig_getaddrinfo = socket.getaddrinfo
+
+    def _patched_getaddrinfo(host, port, *args, **kwargs):
+        if host == _host:
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (_ip, port))]
+        return _orig_getaddrinfo(host, port, *args, **kwargs)
+
+    socket.getaddrinfo = _patched_getaddrinfo
+    print(f"[dns override] {_host} -> {_ip}")
 
 LEAGUE_NAME = "Michigan Pickleball League"
 
