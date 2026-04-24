@@ -11,6 +11,7 @@ class CourtSummary(BaseModel):
     name: str
     slug: str
     is_ticker_visible: bool = True
+    theme: Dict[str, Any] = {}
     created_at: datetime
     is_active: bool = False
 
@@ -19,9 +20,20 @@ class CourtWithMatch(BaseModel):
     name: str
     slug: str
     is_ticker_visible: bool = True
+    theme: Dict[str, Any] = {}
     created_at: datetime
     active_match: Optional[Match] = None
     match_history: List[Match] = []
+
+class UpdateCourtThemeRequest(BaseModel):
+    """Full theme replacement; clients send the whole theme on each change."""
+    theme: Dict[str, Any]
+
+class UploadResponse(BaseModel):
+    url: str
+    filename: str
+    size: int
+    content_type: str
 
 class ConfigureMatchRequest(BaseModel):
     team_1_id: Optional[int] = None

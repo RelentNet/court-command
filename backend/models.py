@@ -31,6 +31,9 @@ class Court(SQLModel, table=True):
     name: str
     slug: str = Field(index=True)
     is_ticker_visible: bool = Field(default=True)
+    # Overlay Console theme (colors, overrides, images, toggles).
+    # Free-form JSON so the shape can evolve without migrations.
+    theme: Dict[str, Any] = Field(default={}, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class MatchPreset(SQLModel, table=True):

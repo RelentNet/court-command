@@ -20,6 +20,7 @@ import { Route as CourtsCourtSlugIndexRouteImport } from './routes/courts.$court
 import { Route as CourtsCourtSlugTickerRouteImport } from './routes/courts.$courtSlug.ticker'
 import { Route as CourtsCourtSlugScoreboardRouteImport } from './routes/courts.$courtSlug.scoreboard'
 import { Route as CourtsCourtSlugRefereeRouteImport } from './routes/courts.$courtSlug.referee'
+import { Route as CourtsCourtSlugOverlayConsoleRouteImport } from './routes/courts.$courtSlug.overlay-console'
 
 const TickertestRoute = TickertestRouteImport.update({
   id: '/tickertest',
@@ -77,6 +78,12 @@ const CourtsCourtSlugRefereeRoute = CourtsCourtSlugRefereeRouteImport.update({
   path: '/courts/$courtSlug/referee',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CourtsCourtSlugOverlayConsoleRoute =
+  CourtsCourtSlugOverlayConsoleRouteImport.update({
+    id: '/courts/$courtSlug/overlay-console',
+    path: '/courts/$courtSlug/overlay-console',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
+  '/courts/$courtSlug/overlay-console': typeof CourtsCourtSlugOverlayConsoleRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
   '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts': typeof CourtsIndexRoute
   '/registry': typeof RegistryIndexRoute
+  '/courts/$courtSlug/overlay-console': typeof CourtsCourtSlugOverlayConsoleRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
   '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/match/$matchId': typeof MatchMatchIdRoute
   '/courts/': typeof CourtsIndexRoute
   '/registry/': typeof RegistryIndexRoute
+  '/courts/$courtSlug/overlay-console': typeof CourtsCourtSlugOverlayConsoleRoute
   '/courts/$courtSlug/referee': typeof CourtsCourtSlugRefereeRoute
   '/courts/$courtSlug/scoreboard': typeof CourtsCourtSlugScoreboardRoute
   '/courts/$courtSlug/ticker': typeof CourtsCourtSlugTickerRoute
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
+    | '/courts/$courtSlug/overlay-console'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
     | '/courts/$courtSlug/ticker'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/match/$matchId'
     | '/courts'
     | '/registry'
+    | '/courts/$courtSlug/overlay-console'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
     | '/courts/$courtSlug/ticker'
@@ -154,6 +166,7 @@ export interface FileRouteTypes {
     | '/match/$matchId'
     | '/courts/'
     | '/registry/'
+    | '/courts/$courtSlug/overlay-console'
     | '/courts/$courtSlug/referee'
     | '/courts/$courtSlug/scoreboard'
     | '/courts/$courtSlug/ticker'
@@ -168,6 +181,7 @@ export interface RootRouteChildren {
   MatchMatchIdRoute: typeof MatchMatchIdRoute
   CourtsIndexRoute: typeof CourtsIndexRoute
   RegistryIndexRoute: typeof RegistryIndexRoute
+  CourtsCourtSlugOverlayConsoleRoute: typeof CourtsCourtSlugOverlayConsoleRoute
   CourtsCourtSlugRefereeRoute: typeof CourtsCourtSlugRefereeRoute
   CourtsCourtSlugScoreboardRoute: typeof CourtsCourtSlugScoreboardRoute
   CourtsCourtSlugTickerRoute: typeof CourtsCourtSlugTickerRoute
@@ -253,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourtsCourtSlugRefereeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/courts/$courtSlug/overlay-console': {
+      id: '/courts/$courtSlug/overlay-console'
+      path: '/courts/$courtSlug/overlay-console'
+      fullPath: '/courts/$courtSlug/overlay-console'
+      preLoaderRoute: typeof CourtsCourtSlugOverlayConsoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -264,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   MatchMatchIdRoute: MatchMatchIdRoute,
   CourtsIndexRoute: CourtsIndexRoute,
   RegistryIndexRoute: RegistryIndexRoute,
+  CourtsCourtSlugOverlayConsoleRoute: CourtsCourtSlugOverlayConsoleRoute,
   CourtsCourtSlugRefereeRoute: CourtsCourtSlugRefereeRoute,
   CourtsCourtSlugScoreboardRoute: CourtsCourtSlugScoreboardRoute,
   CourtsCourtSlugTickerRoute: CourtsCourtSlugTickerRoute,

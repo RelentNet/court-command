@@ -23,6 +23,9 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy project
 COPY . .
 
+# Create uploads directory (mounted over by a volume in production)
+RUN mkdir -p /app/uploads
+
 # Expose the port the app runs on
 EXPOSE 8000
 

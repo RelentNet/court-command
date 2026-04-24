@@ -1,9 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo } from 'react'
 import config from '../config'
 import Ticker from '../components/Ticker'
 import { useWebSocket } from '../hooks/useWebSocket'
-import type { Court } from '../types/domain'
+import {
+  hsl,
+  resolveImageUrl,
+  resolveTheme,
+} from '../utils/theme'
+import type { Court, Team } from '../types/domain'
 
 export const Route = createFileRoute('/courts/$courtSlug/ticker')({
   component: CourtTicker,
@@ -20,13 +26,11 @@ function CourtTicker() {
       if (!res.ok) throw new Error('Court not found')
       return res.json()
     },
-    // Refresh court data periodically in case a new match starts
     refetchInterval: 10000,
   })
 
   const matchId = court?.active_match?.public_id
 
-  // 2. Subscribe to sockets
   useWebSocket({
     url: matchId ? `${config.WS_URL}/ws/matches/${matchId}` : '',
     queryKey: ['match', matchId],
@@ -43,7 +47,6 @@ function CourtTicker() {
     },
   })
 
-  // 3. Get Match Data
   const { data: match, isLoading: isMatchLoading } = useQuery({
     queryKey: ['match', matchId],
     queryFn: async () => {
@@ -53,6 +56,72 @@ function CourtTicker() {
     },
     enabled: !!matchId,
   })
+
+  // Fetch teams for logo_url fallbacks (small, cached).
+  const { data: teams } = useQuery<Array<Team>>({
+    queryKey: ['teams'],
+    queryFn: async () => {
+      const res = await fetch(`${config.API_URL}/teams`)
+      if (!res.ok) return []
+      return res.json()
+    },
+  })
+
+  const theme = useMemo(() => resolveTheme(court?.theme), [court?.theme])
+
+  // Explicit transparent root for cross-webview safety (Safari/WKWebView/CEF).
+  // Also handles the `backgroundMode` setting for the whole page.
+  useEffect(() => {
+    const prevHtmlBg = document.documentElement.style.backgroundColor
+    const prevBodyBg = document.body.style.backgroundColor
+    const prevBodyBgImage = document.body.style.backgroundImage
+    const prevBodyBgSize = document.body.style.backgroundSize
+    const prevBodyBgPosition = document.body.style.backgroundPosition
+
+    const setTransparent = () => {
+      document.documentElement.style.backgroundColor = 'transparent'
+      document.body.style.backgroundColor = 'transparent'
+      document.body.style.backgroundImage = ''
+    }
+
+    if (theme.backgroundMode === 'transparent') {
+      setTransparent()
+    } else if (theme.backgroundMode === 'color') {
+      document.documentElement.style.backgroundColor = hsl(
+        theme.colors.pageBackground,
+      )
+      document.body.style.backgroundColor = hsl(theme.colors.pageBackground)
+      document.body.style.backgroundImage = ''
+    } else {
+      // image mode
+      const url = theme.backgroundImage
+        ? resolveImageUrl(theme.backgroundImage, config.API_URL)
+        : null
+      document.documentElement.style.backgroundColor = hsl(
+        theme.colors.pageBackground,
+      )
+      document.body.style.backgroundColor = hsl(theme.colors.pageBackground)
+      if (url) {
+        document.body.style.backgroundImage = `url("${url}")`
+        document.body.style.backgroundSize = 'cover'
+        document.body.style.backgroundPosition = 'center'
+      } else {
+        document.body.style.backgroundImage = ''
+      }
+    }
+
+    return () => {
+      document.documentElement.style.backgroundColor = prevHtmlBg
+      document.body.style.backgroundColor = prevBodyBg
+      document.body.style.backgroundImage = prevBodyBgImage
+      document.body.style.backgroundSize = prevBodyBgSize
+      document.body.style.backgroundPosition = prevBodyBgPosition
+    }
+  }, [
+    theme.backgroundMode,
+    theme.backgroundImage,
+    theme.colors.pageBackground,
+  ])
 
   if (isCourtLoading || (matchId && isMatchLoading)) {
     return (
@@ -82,8 +151,13 @@ function CourtTicker() {
   }
 
   return (
-    <div className="fixed inset-0 bg-transparent flex items-center justify-center px-4 padding-safe overflow-hidden overscroll-none touch-none select-none">
-      <Ticker match={match} isVisible={court.is_ticker_visible} />
+    <div className="fixed inset-0 bg-transparent flex items-center justify-center px-4 overflow-hidden overscroll-none touch-none select-none">
+      <Ticker
+        match={match}
+        isVisible={court.is_ticker_visible}
+        theme={court.theme}
+        teams={teams}
+      />
     </div>
   )
 }

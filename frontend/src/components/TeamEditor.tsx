@@ -13,6 +13,7 @@ interface TeamEditorProps {
     id?: number | null
     name: string
     short_name: string
+    logo_url?: string | null
     primary_color: string
     player_ids: Array<number>
   }
@@ -29,6 +30,7 @@ export function TeamEditor({
   // Form State
   const [name, setName] = useState(initialData?.name || '')
   const [shortName, setShortName] = useState(initialData?.short_name || '')
+  const [logoUrl, setLogoUrl] = useState(initialData?.logo_url || '')
   const [color, setColor] = useState(initialData?.primary_color || '#3b82f6')
 
   // Ensure selected players actually exist in the passed players list
@@ -56,6 +58,7 @@ export function TeamEditor({
         body: JSON.stringify({
           name,
           short_name: shortName,
+          logo_url: logoUrl || null,
           primary_color: color,
           player_ids: selectedPlayers,
         }),
@@ -121,6 +124,21 @@ export function TeamEditor({
               />
             </div>
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-slate-400 text-xs uppercase font-bold">
+            Logo URL
+          </label>
+          <input
+            value={logoUrl}
+            onChange={(e) => setLogoUrl(e.target.value)}
+            className="bg-slate-900 border-slate-700 p-3 border rounded-lg w-full text-white focus:ring-2 focus:ring-lime-500 outline-none transition-all"
+            placeholder="/uploads/abc.png or https://..."
+          />
+          <p className="mt-1 text-slate-500 text-xs">
+            Upload logos from the Overlay Console or paste a URL here directly.
+          </p>
         </div>
       </div>
 

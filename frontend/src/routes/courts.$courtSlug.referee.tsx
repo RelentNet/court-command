@@ -1,5 +1,6 @@
-import { Navigate, createFileRoute } from '@tanstack/react-router'
+import { Link, Navigate, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { Paintbrush } from 'lucide-react'
 import config from '../config'
 import { MatchContainer } from '../components/MatchContainer'
 import { TickerControl } from '../components/TickerControl'
@@ -35,6 +36,15 @@ function CourtReferee() {
   return (
     <div className="bg-slate-900 min-h-screen">
       <div className="mx-auto pt-4 px-4 max-w-5xl">
+        <div className="flex justify-end mb-3">
+          <Link
+            to="/courts/$courtSlug/overlay-console"
+            params={{ courtSlug }}
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg text-sm text-slate-300 transition-colors"
+          >
+            <Paintbrush className="w-4 h-4 text-lime-500" /> Overlay Console
+          </Link>
+        </div>
         <TickerControl court={court} className="mb-6" />
       </div>
       {/* MatchContainer handles its own layout, but we need to prevent double min-h-screen if possible or just let it stack */}

@@ -20,8 +20,65 @@ export interface Court {
   name: string
   slug: string
   is_ticker_visible?: boolean
+  theme?: Partial<CourtTheme> | null
   created_at: string
   active_match?: Match | null
+}
+
+// --- Overlay Console / Theme ---
+
+export interface HSL {
+  h: number
+  s: number
+  l: number
+}
+
+export type BackgroundMode = 'transparent' | 'color' | 'image'
+export type TextColorMode = 'auto' | 'manual'
+
+export interface CourtThemeColors {
+  headerFooter: HSL
+  body: HSL
+  badge: HSL
+  score: HSL
+  pageBackground: HSL
+  text: {
+    mode: TextColorMode
+    value: HSL
+  }
+}
+
+export interface CourtThemeImages {
+  associationLogo: string | null
+  hideDefaultAssociationLogo: boolean
+}
+
+export interface CourtThemeTextOverrides {
+  leagueName: string
+  tournamentName: string
+  headerExtra: string
+  team1Name: string
+  team1Players: string
+  team1Score: string
+  team2Name: string
+  team2Players: string
+  team2Score: string
+  matchInfo: string
+  footerExtra: string
+}
+
+export interface CourtTheme {
+  version: 1
+  colors: CourtThemeColors
+  backgroundMode: BackgroundMode
+  backgroundImage: string | null
+  teamLogoScale: number
+  badgeLogoScale: number
+  badgeLogoPosition: { x: number; y: number }
+  images: CourtThemeImages
+  textOverrides: CourtThemeTextOverrides
+  showBorder: boolean
+  useFullAssociationName: boolean
 }
 
 export interface MatchParticipant {

@@ -107,6 +107,7 @@ class RegistryService:
         
         team.name = team_data.name
         team.short_name = team_data.short_name
+        team.logo_url = team_data.logo_url
         team.primary_color = team_data.primary_color
         team.player_ids = team_data.player_ids
         

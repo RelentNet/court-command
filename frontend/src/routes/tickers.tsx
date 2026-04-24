@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Monitor } from 'lucide-react'
+import { ArrowLeft, Monitor, Paintbrush } from 'lucide-react'
 import config from '../config'
 import { TickerControl } from '../components/TickerControl'
 import type { Court } from '../types/domain'
@@ -68,6 +68,13 @@ function TickersPage() {
                     className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm text-white transition-colors"
                   >
                     Referee Console
+                  </Link>
+                  <Link
+                    to="/courts/$courtSlug/overlay-console"
+                    params={{ courtSlug: court.slug }}
+                    className="flex items-center gap-1.5 bg-lime-600 hover:bg-lime-500 px-4 py-2 rounded-lg font-bold text-sm text-slate-900 transition-colors"
+                  >
+                    <Paintbrush className="w-4 h-4" /> Overlay Console
                   </Link>
                   <Link
                     to="/courts/$courtSlug/ticker"

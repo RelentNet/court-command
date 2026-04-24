@@ -9,6 +9,10 @@ count.txt
 .tanstack
 .wrangler
 
+# Local dev compose overrides — not part of production deploy
+docker-compose.override.yaml
+docker-compose.override.yml
+
 # Python
 __pycache__/
 *.py[cod]

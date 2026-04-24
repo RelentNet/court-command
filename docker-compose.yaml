@@ -1,3 +1,24 @@
+# docker-compose.yaml — production deploy (Coolify-friendly)
+#
+# Coolify deploys this as a "Docker Compose" resource, routing each service
+# with a public hostname via Traefik and auto-issuing Let's Encrypt certs.
+#
+# Two public hostnames (configure these in the Coolify service UI):
+#   - Frontend:  mpl.courtcommand.app       (service: frontend, container port 80)
+#   - Backend:   v1api.courtcommand.app     (service: backend,  container port 8000)
+#
+# Required env vars (set in Coolify > Project > Environment Variables):
+#   POSTGRES_USER=postgres
+#   POSTGRES_PASSWORD=<strong password>
+#   POSTGRES_DB=courtcommand
+#   VITE_API_URL=https://v1api.courtcommand.app
+#
+# The frontend bakes VITE_API_URL into the bundle at BUILD time — if you
+# change the API hostname later, Coolify must rebuild the frontend image.
+#
+# For local development use the docker-compose.override.yaml in this repo
+# (gitignored) or run `make dev`.
+
 services:
   db:
     image: postgres:17-alpine
@@ -36,16 +57,34 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-courtcommand}
       REDIS_URL: redis://redis:6379
-    # No ports mapping here for production!
+      UPLOAD_DIR: /app/uploads
+    volumes:
+      - uploads_data:/app/uploads
+    # Expose the internal port so Coolify / Traefik can route to it.
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
       context: ./frontend
       args:
+        # Baked into the Vite bundle at build time. Coolify rebuilds whenever
+        # this value changes in the project env.
         VITE_API_URL: ${VITE_API_URL}
     restart: always
-    # No ports mapping here for production!
+    depends_on:
+      - backend
+    # Expose the internal nginx port so Coolify / Traefik can route to it.
+    expose:
+      - "80"
 
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

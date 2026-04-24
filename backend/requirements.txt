@@ -6,3 +6,4 @@ redis
 aiosqlite
 websockets
 python-dotenv
+python-multipart

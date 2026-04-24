@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 import redis.asyncio as redis
@@ -11,10 +12,18 @@ import logging
 
 from database import init_db, get_session
 from models import Match, Court, Player, Team, MatchPreset
-from schemas import CreateCourtRequest, CourtSummary, CourtWithMatch, ConfigureMatchRequest
+from schemas import (
+    CreateCourtRequest,
+    CourtSummary,
+    CourtWithMatch,
+    ConfigureMatchRequest,
+    UpdateCourtThemeRequest,
+    UploadResponse,
+)
 from services.match_service import MatchService
 from services.court_service import CourtService
 from services.registry_service import RegistryService
+from services.upload_service import save_upload, ensure_upload_dir, UPLOAD_DIR
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from fastapi import Body
@@ -30,6 +39,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 async def lifespan(app: FastAPI):
     # Startup
     await init_db()
+    ensure_upload_dir()
     # Initialize Redis in app state
     app.state.redis = redis.from_url(REDIS_URL, decode_responses=True)
     yield
@@ -44,6 +54,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve uploaded images. Relative URL (e.g. /uploads/abc.png) is stored in the
+# theme JSON; the frontend prefixes it with its configured API base URL, so
+# everything stays domain-agnostic.
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 from fastapi.responses import JSONResponse
 
@@ -217,6 +232,32 @@ async def update_court(
     service: CourtService = Depends(get_court_service)
 ):
     return await service.update_court(slug, payload)
+
+@app.patch("/courts/{slug}/theme", response_model=Court)
+async def update_court_theme(
+    slug: str,
+    payload: UpdateCourtThemeRequest,
+    service: CourtService = Depends(get_court_service),
+):
+    """Replace the full theme blob for a court and broadcast the update.
+
+    Clients are expected to send the entire resolved theme each time so the
+    server does not need merge logic. Broadcasts via the same
+    `court_updates_{slug}` channel the visibility toggle uses.
+    """
+    return await service.update_court(slug, {"theme": payload.theme})
+
+# --- Uploads ---
+
+@app.post("/uploads", response_model=UploadResponse)
+async def upload_image(file: UploadFile = File(...)):
+    """Upload an image for use in the Overlay Console.
+
+    Accepts png, jpeg, webp, gif, and svg (sanitized). 5 MB cap.
+    Returns a relative URL (e.g. `/uploads/<hash>.png`).
+    """
+    url, filename, size, content_type = await save_upload(file)
+    return UploadResponse(url=url, filename=filename, size=size, content_type=content_type)
 
 # --- Match Endpoints ---
 
