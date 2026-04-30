@@ -72,7 +72,7 @@ func (v *Validator) SetKeyTTL(d time.Duration) {
 func (v *Validator) Validate(ctx context.Context, tokenString string, orgScoped bool) (Claims, error) {
 	keyset, err := v.getKeySet(ctx)
 	if err != nil {
-		return Claims{}, fmt.Errorf("auth: load JWKS: %w", err)
+		return Claims{}, fmt.Errorf("load JWKS: %w", err)
 	}
 
 	tok, err := jwt.Parse(
@@ -82,7 +82,7 @@ func (v *Validator) Validate(ctx context.Context, tokenString string, orgScoped 
 		jwt.WithIssuer(v.issuer),
 	)
 	if err != nil {
-		return Claims{}, fmt.Errorf("auth: parse token: %w", err)
+		return Claims{}, fmt.Errorf("parse token: %w", err)
 	}
 
 	if err := v.checkAudience(tok, orgScoped); err != nil {
@@ -97,7 +97,7 @@ func (v *Validator) Validate(ctx context.Context, tokenString string, orgScoped 
 func (v *Validator) checkAudience(tok jwt.Token, orgScoped bool) error {
 	aud, ok := tok.Audience()
 	if !ok || len(aud) == 0 {
-		return fmt.Errorf("auth: token missing audience claim")
+		return fmt.Errorf("token missing audience claim")
 	}
 	for _, a := range aud {
 		if a == v.audience {
@@ -107,7 +107,7 @@ func (v *Validator) checkAudience(tok jwt.Token, orgScoped bool) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("auth: token audience %v does not match expected %q (orgScoped=%t)", aud, v.audience, orgScoped)
+	return fmt.Errorf("token audience %v does not match expected %q (orgScoped=%t)", aud, v.audience, orgScoped)
 }
 
 // getKeySet returns the cached JWKS, refetching from the JWKS endpoint when
@@ -134,7 +134,7 @@ func (v *Validator) getKeySet(ctx context.Context) (jwk.Set, error) {
 		if v.cachedSet != nil {
 			return v.cachedSet, nil
 		}
-		return nil, fmt.Errorf("fetch %s: %w", v.jwksURI, err)
+		return nil, fmt.Errorf("fetch jwks: %w", err)
 	}
 
 	v.cachedSet = set
