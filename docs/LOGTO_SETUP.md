@@ -104,8 +104,17 @@ After creation, on the application detail page:
 | **App Secret** | Coolify (api service) → `LOGTO_MANAGEMENT_API_APP_SECRET` |
 
 Verify the value of `LOGTO_MANAGEMENT_API_RESOURCE` in Coolify is
-`https://logto.courtcommand.app/api` (this is the Logto-internal Management API
-resource, distinct from `LOGTO_API_RESOURCE`).
+`https://default.logto.app/api`.
+
+> **Why that exact string?** Self-hosted Logto exposes its built-in Management
+> API under a fixed audience identifier, `https://default.logto.app/api`,
+> regardless of your custom domain. It is **not a real URL** — it is the
+> resource indicator the OIDC token endpoint expects in the `resource` form
+> parameter when minting Management API tokens. Using your public Logto URL
+> (e.g. `https://logto.courtcommand.app/api`) returns
+> `oidc.invalid_target: Invalid resource indicator`. This is distinct from
+> `LOGTO_API_RESOURCE` (which IS your real public API URL —
+> `https://api.courtcommand.app/api`).
 
 ---
 
@@ -254,7 +263,7 @@ From a machine that can reach Logto (typically your local box):
 APP_ID=...
 APP_SECRET=...
 LOGTO_ENDPOINT=https://logto.courtcommand.app
-RESOURCE=https://logto.courtcommand.app/api
+RESOURCE=https://default.logto.app/api  # fixed audience for self-hosted Mgmt API
 
 # 1. Get an M2M token
 TOKEN=$(curl -s -X POST "$LOGTO_ENDPOINT/oidc/token" \
