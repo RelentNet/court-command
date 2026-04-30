@@ -18,8 +18,23 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /court-command .
+# Build the binary, injecting the git commit and build timestamp into the
+# binary so /api/v1/health can report which build is live.
+#
+# Commit comes from the COMMIT build arg (passed by docker-compose) which
+# in Coolify is wired to the SOURCE_COMMIT env, or from
+# COOLIFY_GIT_COMMIT_SHA at build time, or as a last resort "unknown".
+# The build context is ./api (not the repo root) so git is unavailable
+# here -- ARG/ENV is the only mechanism that works.
+ARG COMMIT
+ARG COOLIFY_GIT_COMMIT_SHA
+RUN RESOLVED_COMMIT="${COMMIT:-${COOLIFY_GIT_COMMIT_SHA:-unknown}}" \
+ && BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+ && CGO_ENABLED=0 GOOS=linux go build \
+      -ldflags="-s -w \
+        -X github.com/court-command/court-command/handler.buildCommit=${RESOLVED_COMMIT} \
+        -X github.com/court-command/court-command/handler.buildBuiltAt=${BUILT_AT}" \
+      -o /court-command .
 
 # --- Stage 2: Run ---
 FROM alpine:3.20

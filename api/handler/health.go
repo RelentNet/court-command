@@ -10,6 +10,18 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// buildCommit and buildBuiltAt are injected at link time via -ldflags so
+// /api/v1/health can report which build is live. Defaults are used during
+// `go run` and tests where the linker flags aren't applied.
+//
+// See api/Dockerfile for the production build invocation.
+//
+//nolint:gochecknoglobals // build-time constants
+var (
+	buildCommit  = "dev"
+	buildBuiltAt = "unknown"
+)
+
 // HealthHandler checks the health of backend services.
 type HealthHandler struct {
 	db    *pgxpool.Pool
@@ -50,6 +62,10 @@ func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 		"services": map[string]string{
 			"database": dbStatus,
 			"redis":    redisStatus,
+		},
+		"build": map[string]string{
+			"commit":   buildCommit,
+			"built_at": buildBuiltAt,
 		},
 	})
 }
