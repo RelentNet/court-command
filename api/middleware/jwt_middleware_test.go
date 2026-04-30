@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -62,7 +62,7 @@ func serveJWKS(t *testing.T, pub *rsa.PublicKey, kid string) string {
 
 // mintToken signs a JWT with priv and returns the compact-serialized form.
 // Defaults: iss=testIssuer, iat=now, exp=now+5m. Caller-supplied claims
-// override the defaults; pass time.Time values for exp/iat/nbf.
+// override the defaults; pass time.Time values for exp/iat.
 func mintToken(t *testing.T, priv *rsa.PrivateKey, claims map[string]interface{}) string {
 	t.Helper()
 	tok := jwt.New()
@@ -133,6 +133,31 @@ func TestRequireJWT_ValidToken_PassesThroughWithClaims(t *testing.T) {
 	require.Equal(t, []string{"platform_admin"}, claims.OrganizationRoles)
 	require.ElementsMatch(t, []string{"read:tournaments", "write:tournaments"}, claims.Scopes)
 	require.Equal(t, []string{testOrgURNAud}, claims.Audience)
+}
+
+// RFC 6750 §2.1: the auth scheme is case-insensitive. The middleware uses
+// strings.EqualFold; this test guards against a future regression to
+// strings.HasPrefix that would silently break case-insensitive callers.
+func TestRequireJWT_ValidToken_LowercaseScheme_Accepted(t *testing.T) {
+	priv, jwksURL := testKey(t)
+	v := auth.NewValidator(testIssuer, jwksURL, testAPIaud)
+	mw := middleware.RequireJWT(v, true)
+
+	token := mintToken(t, priv, map[string]interface{}{
+		jwt.SubjectKey:  "user_abc",
+		jwt.AudienceKey: []string{testAPIaud},
+	})
+
+	for _, scheme := range []string{"Bearer", "bearer", "BEARER", "BeArEr"} {
+		t.Run(scheme, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/x", nil)
+			req.Header.Set("Authorization", scheme+" "+token)
+			rr, reached, _ := runMiddleware(mw, req)
+
+			require.True(t, *reached, "valid token with %q scheme must reach handler", scheme)
+			require.Equal(t, http.StatusOK, rr.Code)
+		})
+	}
 }
 
 func TestRequireJWT_MissingHeader_Returns401(t *testing.T) {
@@ -295,7 +320,7 @@ func TestRequireJWT_GlobalAudienceAccepted(t *testing.T) {
 	priv, jwksURL := testKey(t)
 
 	for _, orgScoped := range []bool{true, false} {
-		t.Run(name("orgScoped", orgScoped), func(t *testing.T) {
+		t.Run(fmt.Sprintf("orgScoped=%t", orgScoped), func(t *testing.T) {
 			v := auth.NewValidator(testIssuer, jwksURL, testAPIaud)
 			mw := middleware.RequireJWT(v, orgScoped)
 
@@ -314,11 +339,4 @@ func TestRequireJWT_GlobalAudienceAccepted(t *testing.T) {
 	}
 }
 
-// name builds a subtest name for boolean parameter sweeps so the table-style
-// loop above stays readable.
-func name(label string, b bool) string {
-	if b {
-		return label + "=true"
-	}
-	return strings.Replace(label+"=false", " ", "_", -1)
-}
+
