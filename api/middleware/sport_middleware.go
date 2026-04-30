@@ -68,7 +68,8 @@ func RequireSportMatchesJWT(r *SportResolver) func(http.Handler) http.Handler {
 				// loudly so it's caught in development.
 				slog.ErrorContext(req.Context(),
 					"sport middleware: no claims in context (RequireJWT not chained)")
-				writeError(w, http.StatusInternalServerError, "internal_error", "unauthorized")
+				writeError(w, http.StatusInternalServerError, "internal_error",
+					"server configuration error")
 				return
 			}
 

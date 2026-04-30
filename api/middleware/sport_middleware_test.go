@@ -147,4 +147,6 @@ func TestRequireSportMatchesJWT_NoClaimsInContext_Returns500(t *testing.T) {
 	require.False(t, reached, "handler must not be reached without claims")
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	require.Contains(t, rr.Body.String(), "internal_error")
+	require.Contains(t, rr.Body.String(), "server configuration error",
+		"message must reflect the actual condition (programmer error), not contradict the 500 status")
 }

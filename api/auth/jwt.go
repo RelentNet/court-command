@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,6 +11,12 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
+
+// ErrJWKSUnavailable is returned (via errors.Is) when Validate cannot reach
+// the issuer's JWKS endpoint AND has no cached key set to fall back to.
+// Middleware can branch on this to surface a 503 Service Unavailable
+// instead of a 401, since the failure is infrastructure -- not a bad token.
+var ErrJWKSUnavailable = errors.New("jwks unavailable")
 
 // defaultKeyTTL is how long a fetched JWKS is reused before we refetch from
 // the issuer. Logto rotates signing keys infrequently; an hour balances
@@ -130,11 +137,13 @@ func (v *Validator) getKeySet(ctx context.Context) (jwk.Set, error) {
 	if err != nil {
 		// On refresh failure, fall back to the stale cache rather than
 		// rejecting every in-flight request — better availability while
-		// the issuer is briefly unreachable.
+		// the issuer is briefly unreachable. With no cache, surface
+		// ErrJWKSUnavailable so middleware can return 503 instead of
+		// the misleading 401 it would otherwise produce.
 		if v.cachedSet != nil {
 			return v.cachedSet, nil
 		}
-		return nil, fmt.Errorf("fetch jwks: %w", err)
+		return nil, fmt.Errorf("fetch jwks: %w: %w", ErrJWKSUnavailable, err)
 	}
 
 	v.cachedSet = set

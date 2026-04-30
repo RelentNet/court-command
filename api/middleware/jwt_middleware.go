@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -29,9 +30,16 @@ func RequireJWT(v *auth.Validator, orgScoped bool) func(http.Handler) http.Handl
 
 			claims, err := v.Validate(r.Context(), token, orgScoped)
 			if err != nil {
-				// Invalid tokens are routine (probes, expired clients, replay
-				// attempts). Log at debug so a noisy public endpoint can't
-				// flood the log; aggregate metrics belong elsewhere.
+				// Distinguish "Logto JWKS is unreachable" (infra failure ->
+				// 503, log at error) from "client sent a bad token" (routine
+				// -> 401, log at debug). Conflating these makes operators
+				// chase JWT bugs while the real cause is networking.
+				if errors.Is(err, auth.ErrJWKSUnavailable) {
+					slog.ErrorContext(r.Context(), "jwks unavailable, cannot validate tokens", "err", err)
+					writeError(w, http.StatusServiceUnavailable, "service_unavailable",
+						"authentication temporarily unavailable")
+					return
+				}
 				slog.DebugContext(r.Context(), "jwt validation failed", "err", err)
 				writeError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
 				return

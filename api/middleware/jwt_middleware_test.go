@@ -339,4 +339,28 @@ func TestRequireJWT_GlobalAudienceAccepted(t *testing.T) {
 	}
 }
 
+// TestRequireJWT_JWKSUnavailable_Returns503 verifies that an infrastructure
+// failure (Logto JWKS unreachable on cold start, no cached keys) surfaces
+// as 503 service_unavailable, NOT 401 invalid_token. The old behavior
+// confused operators chasing JWT bugs while the real cause was networking.
+func TestRequireJWT_JWKSUnavailable_Returns503(t *testing.T) {
+	// Validator pointed at a TCP black hole. The httptest server is
+	// created and immediately closed so its port refuses connections.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+	deadJWKSURL := srv.URL
+	srv.Close()
+
+	v := auth.NewValidator(testIssuer, deadJWKSURL, testAPIaud)
+	mw := middleware.RequireJWT(v, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.Header.Set("Authorization", "Bearer some.token.here")
+
+	rr, reached, _ := runMiddleware(mw, req)
+
+	require.False(t, *reached, "handler must not be reached on JWKS failure")
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code,
+		"JWKS-unreachable must surface as 503, not 401")
+	require.Contains(t, rr.Body.String(), "service_unavailable")
+}
 
