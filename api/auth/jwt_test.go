@@ -52,3 +52,61 @@ func TestExtractClaims_NoOrg(t *testing.T) {
 	require.False(t, c.HasOrgRole("platform_admin"))
 	require.True(t, c.HasScope("read:profile"))
 }
+
+// TestExtractClaims_OrganizationRolesShapes exercises toStringSlice indirectly
+// through ExtractClaims. The interesting branch is []interface{}: that's what
+// jwx surfaces when a token is parsed off the wire (the only construction
+// path used in production), but the in-process []string case from the other
+// tests doesn't cover it. The non-slice and nil cases verify toStringSlice
+// silently degrades to an empty result rather than panicking.
+func TestExtractClaims_OrganizationRolesShapes(t *testing.T) {
+	cases := []struct {
+		name  string
+		input interface{}
+		want  []string
+	}{
+		{
+			name:  "string slice (in-process)",
+			input: []string{"a", "b"},
+			want:  []string{"a", "b"},
+		},
+		{
+			name:  "interface slice of strings (wire-decoded)",
+			input: []interface{}{"a", "b"},
+			want:  []string{"a", "b"},
+		},
+		{
+			name:  "interface slice with non-string element",
+			input: []interface{}{"a", 42, "b"},
+			want:  []string{"a", "b"},
+		},
+		{
+			name:  "nil",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name:  "non-slice value",
+			input: "not-a-slice",
+			want:  nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tok := jwt.New()
+			require.NoError(t, tok.Set(jwt.SubjectKey, "user_shape"))
+			if tc.input != nil {
+				require.NoError(t, tok.Set("organization_roles", tc.input))
+			}
+
+			c := ExtractClaims(tok)
+
+			if len(tc.want) == 0 {
+				require.Empty(t, c.OrganizationRoles)
+				return
+			}
+			require.Equal(t, tc.want, c.OrganizationRoles)
+		})
+	}
+}
