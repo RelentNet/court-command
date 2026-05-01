@@ -1,5 +1,45 @@
 # Makefile
-.PHONY: dev dev-frontend dev-all up down full full-down build migrate-up migrate-down migrate-create sqlc test test-db seed backup backup-full restore restore-db backup-list backup-before-deploy
+.PHONY: dev dev-frontend dev-all dev-up dev-down dev-logs dev-reset up down full full-down build migrate-up migrate-down migrate-create sqlc test test-db seed logto-seed backup backup-full restore restore-db backup-list backup-before-deploy
+
+# ---- Local development (docker-compose.dev.yml) ----
+# Brings up postgres + redis + logto with host port bindings; the Go
+# backend runs natively on the host for fast iteration. See
+# docs/LOCAL_DEV.md for the full first-run walkthrough.
+
+# Start the dev infra (db + redis + logto)
+dev-up:
+	docker compose -f docker-compose.dev.yml up -d
+	@echo ""
+	@echo "Dev infra ready:"
+	@echo "  Postgres   localhost:5432  (user=courtcommand pass=courtcommand db=courtcommand,logto)"
+	@echo "  Redis      localhost:6379"
+	@echo "  Logto OIDC http://localhost:3001"
+	@echo "  Logto admin http://localhost:3002"
+	@echo ""
+	@echo "Next: see docs/LOCAL_DEV.md for first-run setup."
+
+# Stop dev infra (preserves volumes / data)
+dev-down:
+	docker compose -f docker-compose.dev.yml down
+
+# Tail logs from the dev infra services
+dev-logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+# Wipe dev infra including all data (Postgres volume + Logto state)
+dev-reset:
+	docker compose -f docker-compose.dev.yml down -v
+	@echo "Dev infra wiped. Run 'make dev-up' to start fresh."
+
+# Provision Logto (idempotent): creates apps, resources, scopes, org
+# template, organizations, bootstrap admin, webhook. Reads config from
+# .env (LOGTO_MANAGEMENT_API_APP_ID/SECRET must be set first -- see
+# docs/LOCAL_DEV.md "First-run setup").
+logto-seed:
+	@if [ ! -f .env ]; then echo "ERROR: .env not found. Copy from .env.example first."; exit 1; fi
+	@cd api && set -a && . ../.env && set +a && go run ./cmd/logto-seed
+
+# ---- Legacy single-stack (docker-compose.yaml -- prod / Coolify shape) ----
 
 # Start Docker services (db + redis only)
 up:
