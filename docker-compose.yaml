@@ -41,10 +41,10 @@ services:
       context: ./api
       dockerfile: Dockerfile
       args:
-        # Coolify exposes SOURCE_COMMIT (and COOLIFY_GIT_COMMIT_SHA) at build
-        # time. Either populates this arg; the Dockerfile injects whichever
-        # is present into the binary so /api/v1/health reports the live
-        # commit. Falls back to "unknown" when neither is set (local dev).
+        # Coolify v4 exposes SOURCE_COMMIT and COOLIFY_GIT_COMMIT_SHA at
+        # build time. The Dockerfile injects this into the binary so
+        # /api/v1/health can report the deployed commit. Empty default
+        # is fine -- the Dockerfile falls back to "unknown".
         COMMIT: ${SOURCE_COMMIT:-${COOLIFY_GIT_COMMIT_SHA:-}}
     expose:
       - "8080"
