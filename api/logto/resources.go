@@ -80,9 +80,10 @@ func (c *Client) CreateResourceScope(ctx context.Context, resourceID, name, desc
 }
 
 // ListResourceScopes returns the scopes registered on a resource.
+// page_size is capped at 100 by Logto's koa-pagination middleware.
 func (c *Client) ListResourceScopes(ctx context.Context, resourceID string) ([]Scope, error) {
 	var scopes []Scope
-	path := fmt.Sprintf("/api/resources/%s/scopes?page_size=200", resourceID)
+	path := fmt.Sprintf("/api/resources/%s/scopes?page_size=100", resourceID)
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, &scopes); err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ func (c *Client) CreateOrganization(ctx context.Context, name, description strin
 // ListOrganizations returns all organizations on the tenant.
 func (c *Client) ListOrganizations(ctx context.Context) ([]Organization, error) {
 	var orgs []Organization
-	if err := c.doJSON(ctx, http.MethodGet, "/api/organizations?page_size=200", nil, &orgs); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/organizations?page_size=100", nil, &orgs); err != nil {
 		return nil, err
 	}
 	return orgs, nil
@@ -88,7 +88,7 @@ type OrganizationRole struct {
 // template. Roles are shared across every organization.
 func (c *Client) ListOrganizationRoles(ctx context.Context) ([]OrganizationRole, error) {
 	var roles []OrganizationRole
-	if err := c.doJSON(ctx, http.MethodGet, "/api/organization-roles?page_size=200", nil, &roles); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/organization-roles?page_size=100", nil, &roles); err != nil {
 		return nil, err
 	}
 	return roles, nil
@@ -117,7 +117,7 @@ type OrganizationScope struct {
 // ListOrganizationScopes returns all org scopes on the template.
 func (c *Client) ListOrganizationScopes(ctx context.Context) ([]OrganizationScope, error) {
 	var scopes []OrganizationScope
-	if err := c.doJSON(ctx, http.MethodGet, "/api/organization-scopes?page_size=200", nil, &scopes); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/organization-scopes?page_size=100", nil, &scopes); err != nil {
 		return nil, err
 	}
 	return scopes, nil
@@ -148,7 +148,7 @@ func (c *Client) AssignScopesToOrgRole(ctx context.Context, roleID string, scope
 // ListOrgRoleScopes returns the scopes currently bound to an org role.
 func (c *Client) ListOrgRoleScopes(ctx context.Context, roleID string) ([]OrganizationScope, error) {
 	var scopes []OrganizationScope
-	path := fmt.Sprintf("/api/organization-roles/%s/scopes?page_size=200", roleID)
+	path := fmt.Sprintf("/api/organization-roles/%s/scopes?page_size=100", roleID)
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, &scopes); err != nil {
 		return nil, err
 	}

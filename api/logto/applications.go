@@ -119,7 +119,7 @@ type Role struct {
 // the built-in "Logto Management API access" role by name.
 func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	var roles []Role
-	if err := c.doJSON(ctx, http.MethodGet, "/api/roles?page_size=200", nil, &roles); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, "/api/roles?page_size=100", nil, &roles); err != nil {
 		return nil, err
 	}
 	return roles, nil
