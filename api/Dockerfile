@@ -1,9 +1,5 @@
 # api/Dockerfile
 # Multi-stage build for the Court Command API.
-#
-# Build context is the REPO ROOT (docker-compose.yaml sets context: ".")
-# so the build can read .git for commit-SHA injection. Coolify clones the
-# repo with --depth=1 so .git is a real directory at the context root.
 
 # --- Stage 1: Build ---
 FROM golang:1.24-alpine AS builder
@@ -16,27 +12,25 @@ ENV GOTOOLCHAIN=auto
 WORKDIR /app
 
 # Copy dependency files first (layer caching)
-COPY api/go.mod api/go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy api source
-COPY api/ ./
+# Copy source code (build context is ./api)
+COPY . .
 
-# Copy .git into a sibling directory (not /app/.git which would confuse
-# the go build with embedded version info). This is best-effort: if .git
-# is absent or unusual (e.g. a worktree pointer file in local dev),
-# git rev-parse fails and we fall back to "unknown".
-COPY .git/ /tmp/repo/.git/
-
-# Build the binary, injecting the git commit and build timestamp into
-# the binary so /api/v1/health can report which build is live.
+# Build the binary, injecting the build timestamp into the binary so
+# /api/v1/health can report when the deployed image was built. The
+# commit SHA falls back to "unknown" because Coolify (this version)
+# does not expose SOURCE_COMMIT or COOLIFY_GIT_COMMIT_SHA at docker
+# build time. The built_at timestamp alone is sufficient to verify a
+# fresh deploy landed; pairing it with the local 'git log' tells you
+# the exact commit by time.
 #
-# Resolution order:
-#   1. COMMIT build arg (Coolify SOURCE_COMMIT or any explicit pass)
-#   2. git rev-parse against /tmp/repo (Coolify-cloned .git)
-#   3. "unknown"
+# If a future Coolify version surfaces the SHA at build time, set
+# COMMIT in docker-compose.yaml's build.args and the SHA will appear
+# in the health response automatically.
 ARG COMMIT
-RUN RESOLVED_COMMIT="${COMMIT:-$(git -C /tmp/repo rev-parse --short HEAD 2>/dev/null || echo unknown)}" \
+RUN RESOLVED_COMMIT="${COMMIT:-unknown}" \
  && BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
  && echo "Building court-command commit=${RESOLVED_COMMIT} built_at=${BUILT_AT}" \
  && CGO_ENABLED=0 GOOS=linux go build \
