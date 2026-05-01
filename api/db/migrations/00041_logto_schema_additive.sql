@@ -110,33 +110,31 @@ CREATE INDEX idx_player_profiles_city_state
 -- All five columns are nullable for now and backfilled to Pickleball.
 -- Phase 6 cutover migration imposes NOT NULL after every Go writer has
 -- been updated to set sport_id explicitly.
+--
+-- Each backfill is written as a self-contained UPDATE that re-resolves
+-- the Pickleball sport id rather than using a DO/PLPGSQL block (which
+-- would require goose StatementBegin/End markers and is unnecessary
+-- here -- the resolution is cheap and only runs at migration time).
 
-DO $$
-DECLARE
-    pickleball_id BIGINT;
-BEGIN
-    SELECT id INTO pickleball_id FROM sports WHERE slug = 'pickleball';
+ALTER TABLE tournaments ADD COLUMN sport_id BIGINT REFERENCES sports(id);
+UPDATE tournaments SET sport_id = (SELECT id FROM sports WHERE slug = 'pickleball')
+    WHERE sport_id IS NULL;
 
-    -- tournaments
-    ALTER TABLE tournaments ADD COLUMN sport_id BIGINT REFERENCES sports(id);
-    UPDATE tournaments SET sport_id = pickleball_id WHERE sport_id IS NULL;
+ALTER TABLE leagues ADD COLUMN sport_id BIGINT REFERENCES sports(id);
+UPDATE leagues SET sport_id = (SELECT id FROM sports WHERE slug = 'pickleball')
+    WHERE sport_id IS NULL;
 
-    -- leagues
-    ALTER TABLE leagues ADD COLUMN sport_id BIGINT REFERENCES sports(id);
-    UPDATE leagues SET sport_id = pickleball_id WHERE sport_id IS NULL;
+ALTER TABLE organizations ADD COLUMN sport_id BIGINT REFERENCES sports(id);
+UPDATE organizations SET sport_id = (SELECT id FROM sports WHERE slug = 'pickleball')
+    WHERE sport_id IS NULL;
 
-    -- organizations
-    ALTER TABLE organizations ADD COLUMN sport_id BIGINT REFERENCES sports(id);
-    UPDATE organizations SET sport_id = pickleball_id WHERE sport_id IS NULL;
+ALTER TABLE venues ADD COLUMN sport_id BIGINT REFERENCES sports(id);
+UPDATE venues SET sport_id = (SELECT id FROM sports WHERE slug = 'pickleball')
+    WHERE sport_id IS NULL;
 
-    -- venues
-    ALTER TABLE venues ADD COLUMN sport_id BIGINT REFERENCES sports(id);
-    UPDATE venues SET sport_id = pickleball_id WHERE sport_id IS NULL;
-
-    -- divisions
-    ALTER TABLE divisions ADD COLUMN sport_id BIGINT REFERENCES sports(id);
-    UPDATE divisions SET sport_id = pickleball_id WHERE sport_id IS NULL;
-END $$;
+ALTER TABLE divisions ADD COLUMN sport_id BIGINT REFERENCES sports(id);
+UPDATE divisions SET sport_id = (SELECT id FROM sports WHERE slug = 'pickleball')
+    WHERE sport_id IS NULL;
 
 CREATE INDEX idx_tournaments_sport
     ON tournaments(sport_id) WHERE deleted_at IS NULL;
