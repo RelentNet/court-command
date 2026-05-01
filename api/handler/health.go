@@ -14,11 +14,12 @@ import (
 // /api/v1/health can report which build is live. Defaults are used during
 // `go run` and tests where the linker flags aren't applied.
 //
-// See api/Dockerfile for the production build invocation. The Dockerfile
-// resolves the commit by either: (a) reading the COMMIT build arg from
-// docker-compose.yaml -- which itself reads SOURCE_COMMIT or
-// COOLIFY_GIT_COMMIT_SHA from the build env -- or (b) running git
-// rev-parse against the .git directory cloned into the build context.
+// See api/Dockerfile for the production build invocation. The COMMIT
+// build arg flows in from docker-compose.yaml's SOURCE_COMMIT (or
+// COOLIFY_GIT_COMMIT_SHA) lookup. When Coolify does not expose the SHA
+// at build time -- as is the case at the moment -- buildCommit stays
+// "unknown" and operators rely on buildBuiltAt to confirm a fresh
+// deploy.
 //
 //nolint:gochecknoglobals // build-time constants
 var (
