@@ -138,7 +138,7 @@ func (q *Queries) GetOrgMembers(ctx context.Context, orgID int64) ([]GetOrgMembe
 }
 
 const getPlayerOrgs = `-- name: GetPlayerOrgs :many
-SELECT o.id, o.name, o.slug, o.logo_url, o.primary_color, o.secondary_color, o.website_url, o.contact_email, o.contact_phone, o.city, o.state_province, o.country, o.bio, o.founded_year, o.social_links, o.created_by_user_id, o.created_at, o.updated_at, o.deleted_at, o.address_line_1, o.address_line_2, o.postal_code, o.latitude, o.longitude, o.formatted_address, om.role AS membership_role, om.joined_at AS membership_joined_at
+SELECT o.id, o.name, o.slug, o.logo_url, o.primary_color, o.secondary_color, o.website_url, o.contact_email, o.contact_phone, o.city, o.state_province, o.country, o.bio, o.founded_year, o.social_links, o.created_by_user_id, o.created_at, o.updated_at, o.deleted_at, o.address_line_1, o.address_line_2, o.postal_code, o.latitude, o.longitude, o.formatted_address, o.sport_id, om.role AS membership_role, om.joined_at AS membership_joined_at
 FROM org_memberships om
 JOIN organizations o ON o.id = om.org_id
 WHERE om.player_id = $1 AND om.left_at IS NULL AND o.deleted_at IS NULL
@@ -171,6 +171,7 @@ type GetPlayerOrgsRow struct {
 	Latitude           pgtype.Float8      `json:"latitude"`
 	Longitude          pgtype.Float8      `json:"longitude"`
 	FormattedAddress   *string            `json:"formatted_address"`
+	SportID            pgtype.Int8        `json:"sport_id"`
 	MembershipRole     string             `json:"membership_role"`
 	MembershipJoinedAt time.Time          `json:"membership_joined_at"`
 }
@@ -210,6 +211,7 @@ func (q *Queries) GetPlayerOrgs(ctx context.Context, playerID int64) ([]GetPlaye
 			&i.Latitude,
 			&i.Longitude,
 			&i.FormattedAddress,
+			&i.SportID,
 			&i.MembershipRole,
 			&i.MembershipJoinedAt,
 		); err != nil {

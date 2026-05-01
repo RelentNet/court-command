@@ -580,21 +580,35 @@ func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]Use
 
 const setUserLogtoUserID = `-- name: SetUserLogtoUserID :one
 UPDATE users SET
-    logto_user_id = $2,
+    logto_user_id = $2::TEXT,
     updated_at = now()
-WHERE id = $1 AND deleted_at IS NULL
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND (logto_user_id IS NULL OR logto_user_id = $2::TEXT)
 RETURNING id, public_id, email, password_hash, first_name, last_name, date_of_birth, display_name, status, merged_into_id, role, created_at, updated_at, deleted_at, gender, handedness, avatar_url, bio, city, state_province, country, phone, paddle_brand, paddle_model, dupr_id, vair_id, emergency_contact_name, emergency_contact_phone, medical_notes, waiver_accepted_at, is_profile_hidden, address_line_1, address_line_2, postal_code, latitude, longitude, formatted_address, logto_user_id
 `
 
 type SetUserLogtoUserIDParams struct {
-	ID          int64   `json:"id"`
-	LogtoUserID *string `json:"logto_user_id"`
+	ID          int64  `json:"id"`
+	LogtoUserID string `json:"logto_user_id"`
 }
 
-// Bind a Logto user ID to an existing local mirror row. Idempotent:
-// setting the same value twice is fine; setting a different value
-// when one is already bound fails on the partial UNIQUE index
-// idx_users_logto_user_id (the caller surfaces this as a 409).
+// Bind a Logto user ID to an existing local mirror row.
+//
+// Behavior is "bind once, never change":
+//   - Setting a value to the same logto_user_id is a no-op success
+//     (idempotent).
+//   - Setting a different value when one is already bound returns 0
+//     rows affected (the WHERE filters it out); the caller surfaces
+//     this as a 409 Conflict.
+//   - The UNIQUE partial index idx_users_logto_user_id additionally
+//     enforces that the same logto_user_id cannot bind to two
+//     different local user rows.
+//
+// The non-pointer @logto_user_id parameter (string, not *string)
+// prevents accidental NULL writes from a buggy caller. If a future
+// flow needs to clear a binding (e.g. account deletion), add a
+// separate ClearUserLogtoUserID query rather than reusing this one.
 func (q *Queries) SetUserLogtoUserID(ctx context.Context, arg SetUserLogtoUserIDParams) (User, error) {
 	row := q.db.QueryRow(ctx, setUserLogtoUserID, arg.ID, arg.LogtoUserID)
 	var i User

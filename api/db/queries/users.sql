@@ -121,12 +121,26 @@ SELECT * FROM users
 WHERE logto_user_id = $1 AND deleted_at IS NULL;
 
 -- name: SetUserLogtoUserID :one
--- Bind a Logto user ID to an existing local mirror row. Idempotent:
--- setting the same value twice is fine; setting a different value
--- when one is already bound fails on the partial UNIQUE index
--- idx_users_logto_user_id (the caller surfaces this as a 409).
+-- Bind a Logto user ID to an existing local mirror row.
+--
+-- Behavior is "bind once, never change":
+--   - Setting a value to the same logto_user_id is a no-op success
+--     (idempotent).
+--   - Setting a different value when one is already bound returns 0
+--     rows affected (the WHERE filters it out); the caller surfaces
+--     this as a 409 Conflict.
+--   - The UNIQUE partial index idx_users_logto_user_id additionally
+--     enforces that the same logto_user_id cannot bind to two
+--     different local user rows.
+--
+-- The non-pointer @logto_user_id parameter (string, not *string)
+-- prevents accidental NULL writes from a buggy caller. If a future
+-- flow needs to clear a binding (e.g. account deletion), add a
+-- separate ClearUserLogtoUserID query rather than reusing this one.
 UPDATE users SET
-    logto_user_id = $2,
+    logto_user_id = @logto_user_id::TEXT,
     updated_at = now()
-WHERE id = $1 AND deleted_at IS NULL
+WHERE id = $1
+  AND deleted_at IS NULL
+  AND (logto_user_id IS NULL OR logto_user_id = @logto_user_id::TEXT)
 RETURNING *;

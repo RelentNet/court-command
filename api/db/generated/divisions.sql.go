@@ -36,7 +36,7 @@ INSERT INTO divisions (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
     $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
-) RETURNING id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at
+) RETURNING id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id
 `
 
 type CreateDivisionParams struct {
@@ -141,12 +141,13 @@ func (q *Queries) CreateDivision(ctx context.Context, arg CreateDivisionParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.SportID,
 	)
 	return i, err
 }
 
 const getDivisionByID = `-- name: GetDivisionByID :one
-SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at FROM divisions WHERE id = $1 AND deleted_at IS NULL
+SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id FROM divisions WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetDivisionByID(ctx context.Context, id int64) (Division, error) {
@@ -187,12 +188,13 @@ func (q *Queries) GetDivisionByID(ctx context.Context, id int64) (Division, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.SportID,
 	)
 	return i, err
 }
 
 const getDivisionBySlug = `-- name: GetDivisionBySlug :one
-SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at FROM divisions
+SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id FROM divisions
 WHERE tournament_id = $1 AND slug = $2 AND deleted_at IS NULL
 `
 
@@ -239,12 +241,13 @@ func (q *Queries) GetDivisionBySlug(ctx context.Context, arg GetDivisionBySlugPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.SportID,
 	)
 	return i, err
 }
 
 const getDivisionsByIDs = `-- name: GetDivisionsByIDs :many
-SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at FROM divisions
+SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id FROM divisions
 WHERE id = ANY($1::bigint[]) AND deleted_at IS NULL
 `
 
@@ -292,6 +295,7 @@ func (q *Queries) GetDivisionsByIDs(ctx context.Context, dollar_1 []int64) ([]Di
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.SportID,
 		); err != nil {
 			return nil, err
 		}
@@ -304,7 +308,7 @@ func (q *Queries) GetDivisionsByIDs(ctx context.Context, dollar_1 []int64) ([]Di
 }
 
 const listDivisionsByTournament = `-- name: ListDivisionsByTournament :many
-SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at FROM divisions
+SELECT id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id FROM divisions
 WHERE tournament_id = $1 AND deleted_at IS NULL
 ORDER BY sort_order ASC, name ASC
 `
@@ -353,6 +357,7 @@ func (q *Queries) ListDivisionsByTournament(ctx context.Context, tournamentID in
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.SportID,
 		); err != nil {
 			return nil, err
 		}
@@ -423,7 +428,7 @@ UPDATE divisions SET
     allow_ref_player_add = COALESCE($29, allow_ref_player_add),
     updated_at = NOW()
 WHERE id = $30 AND deleted_at IS NULL
-RETURNING id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at
+RETURNING id, tournament_id, name, slug, format, gender_restriction, age_restriction, skill_min, skill_max, rating_system, bracket_format, scoring_format, max_teams, max_roster_size, entry_fee_amount, entry_fee_currency, check_in_open, allow_self_check_in, status, seed_method, sort_order, notes, auto_approve, registration_mode, auto_promote_waitlist, grand_finals_reset, advancement_count, current_phase, report_to_dupr, report_to_vair, allow_ref_player_add, created_at, updated_at, deleted_at, sport_id
 `
 
 type UpdateDivisionParams struct {
@@ -528,6 +533,7 @@ func (q *Queries) UpdateDivision(ctx context.Context, arg UpdateDivisionParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.SportID,
 	)
 	return i, err
 }

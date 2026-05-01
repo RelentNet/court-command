@@ -75,40 +75,46 @@ INSERT INTO player_profiles (
     waiver_accepted_at, avatar_url, is_profile_hidden,
     updated_at
 ) VALUES (
-    $1,
-    $2, $3, $4, $5, $6,
-    $7, $8, $9, $10,
-    $11, $12, $13, $14, $15,
-    $16, $17, $18, $19,
-    $20, $21, $22,
-    $23, $24, $25,
+    $1::BIGINT,
+    $2, $3, $4,
+    $5, $6,
+    $7, $8,
+    $9, $10,
+    $11, $12,
+    $13, $14, $15,
+    $16, $17,
+    $18, $19,
+    $20, $21,
+    $22,
+    $23, $24,
+    COALESCE($25::BOOLEAN, false),
     now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
-    phone                   = EXCLUDED.phone,
-    dupr_id                 = EXCLUDED.dupr_id,
-    vair_id                 = EXCLUDED.vair_id,
-    paddle_brand            = EXCLUDED.paddle_brand,
-    paddle_model            = EXCLUDED.paddle_model,
-    gender                  = EXCLUDED.gender,
-    handedness              = EXCLUDED.handedness,
-    date_of_birth           = EXCLUDED.date_of_birth,
-    bio                     = EXCLUDED.bio,
-    address_line_1          = EXCLUDED.address_line_1,
-    address_line_2          = EXCLUDED.address_line_2,
-    city                    = EXCLUDED.city,
-    state_province          = EXCLUDED.state_province,
-    country                 = EXCLUDED.country,
-    postal_code             = EXCLUDED.postal_code,
-    formatted_address       = EXCLUDED.formatted_address,
-    latitude                = EXCLUDED.latitude,
-    longitude               = EXCLUDED.longitude,
-    emergency_contact_name  = EXCLUDED.emergency_contact_name,
-    emergency_contact_phone = EXCLUDED.emergency_contact_phone,
-    medical_notes           = EXCLUDED.medical_notes,
-    waiver_accepted_at      = EXCLUDED.waiver_accepted_at,
-    avatar_url              = EXCLUDED.avatar_url,
-    is_profile_hidden       = EXCLUDED.is_profile_hidden,
+    phone                   = COALESCE($2,                   player_profiles.phone),
+    dupr_id                 = COALESCE($3,                 player_profiles.dupr_id),
+    vair_id                 = COALESCE($4,                 player_profiles.vair_id),
+    paddle_brand            = COALESCE($5,            player_profiles.paddle_brand),
+    paddle_model            = COALESCE($6,            player_profiles.paddle_model),
+    gender                  = COALESCE($7,                  player_profiles.gender),
+    handedness              = COALESCE($8,              player_profiles.handedness),
+    date_of_birth           = COALESCE($9,           player_profiles.date_of_birth),
+    bio                     = COALESCE($10,                     player_profiles.bio),
+    address_line_1          = COALESCE($11,          player_profiles.address_line_1),
+    address_line_2          = COALESCE($12,          player_profiles.address_line_2),
+    city                    = COALESCE($13,                    player_profiles.city),
+    state_province          = COALESCE($14,          player_profiles.state_province),
+    country                 = COALESCE($15,                 player_profiles.country),
+    postal_code             = COALESCE($16,             player_profiles.postal_code),
+    formatted_address       = COALESCE($17,       player_profiles.formatted_address),
+    latitude                = COALESCE($18,                player_profiles.latitude),
+    longitude               = COALESCE($19,               player_profiles.longitude),
+    emergency_contact_name  = COALESCE($20,  player_profiles.emergency_contact_name),
+    emergency_contact_phone = COALESCE($21, player_profiles.emergency_contact_phone),
+    medical_notes           = COALESCE($22,           player_profiles.medical_notes),
+    waiver_accepted_at      = COALESCE($23,      player_profiles.waiver_accepted_at),
+    avatar_url              = COALESCE($24,              player_profiles.avatar_url),
+    is_profile_hidden       = COALESCE($25,       player_profiles.is_profile_hidden),
     updated_at              = now()
 RETURNING user_id, phone, dupr_id, vair_id, paddle_brand, paddle_model, gender, handedness, date_of_birth, bio, address_line_1, address_line_2, city, state_province, country, postal_code, formatted_address, latitude, longitude, emergency_contact_name, emergency_contact_phone, medical_notes, waiver_accepted_at, avatar_url, is_profile_hidden, updated_at
 `
@@ -138,13 +144,19 @@ type UpsertPlayerProfileParams struct {
 	MedicalNotes          *string            `json:"medical_notes"`
 	WaiverAcceptedAt      pgtype.Timestamptz `json:"waiver_accepted_at"`
 	AvatarUrl             *string            `json:"avatar_url"`
-	IsProfileHidden       bool               `json:"is_profile_hidden"`
+	IsProfileHidden       pgtype.Bool        `json:"is_profile_hidden"`
 }
 
-// Insert or update the 1:1 profile row. Caller passes the full set of
-// columns; pre-fetch the existing row first if you want a partial
-// update, otherwise unset fields will be overwritten with the supplied
-// values (which may be NULL).
+// Insert or partial-update the 1:1 profile row. Every field is optional
+// (sqlc.narg). On INSERT, NULL nargs become NULL in the new row. On
+// UPDATE, NULL nargs leave the existing column value unchanged via
+// COALESCE. is_profile_hidden defaults to false on insert.
+//
+// This shape mirrors the existing players.sql:UpdatePlayerProfile narg
+// pattern, so a Phase 3 profile-edit form that sends only the fields
+// the user actually changed will not blow away the rest. To explicitly
+// clear a field, pass an empty-string-coerced override at the call
+// site or add a dedicated ClearPlayerProfileField query.
 func (q *Queries) UpsertPlayerProfile(ctx context.Context, arg UpsertPlayerProfileParams) (PlayerProfile, error) {
 	row := q.db.QueryRow(ctx, upsertPlayerProfile,
 		arg.UserID,

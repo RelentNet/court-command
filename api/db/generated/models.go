@@ -141,6 +141,7 @@ type Division struct {
 	CreatedAt           time.Time          `json:"created_at"`
 	UpdatedAt           time.Time          `json:"updated_at"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	SportID             pgtype.Int8        `json:"sport_id"`
 }
 
 type DivisionTemplate struct {
@@ -205,6 +206,7 @@ type League struct {
 	Latitude         pgtype.Float8      `json:"latitude"`
 	Longitude        pgtype.Float8      `json:"longitude"`
 	FormattedAddress *string            `json:"formatted_address"`
+	SportID          pgtype.Int8        `json:"sport_id"`
 }
 
 type LeagueRegistration struct {
@@ -363,6 +365,7 @@ type Organization struct {
 	Latitude         pgtype.Float8      `json:"latitude"`
 	Longitude        pgtype.Float8      `json:"longitude"`
 	FormattedAddress *string            `json:"formatted_address"`
+	SportID          pgtype.Int8        `json:"sport_id"`
 }
 
 type PlayerProfile struct {
@@ -589,6 +592,7 @@ type Tournament struct {
 	CreatedAt           time.Time          `json:"created_at"`
 	UpdatedAt           time.Time          `json:"updated_at"`
 	DeletedAt           pgtype.Timestamptz `json:"deleted_at"`
+	SportID             pgtype.Int8        `json:"sport_id"`
 }
 
 type TournamentCourt struct {
@@ -693,6 +697,7 @@ type Venue struct {
 	UpdatedAt        time.Time          `json:"updated_at"`
 	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
 	FormattedAddress *string            `json:"formatted_address"`
+	SportID          pgtype.Int8        `json:"sport_id"`
 }
 
 type VenueManager struct {

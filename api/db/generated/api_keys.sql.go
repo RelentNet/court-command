@@ -91,8 +91,39 @@ SELECT id, user_id, name, key_hash, key_prefix, scopes, expires_at, last_used_at
 // mirror row with logto_m2m_app_id; until then the legacy bcrypt
 // key path keeps working.
 // ============================================================================
+// Admin / management lookup by Logto M2M app ID. Does NOT filter on
+// is_active because admin tools (Phase 4 webhook handlers, deactivation
+// flows, audit trails) need to find rows regardless of state. The hot
+// request-auth path uses GetActiveAPIKeyByLogtoM2MAppID instead.
 func (q *Queries) GetAPIKeyByLogtoM2MAppID(ctx context.Context, logtoM2mAppID *string) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, getAPIKeyByLogtoM2MAppID, logtoM2mAppID)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.Scopes,
+		&i.ExpiresAt,
+		&i.LastUsedAt,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LogtoM2mAppID,
+	)
+	return i, err
+}
+
+const getActiveAPIKeyByLogtoM2MAppID = `-- name: GetActiveAPIKeyByLogtoM2MAppID :one
+SELECT id, user_id, name, key_hash, key_prefix, scopes, expires_at, last_used_at, is_active, created_at, updated_at, logto_m2m_app_id FROM api_keys
+WHERE logto_m2m_app_id = $1 AND is_active = true
+`
+
+// Request-auth lookup: only returns the row if it is active. Mirrors
+// the GetApiKeyByHash semantics on the legacy code path.
+func (q *Queries) GetActiveAPIKeyByLogtoM2MAppID(ctx context.Context, logtoM2mAppID *string) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getActiveAPIKeyByLogtoM2MAppID, logtoM2mAppID)
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
