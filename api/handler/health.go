@@ -21,6 +21,11 @@ import (
 // "unknown" and operators rely on buildBuiltAt to confirm a fresh
 // deploy.
 //
+// Phase 2 deploy: migration 00041 runs on startup via
+// db.RunMigrations in main.go. A successful 200 response on this
+// endpoint after a fresh built_at timestamp implicitly confirms the
+// migration applied without error.
+//
 //nolint:gochecknoglobals // build-time constants
 var (
 	buildCommit  = "dev"
