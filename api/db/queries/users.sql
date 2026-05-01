@@ -108,3 +108,25 @@ UPDATE users
 SET password_hash = $2, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- ============================================================================
+-- Logto integration (Phase 2 additive). The legacy queries above continue
+-- to function for the cookie-session code path; the queries below let
+-- new code resolve users by their Logto user ID without touching
+-- password_hash / role.
+-- ============================================================================
+
+-- name: GetUserByLogtoUserID :one
+SELECT * FROM users
+WHERE logto_user_id = $1 AND deleted_at IS NULL;
+
+-- name: SetUserLogtoUserID :one
+-- Bind a Logto user ID to an existing local mirror row. Idempotent:
+-- setting the same value twice is fine; setting a different value
+-- when one is already bound fails on the partial UNIQUE index
+-- idx_users_logto_user_id (the caller surfaces this as a 409).
+UPDATE users SET
+    logto_user_id = $2,
+    updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING *;
