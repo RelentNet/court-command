@@ -1,5 +1,9 @@
 # api/Dockerfile
 # Multi-stage build for the Court Command API.
+#
+# Build context is the REPO ROOT (docker-compose.yaml sets context: ".")
+# so the build can read .git for commit-SHA injection. Coolify clones the
+# repo with --depth=1 so .git is a real directory at the context root.
 
 # --- Stage 1: Build ---
 FROM golang:1.24-alpine AS builder
@@ -12,22 +16,27 @@ ENV GOTOOLCHAIN=auto
 WORKDIR /app
 
 # Copy dependency files first (layer caching)
-COPY go.mod go.sum ./
+COPY api/go.mod api/go.sum ./
 RUN go mod download
 
-# Copy source code (build context is ./api)
-COPY . .
+# Copy api source
+COPY api/ ./
+
+# Copy .git into a sibling directory (not /app/.git which would confuse
+# the go build with embedded version info). This is best-effort: if .git
+# is absent or unusual (e.g. a worktree pointer file in local dev),
+# git rev-parse fails and we fall back to "unknown".
+COPY .git/ /tmp/repo/.git/
 
 # Build the binary, injecting the git commit and build timestamp into
 # the binary so /api/v1/health can report which build is live.
 #
-# Coolify v4 exposes SOURCE_COMMIT and COOLIFY_GIT_COMMIT_SHA at build
-# time -- one of them populates the COMMIT arg via docker-compose.yaml.
-# Locally and in environments that don't pass the arg, the value falls
-# back to "unknown" and the deployed timestamp still distinguishes
-# builds.
+# Resolution order:
+#   1. COMMIT build arg (Coolify SOURCE_COMMIT or any explicit pass)
+#   2. git rev-parse against /tmp/repo (Coolify-cloned .git)
+#   3. "unknown"
 ARG COMMIT
-RUN RESOLVED_COMMIT="${COMMIT:-unknown}" \
+RUN RESOLVED_COMMIT="${COMMIT:-$(git -C /tmp/repo rev-parse --short HEAD 2>/dev/null || echo unknown)}" \
  && BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
  && echo "Building court-command commit=${RESOLVED_COMMIT} built_at=${BUILT_AT}" \
  && CGO_ENABLED=0 GOOS=linux go build \

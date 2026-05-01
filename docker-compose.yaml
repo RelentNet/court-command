@@ -38,13 +38,18 @@ services:
 
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      # Build context is the repo root so the Dockerfile can read .git
+      # for commit-SHA injection (see api/Dockerfile for details).
+      # Coolify's git clone leaves .git as a real directory at the
+      # context root.
+      context: .
+      dockerfile: api/Dockerfile
       args:
-        # Coolify v4 exposes SOURCE_COMMIT and COOLIFY_GIT_COMMIT_SHA at
-        # build time. The Dockerfile injects this into the binary so
-        # /api/v1/health can report the deployed commit. Empty default
-        # is fine -- the Dockerfile falls back to "unknown".
+        # If Coolify exposes SOURCE_COMMIT or COOLIFY_GIT_COMMIT_SHA at
+        # build time, the COMMIT arg takes that value and the Dockerfile
+        # uses it directly. If neither is exported (varies by Coolify
+        # version), the Dockerfile falls back to running git rev-parse
+        # against the cloned .git directory in the build context.
         COMMIT: ${SOURCE_COMMIT:-${COOLIFY_GIT_COMMIT_SHA:-}}
     expose:
       - "8080"

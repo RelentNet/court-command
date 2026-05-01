@@ -1,0 +1,53 @@
+# Court Command repo-root .dockerignore
+# Active when docker build's context is the repo root (api/Dockerfile
+# uses this layout so the build can read .git for commit-SHA injection
+# in /api/v1/health).
+#
+# IMPORTANT: do NOT add .git here -- that would defeat the commit
+# fingerprint that /api/v1/health reports.
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Heavy frontend artifacts (api build doesn't need them)
+web/node_modules/
+web/dist/
+web/.next/
+web/.turbo/
+web/*.tsbuildinfo
+
+# Heavy backend artifacts (don't bake into image; build copies api/
+# explicitly anyway, so these never get used)
+api/uploads/
+api/tmp/
+api/vendor/
+api/court-command
+api/*.test
+api/*.out
+api/__debug_bin*
+
+# Ghost theme dev artifacts
+ghost-theme/cc-ghost-theme.zip
+ghost-theme/node_modules/
+
+# Backups
+backups/
+
+# Worktree / superpowers internals (worktree .git is a file pointer,
+# not a real directory; fine to include but useless to the build)
+.superpowers/
+.worktrees/
+
+# Documentation: not needed in the api image; keep in source for
+# reference but don't bake into the deployed binary's context
+docs/
+README.md
+LICENSE
+CHANGELOG.md
