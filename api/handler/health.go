@@ -14,7 +14,9 @@ import (
 // /api/v1/health can report which build is live. Defaults are used during
 // `go run` and tests where the linker flags aren't applied.
 //
-// See api/Dockerfile for the production build invocation.
+// See api/Dockerfile for the production build invocation. The COMMIT
+// build arg flows in from Coolify's SOURCE_COMMIT env (or
+// COOLIFY_GIT_COMMIT_SHA) via docker-compose.yaml.
 //
 //nolint:gochecknoglobals // build-time constants
 var (
