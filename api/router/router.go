@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/court-command/court-command/auth"
 	"github.com/court-command/court-command/handler"
 	"github.com/court-command/court-command/middleware"
 	"github.com/court-command/court-command/service"
@@ -86,6 +87,13 @@ type Config struct {
 
 	// Logto Phase 3: public sport directory
 	SportsHandler *handler.SportsHandler
+
+	// Logto Phase 3: profile endpoints (JWT-protected, mounted under
+	// /api/v1/me/profile). Optional in the Config so tests that don't
+	// care about Logto wiring (almost all of them today) can leave it
+	// nil and the routes simply don't register.
+	ProfileHandler *handler.ProfileHandler
+	JWTValidator   *auth.Validator
 }
 
 // New creates a chi.Router with all middleware and routes mounted.
@@ -112,6 +120,20 @@ func New(cfg *Config) chi.Router {
 		// user picks an org and gets a JWT, so no auth middleware here).
 		if cfg.SportsHandler != nil {
 			r.Get("/sports", cfg.SportsHandler.ListSports)
+		}
+
+		// Logto Phase 3: profile endpoints. Mounted under RequireJWT so
+		// every request has a validated Logto access token in context
+		// before reaching the handler. orgScoped=true because Phase 3
+		// frontends call these with org-scoped tokens (urn:logto:org:*).
+		// Task 9 will add MirrorUser middleware in this same group so
+		// the local users.id is on the request context too.
+		if cfg.ProfileHandler != nil && cfg.JWTValidator != nil {
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireJWT(cfg.JWTValidator, true))
+				r.Get("/me/profile", cfg.ProfileHandler.GetMyProfile)
+				r.Patch("/me/profile", cfg.ProfileHandler.PatchMyProfile)
+			})
 		}
 
 		// Auth routes (public)

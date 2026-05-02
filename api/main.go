@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/court-command/court-command/auth"
 	"github.com/court-command/court-command/config"
 	"github.com/court-command/court-command/db"
 	"github.com/court-command/court-command/db/generated"
@@ -169,6 +170,28 @@ func main() {
 	sportsService := service.NewSportsService(queries)
 	sportsHandler := handler.NewSportsHandler(sportsService)
 
+	// Logto Phase 3: profile endpoints + JWT validator. The discovery
+	// document at LOGTO_ENDPOINT/oidc/.well-known/openid-configuration
+	// publishes the canonical issuer with the /oidc suffix; tokens
+	// minted by Logto carry that exact iss claim. Building the issuer
+	// URL by appending "/oidc" matches both self-hosted and cloud Logto
+	// deployments. JWKS lives at the same /oidc/jwks path on both.
+	logtoEndpoint := os.Getenv("LOGTO_ENDPOINT")
+	logtoAPIResource := os.Getenv("LOGTO_API_RESOURCE")
+	var jwtValidator *auth.Validator
+	var profileHandler *handler.ProfileHandler
+	if logtoEndpoint != "" && logtoAPIResource != "" {
+		jwtValidator = auth.NewValidator(
+			logtoEndpoint+"/oidc",
+			logtoEndpoint+"/oidc/jwks",
+			logtoAPIResource,
+		)
+		profileService := service.NewProfileService(queries)
+		profileHandler = handler.NewProfileHandler(profileService)
+	} else {
+		slog.Warn("LOGTO_ENDPOINT or LOGTO_API_RESOURCE not set; /api/v1/me/profile disabled")
+	}
+
 	// Phase 4C: WebSocket handler
 	wsHandler := ws.NewHandler(ps, logger)
 
@@ -239,7 +262,9 @@ func main() {
 		WSHandler: wsHandler.Routes(),
 
 		// Logto Phase 3
-		SportsHandler: sportsHandler,
+		SportsHandler:  sportsHandler,
+		ProfileHandler: profileHandler,
+		JWTValidator:   jwtValidator,
 	})
 
 	srv := &http.Server{
