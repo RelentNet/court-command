@@ -5,12 +5,16 @@ import { EmptyState } from '../../../components/EmptyState'
 import { Button } from '../../../components/Button'
 import { Users2, Plus } from 'lucide-react'
 
+import { useSport } from '../../../auth/SportContext'
 interface OrgTeamsPanelProps {
   orgId: string
   canManage: boolean
 }
 
 export function OrgTeamsPanel({ orgId, canManage }: OrgTeamsPanelProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data, isLoading, error } = useTeamsByOrg(orgId)
 
   const teams = data?.items ?? []
@@ -22,7 +26,7 @@ export function OrgTeamsPanel({ orgId, canManage }: OrgTeamsPanelProps) {
           Teams ({teams.length})
         </h2>
         {canManage && (
-          <Link to="/teams/new">
+          <Link to="/$sport/teams/new" params={{ sport: sportSlug }}>
             <Button size="sm" variant="secondary">
               <Plus className="h-4 w-4 mr-1" />
               Create Team
@@ -45,7 +49,7 @@ export function OrgTeamsPanel({ orgId, canManage }: OrgTeamsPanelProps) {
           description="This organization has no teams."
           action={
             canManage ? (
-              <Link to="/teams/new">
+              <Link to="/$sport/teams/new" params={{ sport: sportSlug }}>
                 <Button size="sm">Create Team</Button>
               </Link>
             ) : undefined
@@ -56,8 +60,8 @@ export function OrgTeamsPanel({ orgId, canManage }: OrgTeamsPanelProps) {
           {teams.map((team) => (
             <Link
               key={team.id}
-              to="/teams/$teamId"
-              params={{ teamId: String(team.id) }}
+              to="/$sport/teams/$teamId"
+              params={{ sport: sportSlug, teamId: String(team.id) }}
               className="flex items-center gap-3 py-3 px-2 rounded-lg hover:bg-(--color-bg-hover) transition-colors"
             >
               {team.primary_color ? (

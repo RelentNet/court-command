@@ -28,7 +28,7 @@ export function PublicHero() {
         ) : isAuthenticated ? (
           <Button
             size="lg"
-            onClick={() => navigate({ to: '/dashboard' as string })}
+            onClick={() => navigate({ to: '/' })}
           >
             Go to Dashboard
           </Button>

@@ -15,6 +15,7 @@ import { AdSlot } from '../../components/AdSlot'
 import { Trophy } from 'lucide-react'
 import { formatDate } from '../../lib/formatters'
 
+import { useSport } from '../../auth/SportContext'
 const TOURNAMENT_STATUSES = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
@@ -32,6 +33,9 @@ interface TournamentListProps {
 }
 
 export function TournamentList({ leagueId }: TournamentListProps = {}) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const debouncedSearch = useDebounce(search)
@@ -54,8 +58,8 @@ export function TournamentList({ leagueId }: TournamentListProps = {}) {
       header: 'Name',
       render: (t: (typeof tournaments)[0]) => (
         <Link
-          to="/tournaments/$tournamentId"
-          params={{ tournamentId: String(t.id) }}
+          to="/$sport/tournaments/$tournamentId"
+          params={{ sport: sportSlug, tournamentId: String(t.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {t.name}
@@ -101,7 +105,7 @@ export function TournamentList({ leagueId }: TournamentListProps = {}) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-(--color-text-primary)">Tournaments</h1>
-        <Link to="/tournaments/create">
+        <Link to="/$sport/tournaments/create" params={{ sport: sportSlug }}>
           <Button>Create Tournament</Button>
         </Link>
       </div>
@@ -153,7 +157,7 @@ export function TournamentList({ leagueId }: TournamentListProps = {}) {
           }
           action={
             !search && !statusFilter ? (
-              <Link to="/tournaments/create">
+              <Link to="/$sport/tournaments/create" params={{ sport: sportSlug }}>
                 <Button>Create Your First Tournament</Button>
               </Link>
             ) : undefined

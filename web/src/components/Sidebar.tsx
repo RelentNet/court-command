@@ -9,6 +9,7 @@ import {
   Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper,
 } from 'lucide-react'
 import { useSearchModal } from '../features/search/SearchContext'
+import { useSport } from '../auth/SportContext'
 
 interface SidebarUser {
   first_name: string
@@ -28,35 +29,43 @@ const STORAGE_KEY = 'cc_sidebar_expanded'
 interface NavItem { label: string; icon: typeof LayoutDashboard; path: string; href?: string }
 interface NavGroup { label?: string; items: NavItem[] }
 
-// Full nav for authenticated users
-const baseAuthNavGroups: NavGroup[] = [
-  { items: [
-    { label: 'Home', icon: Home, path: '/' },
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { label: 'My Assets', icon: FolderKanban, path: '/manage' },
-  ]},
-  { label: 'Events', items: [
-    { label: 'Leagues', icon: Medal, path: '/leagues' },
-    { label: 'Tournaments', icon: Trophy, path: '/tournaments' },
-  ]},
-  { label: 'Manage', items: [
-    { label: 'Venues & Courts', icon: MapPin, path: '/venues' },
-    { label: 'Players', icon: Users, path: '/players' },
-    { label: 'Teams', icon: UsersRound, path: '/teams' },
-    { label: 'Organizations', icon: Building2, path: '/organizations' },
-  ]},
-  { label: 'Scoring', items: [
-    { label: 'Ref Console', icon: Gavel, path: '/ref' },
-    { label: 'Scorekeeper', icon: ClipboardList, path: '/scorekeeper' },
-    { label: 'Quick Match', icon: Zap, path: '/quick-match' },
-  ]},
-  { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay' }] },
-]
+// Full nav for authenticated users. Sport-scoped paths are built lazily so
+// each entry resolves to the user's currently-active sport (e.g. /pickleball
+// rather than a hardcoded slug). The `/` and `/overlay` paths stay flat.
+function getBaseAuthNavGroups(sportSlug: string): NavGroup[] {
+  const s = sportSlug ? `/${sportSlug}` : ''
+  return [
+    { items: [
+      { label: 'Home', icon: Home, path: '/' },
+      { label: 'Dashboard', icon: LayoutDashboard, path: `${s}/dashboard` },
+      { label: 'My Assets', icon: FolderKanban, path: `${s}/manage` },
+    ]},
+    { label: 'Events', items: [
+      { label: 'Leagues', icon: Medal, path: `${s}/leagues` },
+      { label: 'Tournaments', icon: Trophy, path: `${s}/tournaments` },
+    ]},
+    { label: 'Manage', items: [
+      { label: 'Venues & Courts', icon: MapPin, path: `${s}/venues` },
+      { label: 'Players', icon: Users, path: `${s}/players` },
+      { label: 'Teams', icon: UsersRound, path: `${s}/teams` },
+      { label: 'Organizations', icon: Building2, path: `${s}/organizations` },
+    ]},
+    { label: 'Scoring', items: [
+      { label: 'Ref Console', icon: Gavel, path: `${s}/ref` },
+      { label: 'Scorekeeper', icon: ClipboardList, path: `${s}/scorekeeper` },
+      { label: 'Quick Match', icon: Zap, path: `${s}/quick-match` },
+    ]},
+    { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay' }] },
+  ]
+}
 
-const adminNavGroup: NavGroup = {
-  label: 'Admin', items: [
-    { label: 'Admin', icon: Shield, path: '/admin' },
-  ],
+function getAdminNavGroup(sportSlug: string): NavGroup {
+  const s = sportSlug ? `/${sportSlug}` : ''
+  return {
+    label: 'Admin', items: [
+      { label: 'Admin', icon: Shield, path: `${s}/admin` },
+    ],
+  }
 }
 
 // Roles that can see Scoring nav
@@ -69,7 +78,8 @@ const BROADCAST_ROLES = new Set([
   'platform_admin', 'tournament_director', 'broadcast_operator',
 ])
 
-function getAuthNavGroups(role?: string): NavGroup[] {
+function getAuthNavGroups(role: string | undefined, sportSlug: string): NavGroup[] {
+  const baseAuthNavGroups = getBaseAuthNavGroups(sportSlug)
   const groups: NavGroup[] = []
 
   // Core nav (Home, Dashboard, My Assets) — all authenticated users
@@ -89,7 +99,7 @@ function getAuthNavGroups(role?: string): NavGroup[] {
 
   // Admin — platform_admin only
   if (role === 'platform_admin') {
-    groups.push(adminNavGroup)
+    groups.push(getAdminNavGroup(sportSlug))
   }
 
   return groups
@@ -110,8 +120,10 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const isMobile = useIsMobile()
   const matchRoute = useMatchRoute()
   const location = useLocation()
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
   const isAuthenticated = !!user
-  const navGroups = isAuthenticated ? getAuthNavGroups(user?.role) : publicNavGroups
+  const navGroups = isAuthenticated ? getAuthNavGroups(user?.role, sportSlug) : publicNavGroups
 
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -174,11 +186,11 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                 </div>
                 <NavContent expanded={true} isActive={isActive} navGroups={navGroups} />
               </div>
-              {user && onLogout ? (
-                <SidebarFooter expanded={true} displayName={displayName} publicId={user.public_id} onLogout={onLogout} />
-              ) : (
-                <PublicFooter expanded={true} />
-              )}
+      {user && onLogout ? (
+        <SidebarFooter expanded={true} displayName={displayName} publicId={user.public_id} onLogout={onLogout} sportSlug={sportSlug} />
+      ) : (
+        <PublicFooter expanded={true} />
+      )}
             </nav>
           </>
         )}
@@ -207,7 +219,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         <NavContent expanded={expanded} isActive={isActive} navGroups={navGroups} />
       </div>
       {user && onLogout ? (
-        <SidebarFooter expanded={expanded} displayName={displayName} publicId={user.public_id} onLogout={onLogout} />
+        <SidebarFooter expanded={expanded} displayName={displayName} publicId={user.public_id} onLogout={onLogout} sportSlug={sportSlug} />
       ) : (
         <PublicFooter expanded={expanded} />
       )}
@@ -279,13 +291,13 @@ function NavContent({ expanded, isActive, navGroups }: { expanded: boolean; isAc
   )
 }
 
-function SidebarFooter({ expanded, displayName, publicId, onLogout }: { expanded: boolean; displayName: string; publicId: string; onLogout: () => void }) {
+function SidebarFooter({ expanded, displayName, publicId, onLogout, sportSlug }: { expanded: boolean; displayName: string; publicId: string; onLogout: () => void; sportSlug: string }) {
   return (
     <div className={cn('border-t border-(--color-border) p-2 space-y-1')}>
       <ThemeToggle collapsed={!expanded} />
       {expanded ? (
         <div className="flex items-center gap-3 px-3 py-2">
-          <Link to="/profile" className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-(--color-bg-hover) -mx-1 px-1 py-0.5 transition-colors">
+          <Link to="/$sport/profile" params={{ sport: sportSlug }} className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-(--color-bg-hover) -mx-1 px-1 py-0.5 transition-colors">
             <Avatar name={displayName} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-(--color-text-primary) truncate">{displayName}</p>

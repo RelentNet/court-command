@@ -19,6 +19,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { useAdminStats } from './hooks'
 import type { AdminStats } from './types'
 
+import { useSport } from '../../auth/SportContext'
 interface StatCardProps {
   label: string
   value: number
@@ -73,31 +74,33 @@ function LoadingSkeleton() {
   )
 }
 
-function getStatCards(stats: AdminStats) {
+function getStatCards(stats: AdminStats, sportSlug: string) {
   return [
-    { label: 'Total Users', value: stats.total_users, icon: Users, to: '/admin/users' },
-    { label: 'Total Matches', value: stats.total_matches, icon: Swords, to: '/ref' },
-    { label: 'Active Tournaments', value: stats.total_tournaments, icon: Trophy, to: '/tournaments' },
-    { label: 'Total Leagues', value: stats.total_leagues, icon: Medal, to: '/leagues' },
-    { label: 'Total Venues', value: stats.total_venues, icon: MapPin, to: '/venues' },
+    { label: 'Total Users', value: stats.total_users, icon: Users, to: '/$sport/admin/users', params: { sport: sportSlug } },
+    { label: 'Total Matches', value: stats.total_matches, icon: Swords, to: '/$sport/ref', params: { sport: sportSlug } },
+    { label: 'Active Tournaments', value: stats.total_tournaments, icon: Trophy, to: '/$sport/tournaments', params: { sport: sportSlug } },
+    { label: 'Total Leagues', value: stats.total_leagues, icon: Medal, to: '/$sport/leagues', params: { sport: sportSlug } },
+    { label: 'Total Venues', value: stats.total_venues, icon: MapPin, to: '/$sport/venues', params: { sport: sportSlug } },
     {
       label: 'Pending Venues',
       value: stats.pending_venues,
       icon: AlertCircle,
       highlight: stats.pending_venues > 0,
-      to: '/admin/venues',
+      to: '/$sport/admin/venues', params: { sport: sportSlug },
     },
-    { label: 'Total Courts', value: stats.total_courts, icon: LayoutGrid, to: '/courts' },
-    { label: 'Active Matches', value: stats.active_matches, icon: Zap, to: '/ref' },
-    { label: 'Ad Manager', value: -1, icon: Megaphone, to: '/admin/ads' },
-    { label: 'Uploads', value: -1, icon: Upload, to: '/admin/uploads' },
-    { label: 'API Keys', value: -1, icon: Key, to: '/admin/api-keys' },
-    { label: 'Activity Log', value: -1, icon: ScrollText, to: '/admin/activity' },
-    { label: 'Settings', value: -1, icon: Settings, to: '/admin/settings' },
+    { label: 'Total Courts', value: stats.total_courts, icon: LayoutGrid, to: '/$sport/courts', params: { sport: sportSlug } },
+    { label: 'Active Matches', value: stats.active_matches, icon: Zap, to: '/$sport/ref', params: { sport: sportSlug } },
+    { label: 'Ad Manager', value: -1, icon: Megaphone, to: '/$sport/admin/ads', params: { sport: sportSlug } },
+    { label: 'Uploads', value: -1, icon: Upload, to: '/$sport/admin/uploads', params: { sport: sportSlug } },
+    { label: 'API Keys', value: -1, icon: Key, to: '/$sport/admin/api-keys', params: { sport: sportSlug } },
+    { label: 'Activity Log', value: -1, icon: ScrollText, to: '/$sport/admin/activity', params: { sport: sportSlug } },
+    { label: 'Settings', value: -1, icon: Settings, to: '/$sport/admin/settings', params: { sport: sportSlug } },
   ]
 }
 
 export function AdminDashboard() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
   const { data: stats, isLoading, error, refetch } = useAdminStats()
 
   if (isLoading) return <LoadingSkeleton />
@@ -126,7 +129,7 @@ export function AdminDashboard() {
     )
   }
 
-  const cards = getStatCards(stats)
+  const cards = getStatCards(stats, sportSlug)
 
   return (
     <div className="space-y-6">

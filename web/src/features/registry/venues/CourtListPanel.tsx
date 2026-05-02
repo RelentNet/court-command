@@ -20,6 +20,7 @@ import { Plus, Trash2, LayoutGrid } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import type { FormEvent } from 'react'
 
+import { useSport } from '../../../auth/SportContext'
 interface CourtListPanelProps {
   venueId: string
 }
@@ -35,6 +36,9 @@ const SURFACE_TYPES = [
 ]
 
 export function CourtListPanel({ venueId }: CourtListPanelProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: courts, isLoading } = useVenueCourts(venueId)
   const createCourt = useCreateVenueCourt(venueId)
   const { toast } = useToast()
@@ -89,8 +93,8 @@ export function CourtListPanel({ venueId }: CourtListPanelProps) {
       header: 'Court Name',
       render: (c: Court) => (
         <Link
-          to="/courts/$courtId"
-          params={{ courtId: String(c.id) }}
+          to="/$sport/courts/$courtId"
+          params={{ sport: sportSlug, courtId: String(c.id) }}
           className="font-medium text-(--color-accent) hover:underline"
         >
           {c.name}

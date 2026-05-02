@@ -13,11 +13,15 @@ import { AddressInput, type AddressData } from '../../../components/AddressInput
 import { ArrowLeft } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
+import { useSport } from '../../../auth/SportContext'
 interface VenueFormProps {
   venue?: Venue
 }
 
 export function VenueForm({ venue }: VenueFormProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const createVenue = useCreateVenue()
@@ -86,7 +90,7 @@ export function VenueForm({ venue }: VenueFormProps) {
     mutation.mutate(payload, {
       onSuccess: (data) => {
         toast('success', isEditing ? 'Venue updated' : 'Venue created')
-        navigate({ to: '/venues/$venueId', params: { venueId: String(data.id) } })
+        navigate({ to: '/$sport/venues/$venueId', params: { sport: sportSlug, venueId: String(data.id) } })
       },
       onError: (err) => toast('error', (err as Error).message),
     })
@@ -95,7 +99,7 @@ export function VenueForm({ venue }: VenueFormProps) {
   return (
     <div>
       <Link
-        to="/venues"
+        to="/$sport/venues" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Venues
@@ -200,7 +204,7 @@ export function VenueForm({ venue }: VenueFormProps) {
           <Button type="submit" loading={createVenue.isPending || updateVenue.isPending}>
             {isEditing ? 'Save Changes' : 'Create Venue'}
           </Button>
-          <Link to="/venues">
+          <Link to="/$sport/venues" params={{ sport: sportSlug }}>
             <Button type="button" variant="secondary">
               Cancel
             </Button>

@@ -17,6 +17,7 @@ import { SponsorEditor } from '../../components/SponsorEditor'
 import { VenuePicker } from '../../components/VenuePicker'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 
+import { useSport } from '../../auth/SportContext'
 interface TournamentSettingsProps {
   tournament: Tournament
   tournamentId: string
@@ -26,6 +27,9 @@ export function TournamentSettings({
   tournament,
   tournamentId,
 }: TournamentSettingsProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const updateMutation = useUpdateTournament(tournamentId)
@@ -86,7 +90,7 @@ export function TournamentSettings({
     try {
       await deleteMutation.mutateAsync()
       toast('success', 'Tournament deleted')
-      navigate({ to: '/tournaments' })
+      navigate({ to: '/$sport/tournaments', params: { sport: sportSlug } })
     } catch (err) {
       toast('error', (err as Error).message)
     }

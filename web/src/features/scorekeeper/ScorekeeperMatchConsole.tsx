@@ -20,6 +20,7 @@ import { useMatchWebSocket } from '../scoring/useMatchWebSocket'
 import { useScoringPrefs } from '../scoring/useScoringPrefs'
 import type { ScoringActionResult } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface ScorekeeperMatchConsoleProps {
   publicId: string
 }
@@ -36,6 +37,9 @@ export interface ScorekeeperMatchConsoleProps {
 export function ScorekeeperMatchConsole({
   publicId,
 }: ScorekeeperMatchConsoleProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const navigate = useNavigate()
   const matchQuery = useMatch(publicId)
@@ -197,7 +201,7 @@ export function ScorekeeperMatchConsole({
               },
             )
           }
-          onCancel={() => navigate({ to: '/scorekeeper' })}
+          onCancel={() => navigate({ to: '/$sport/scorekeeper', params: { sport: sportSlug } })}
         />
       ) : (
         <div className="p-3 md:p-4 flex-1">

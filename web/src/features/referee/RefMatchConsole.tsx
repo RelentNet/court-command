@@ -28,6 +28,7 @@ import { useMatchWebSocket } from '../scoring/useMatchWebSocket'
 import { useScoringPrefs } from '../scoring/useScoringPrefs'
 import type { ScoringActionResult } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface RefMatchConsoleProps {
   publicId: string
 }
@@ -44,6 +45,9 @@ const PRIVILEGED_ROLES = new Set([
 ])
 
 export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const navigate = useNavigate()
   const auth = useAuth()
@@ -253,13 +257,13 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
               },
             )
           }
-          onCancel={() => navigate({ to: '/ref' })}
+          onCancel={() => navigate({ to: '/$sport/ref', params: { sport: sportSlug } })}
         />
       ) : match.status === 'completed' ? (
         <div className="p-3 md:p-4 flex-1 max-w-md mx-auto w-full">
           <MatchCompleteBanner
             match={match}
-            onBackToCourts={() => navigate({ to: '/ref' })}
+            onBackToCourts={() => navigate({ to: '/$sport/ref', params: { sport: sportSlug } })}
           />
         </div>
       ) : (
@@ -321,7 +325,7 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
             </button>
             <Link
               role="menuitem"
-              to="/settings/scoring"
+              to="/$sport/settings/scoring" params={{ sport: sportSlug }}
               className="block px-3 py-2 hover:bg-(--color-bg-hover) rounded text-sm text-(--color-text-primary)"
               onClick={() => setMenuOpen(false)}
             >

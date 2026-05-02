@@ -14,6 +14,7 @@ import { RichTextDisplay } from '../../components/RichTextDisplay'
 import { useToast } from '../../components/Toast'
 import { useNavigate } from '@tanstack/react-router'
 
+import { useSport } from '../../auth/SportContext'
 interface Props {
   league: League
 }
@@ -33,6 +34,9 @@ const STATUS_TRANSITIONS: Record<string, { label: string; next: string; variant?
 }
 
 export function LeagueOverview({ league }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const navigate = useNavigate()
   const updateStatus = useUpdateLeagueStatus(league.id)
@@ -57,7 +61,7 @@ export function LeagueOverview({ league }: Props) {
     try {
       await deleteLeague.mutateAsync(league.id)
       toast('success', 'League deleted')
-      navigate({ to: '/leagues' })
+      navigate({ to: '/$sport/leagues', params: { sport: sportSlug } })
     } catch (err) {
       toast('error', (err as Error).message || 'Failed to delete league')
     }

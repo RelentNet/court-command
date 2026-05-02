@@ -476,9 +476,11 @@ function MatchRow({ match }: { match: LiveMatch }) {
   const isDone = ['completed', 'forfeited', 'cancelled'].includes(match.status)
 
   return (
+    // TODO(phase3-task10): public tournament/match navigation needs sport
+    // slug from data; defaulting to pickleball until backend exposes it.
     <Link
-      to="/matches/$publicId"
-      params={{ publicId: match.public_id }}
+      to="/$sport/matches/$publicId"
+      params={{ sport: 'pickleball', publicId: match.public_id }}
       className="block"
     >
       <Card className={cn(
@@ -645,8 +647,8 @@ function CourtCard({ court }: { court: PublicCourt }) {
         {/* Active match */}
         {court.active_match && (
           <Link
-            to="/matches/$publicId"
-            params={{ publicId: court.active_match.public_id }}
+            to="/$sport/matches/$publicId"
+            params={{ sport: 'pickleball', publicId: court.active_match.public_id }}
             className="block"
           >
             <div className="bg-(--color-bg-hover) rounded-lg p-2.5 hover:bg-(--color-bg-hover)/80 transition-colors">

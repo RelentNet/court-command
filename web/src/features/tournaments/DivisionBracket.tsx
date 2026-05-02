@@ -16,6 +16,7 @@ import { Select } from '../../components/Select'
 import { Skeleton } from '../../components/Skeleton'
 import { Trophy, MapPin } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 interface DivisionBracketProps {
   division: Division
   divisionId: string
@@ -94,6 +95,9 @@ function MatchCard({
   courts?: Array<{ id: number; name: string }> | null
   tournamentId?: string
 }) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const assignCourt = useAssignMatchToCourt()
   const [assigning, setAssigning] = useState(false)
@@ -140,8 +144,8 @@ function MatchCard({
           {/* Score button — only when court is assigned */}
           {canScore && hasCourt && match.public_id && (
             <Link
-              to="/ref/matches/$publicId"
-              params={{ publicId: match.public_id }}
+              to="/$sport/ref/matches/$publicId"
+              params={{ sport: sportSlug, publicId: match.public_id }}
               onClick={(e) => e.stopPropagation()}
             >
               <Button variant="primary" size="sm">

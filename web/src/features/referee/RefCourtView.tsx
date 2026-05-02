@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { useCourtMatches } from '../scoring/hooks'
 import type { Match } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface RefCourtViewProps {
   courtId: number
 }
@@ -56,6 +57,9 @@ export function RefCourtView({ courtId }: RefCourtViewProps) {
 }
 
 function Section({ title, matches }: { title: string; matches: Match[] }) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   if (matches.length === 0) return null
   return (
     <section>
@@ -66,8 +70,8 @@ function Section({ title, matches }: { title: string; matches: Match[] }) {
         {matches.map((m) => (
           <Link
             key={m.public_id}
-            to="/ref/matches/$publicId"
-            params={{ publicId: m.public_id }}
+            to="/$sport/ref/matches/$publicId"
+            params={{ sport: sportSlug, publicId: m.public_id }}
             className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) rounded-lg"
           >
             <Card className="flex items-center justify-between p-3 hover:bg-(--color-bg-hover) transition-colors">

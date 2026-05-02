@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router'
 import { formatDate } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 interface VenueDetailProps {
   venueId: string
 }
@@ -25,6 +26,9 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning'> = {
 }
 
 export function VenueDetail({ venueId }: VenueDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: venue, isLoading, error } = useVenue(venueId)
   const { user } = useAuth()
   const { toast } = useToast()
@@ -49,7 +53,7 @@ export function VenueDetail({ venueId }: VenueDetailProps) {
         title="Venue not found"
         description="This venue may have been removed or you don't have access."
         action={
-          <Link to="/venues">
+          <Link to="/$sport/venues" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Venues</Button>
           </Link>
         }
@@ -65,7 +69,7 @@ export function VenueDetail({ venueId }: VenueDetailProps) {
   return (
     <div>
       <Link
-        to="/venues"
+        to="/$sport/venues" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Venues
@@ -78,7 +82,7 @@ export function VenueDetail({ venueId }: VenueDetailProps) {
         </div>
         <div className="flex items-center gap-2">
           {canManage && (
-            <Link to="/venues/$venueId/edit" params={{ venueId: String(venue.id) }}>
+            <Link to="/$sport/venues/$venueId/edit" params={{ sport: sportSlug, venueId: String(venue.id) }}>
               <Button variant="secondary" size="sm">
                 <Pencil className="h-4 w-4 mr-1" />
                 Edit

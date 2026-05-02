@@ -41,7 +41,7 @@ export function PublicTopBar() {
           <div className="h-8 w-16 rounded-lg bg-(--color-bg-hover) animate-pulse" />
         ) : isAuthenticated ? (
           <Link
-            to="/dashboard"
+            to="/"
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-cyan-500 text-white hover:bg-cyan-600 transition-colors"
           >
             Dashboard

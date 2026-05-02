@@ -5,6 +5,7 @@ import { Card } from '../../components/Card'
 import { cn } from '../../lib/cn'
 import type { CourtSummary } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface CourtGridProps {
   courts: CourtSummary[]
   mode: 'ref' | 'scorekeeper' | 'public'
@@ -36,27 +37,30 @@ function CourtCard({
   court: CourtSummary
   mode: 'ref' | 'scorekeeper' | 'public'
 }) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const live = court.active_match?.status === 'in_progress'
 
   const linkProps =
     mode === 'public'
       ? ({
-          to: '/courts/$courtId',
-          params: { courtId: String(court.id) },
+          to: '/$sport/courts/$courtId',
+          params: { sport: sportSlug, courtId: String(court.id) },
         } as const)
       : court.active_match
         ? mode === 'ref'
           ? ({
-              to: '/ref/matches/$publicId',
-              params: { publicId: court.active_match.public_id },
+              to: '/$sport/ref/matches/$publicId',
+              params: { sport: sportSlug, publicId: court.active_match.public_id },
             } as const)
           : ({
-              to: '/scorekeeper/matches/$publicId',
-              params: { publicId: court.active_match.public_id },
+              to: '/$sport/scorekeeper/matches/$publicId',
+              params: { sport: sportSlug, publicId: court.active_match.public_id },
             } as const)
         : ({
-            to: '/ref/courts/$courtId',
-            params: { courtId: String(court.id) },
+            to: '/$sport/ref/courts/$courtId',
+            params: { sport: sportSlug, courtId: String(court.id) },
           } as const)
 
   return (

@@ -13,9 +13,13 @@ import { MapView, type MapMarker } from '../../../components/MapView'
 import { Building2, Plus, List, Map } from 'lucide-react'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 type ViewMode = 'list' | 'map'
 
 export function OrgList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const debouncedSearch = useDebounce(search)
@@ -46,8 +50,8 @@ export function OrgList() {
       header: 'Name',
       render: (o: (typeof orgs)[0]) => (
         <Link
-          to="/organizations/$orgId"
-          params={{ orgId: String(o.id) }}
+          to="/$sport/organizations/$orgId"
+          params={{ sport: sportSlug, orgId: String(o.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {o.name}
@@ -105,7 +109,7 @@ export function OrgList() {
               <Map className="h-4 w-4" />
             </button>
           </div>
-          <Link to="/organizations/new">
+          <Link to="/$sport/organizations/new" params={{ sport: sportSlug }}>
             <Button size="sm">
               <Plus className="h-4 w-4" /> Create Organization
             </Button>
@@ -146,7 +150,7 @@ export function OrgList() {
           }
           action={
             !search ? (
-              <Link to="/organizations/new">
+              <Link to="/$sport/organizations/new" params={{ sport: sportSlug }}>
                 <Button>Create Organization</Button>
               </Link>
             ) : undefined
@@ -166,8 +170,8 @@ export function OrgList() {
               height="500px"
               onMarkerClick={(marker) => {
                 navigate({
-                  to: '/organizations/$orgId',
-                  params: { orgId: String(marker.id) },
+                  to: '/$sport/organizations/$orgId',
+                  params: { sport: sportSlug, orgId: String(marker.id) },
                 })
               }}
             />

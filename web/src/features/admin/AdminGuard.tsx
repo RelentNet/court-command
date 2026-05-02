@@ -3,11 +3,15 @@ import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '../../auth/useAuth'
 import { Skeleton } from '../../components/Skeleton'
 
+import { useSport } from '../../auth/SportContext'
 interface AdminGuardProps {
   children: ReactNode
 }
 
 export function AdminGuard({ children }: AdminGuardProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { user, isLoading } = useAuth()
 
   if (isLoading) {
@@ -23,7 +27,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
   }
 
   if (user?.role !== 'platform_admin') {
-    return <Navigate to="/dashboard" />
+    return <Navigate to="/$sport/dashboard" params={{ sport: sportSlug }} />
   }
 
   return <>{children}</>

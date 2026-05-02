@@ -17,6 +17,7 @@ import { useToast } from '../../components/Toast'
 import { Users, Trash2 } from 'lucide-react'
 import { formatDate } from '../../lib/formatters'
 
+import { useSport } from '../../auth/SportContext'
 const PAGE_SIZE = 20
 
 const ROLE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
@@ -34,6 +35,9 @@ const ROLE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info' | 'd
 }
 
 export function UserSearch() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const updateStatus = useUpdateUserStatus()
   const { toast } = useToast()
@@ -127,7 +131,7 @@ export function UserSearch() {
   }
 
   function handleRowClick(user: AdminUser) {
-    navigate({ to: '/admin/users/$userId', params: { userId: user.public_id } })
+    navigate({ to: '/$sport/admin/users/$userId', params: { sport: sportSlug, userId: user.public_id } })
   }
 
   function handleQueryChange(value: string) {

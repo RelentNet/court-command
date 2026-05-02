@@ -17,6 +17,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { AdSlot } from '../../components/AdSlot'
 import { DivisionForm } from './DivisionForm'
 
+import { useSport } from '../../auth/SportContext'
 interface DivisionOverviewProps {
   tournamentId: string
   divisionId: string
@@ -41,6 +42,9 @@ export function DivisionOverview({
   divisionId,
   division,
 }: DivisionOverviewProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { user } = useAuth()
   // TODO: replace with scoped authorization (Batch I) once that lands.
@@ -70,7 +74,7 @@ export function DivisionOverview({
     try {
       await deleteMutation.mutateAsync()
       toast('success', 'Division deleted')
-      navigate({ to: '/tournaments/$tournamentId', params: { tournamentId } })
+      navigate({ to: '/$sport/tournaments/$tournamentId', params: { sport: sportSlug, tournamentId } })
     } catch (err) {
       toast('error', (err as Error).message)
     }

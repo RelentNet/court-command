@@ -21,7 +21,11 @@ import { Users, UserPlus } from 'lucide-react'
 import { formatPlayerName } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 export function PlayerList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newFirst, setNewFirst] = useState('')
@@ -64,8 +68,8 @@ export function PlayerList() {
       header: 'Name',
       render: (p: (typeof players)[0]) => (
         <Link
-          to="/players/$playerId"
-          params={{ playerId: String(p.public_id) }}
+          to="/$sport/players/$playerId"
+          params={{ sport: sportSlug, playerId: String(p.public_id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {formatPlayerName(p.first_name, p.last_name, p.display_name)}

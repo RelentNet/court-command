@@ -10,11 +10,15 @@ import { ImageUpload } from '../../../components/ImageUpload'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
+import { useSport } from '../../../auth/SportContext'
 interface TeamFormProps {
   team?: Team
 }
 
 export function TeamForm({ team }: TeamFormProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const createTeam = useCreateTeam()
@@ -64,7 +68,7 @@ export function TeamForm({ team }: TeamFormProps) {
     mutation.mutate(payload, {
       onSuccess: (data) => {
         toast('success', isEditing ? 'Team updated' : 'Team created')
-        navigate({ to: '/teams/$teamId', params: { teamId: String(data.id) } })
+        navigate({ to: '/$sport/teams/$teamId', params: { sport: sportSlug, teamId: String(data.id) } })
       },
       onError: (err) => toast('error', (err as Error).message),
     })
@@ -73,7 +77,7 @@ export function TeamForm({ team }: TeamFormProps) {
   return (
     <div>
       <Link
-        to="/teams"
+        to="/$sport/teams" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Teams
@@ -176,7 +180,7 @@ export function TeamForm({ team }: TeamFormProps) {
           <Button type="submit" loading={createTeam.isPending || updateTeam.isPending}>
             {isEditing ? 'Save Changes' : 'Create Team'}
           </Button>
-          <Link to="/teams">
+          <Link to="/$sport/teams" params={{ sport: sportSlug }}>
             <Button type="button" variant="secondary">
               Cancel
             </Button>

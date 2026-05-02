@@ -14,6 +14,7 @@ import {
 import type { CourtSummary } from '../scoring/types'
 import { CourtGrid } from './CourtGrid'
 
+import { useSport } from '../../auth/SportContext'
 function groupCourtsByVenue(courts: CourtSummary[]) {
   const map = new Map<string, CourtSummary[]>()
 
@@ -37,6 +38,9 @@ function groupCourtsByVenue(courts: CourtSummary[]) {
 }
 
 export function RefHome() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { user } = useAuth()
   const isStaff = user?.role === 'referee' || user?.role === 'scorekeeper'
@@ -61,8 +65,8 @@ export function RefHome() {
     const trimmed = jumpId.trim()
     if (!trimmed) return
     navigate({
-      to: '/ref/matches/$publicId',
-      params: { publicId: trimmed },
+      to: '/$sport/ref/matches/$publicId',
+      params: { sport: sportSlug, publicId: trimmed },
     })
   }
 

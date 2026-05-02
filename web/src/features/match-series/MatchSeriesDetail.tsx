@@ -4,11 +4,15 @@ import { Skeleton } from '../../components/Skeleton'
 import { Card } from '../../components/Card'
 import { useMatchSeries } from '../scoring/hooks'
 
+import { useSport } from '../../auth/SportContext'
 export interface MatchSeriesDetailProps {
   publicId: string
 }
 
 export function MatchSeriesDetail({ publicId }: MatchSeriesDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const seriesQuery = useMatchSeries(publicId)
 
   if (seriesQuery.isLoading) {
@@ -74,8 +78,8 @@ export function MatchSeriesDetail({ publicId }: MatchSeriesDetailProps) {
             {s.matches.map((m) => (
               <Link
                 key={m.public_id}
-                to="/matches/$publicId"
-                params={{ publicId: m.public_id }}
+                to="/$sport/matches/$publicId"
+                params={{ sport: sportSlug, publicId: m.public_id }}
                 className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) rounded"
               >
                 <Card className="flex items-center justify-between p-3 hover:bg-(--color-bg-hover) transition-colors">

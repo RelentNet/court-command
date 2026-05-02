@@ -14,6 +14,7 @@ import { MapView, type MapMarker } from '../../../components/MapView'
 import { MapPin, Plus, List, Map } from 'lucide-react'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning'> = {
   draft: 'default',
   pending_review: 'warning',
@@ -24,6 +25,9 @@ const STATUS_VARIANT: Record<string, 'default' | 'success' | 'warning'> = {
 type ViewMode = 'list' | 'map'
 
 export function VenueList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const debouncedSearch = useDebounce(search)
@@ -55,8 +59,8 @@ export function VenueList() {
       header: 'Name',
       render: (v: (typeof venues)[0]) => (
         <Link
-          to="/venues/$venueId"
-          params={{ venueId: String(v.id) }}
+          to="/$sport/venues/$venueId"
+          params={{ sport: sportSlug, venueId: String(v.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {v.name}
@@ -110,7 +114,7 @@ export function VenueList() {
               <Map className="h-4 w-4" />
             </button>
           </div>
-          <Link to="/venues/new">
+          <Link to="/$sport/venues/new" params={{ sport: sportSlug }}>
             <Button size="sm">
               <Plus className="h-4 w-4" /> Create Venue
             </Button>
@@ -149,7 +153,7 @@ export function VenueList() {
           description={search ? `No results for "${search}"` : 'No venues created yet.'}
           action={
             !search ? (
-              <Link to="/venues/new">
+              <Link to="/$sport/venues/new" params={{ sport: sportSlug }}>
                 <Button>Create Venue</Button>
               </Link>
             ) : undefined
@@ -169,8 +173,8 @@ export function VenueList() {
               height="500px"
               onMarkerClick={(marker) => {
                 navigate({
-                  to: '/venues/$venueId',
-                  params: { venueId: String(marker.id) },
+                  to: '/$sport/venues/$venueId',
+                  params: { sport: sportSlug, venueId: String(marker.id) },
                 })
               }}
             />

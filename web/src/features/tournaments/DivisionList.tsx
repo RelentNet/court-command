@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal'
 import { DivisionForm } from './DivisionForm'
 import { Layers, Plus } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 interface DivisionListProps {
   tournamentId: string
   divisions: Division[]
@@ -19,6 +20,9 @@ function formatBracket(bracket: string): string {
 }
 
 export function DivisionList({ tournamentId, divisions }: DivisionListProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [createOpen, setCreateOpen] = useState(false)
 
   if (divisions.length === 0 && !createOpen) {
@@ -53,8 +57,8 @@ export function DivisionList({ tournamentId, divisions }: DivisionListProps) {
         {divisions.map((div) => (
           <Link
             key={div.id}
-            to="/tournaments/$tournamentId/divisions/$divisionId"
-            params={{ tournamentId, divisionId: String(div.id) }}
+            to="/$sport/tournaments/$tournamentId/divisions/$divisionId"
+            params={{ sport: sportSlug, tournamentId, divisionId: String(div.id) }}
             className="block"
           >
             <Card className="h-full hover:border-cyan-500/50 transition-colors">

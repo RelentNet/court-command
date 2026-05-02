@@ -10,15 +10,20 @@ import { cn } from '../lib/cn'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useState, useEffect } from 'react'
 
-const NO_SHELL_ROUTES = ['/login', '/register']
+const NO_SHELL_ROUTES = ['/login', '/register', '/auth/callback']
 
 // Public routes: do not require auth. If a user is logged in, they get the
 // shell; otherwise the page renders without sidebar/header chrome.
+//
+// After Phase 3 the sport-scoped match routes live at /$sport/matches/<id> —
+// the regex `^\/[^/]+\/matches\/[^/]+$` matches that shape. The first segment
+// is any sport slug (pickleball, demo_sport, etc.).
 const PUBLIC_ROUTE_PATTERNS: RegExp[] = [
-  /^\/$/,
+  /^\/$/,                              // sport picker (Task 6)
+  /^\/auth\//,                         // OIDC callback (Task 7)
   /^\/public(\/|$)/,
-  /^\/matches\/[^/]+$/,
-  /^\/match-series\/[^/]+$/,
+  /^\/[^/]+\/matches\/[^/]+$/,         // /$sport/matches/$publicId is public
+  /^\/[^/]+\/match-series\/[^/]+$/,    // /$sport/match-series/$publicId
   /^\/live$/,
   /^\/events$/,
 ]
@@ -26,7 +31,7 @@ const PUBLIC_ROUTE_PATTERNS: RegExp[] = [
 // Routes that always render with no shell at all (no sidebar, no auth).
 // Used for embed/OBS targets and pre-auth pages.
 const NO_SHELL_PATTERNS: RegExp[] = [
-  /^\/matches\/[^/]+\/scoreboard$/,
+  /^\/[^/]+\/matches\/[^/]+\/scoreboard$/,    // /$sport/matches/.../scoreboard
   // Phase 4 broadcast overlay — renders inside OBS browser source
   /^\/overlay\/court\/[^/]+$/,
   /^\/overlay\/demo\/[^/]+$/,
