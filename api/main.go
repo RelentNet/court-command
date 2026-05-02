@@ -16,6 +16,7 @@ import (
 	"github.com/court-command/court-command/db/generated"
 	"github.com/court-command/court-command/handler"
 	"github.com/court-command/court-command/jobs"
+	"github.com/court-command/court-command/logto"
 	"github.com/court-command/court-command/overlay"
 	"github.com/court-command/court-command/pubsub"
 	"github.com/court-command/court-command/router"
@@ -192,6 +193,35 @@ func main() {
 		slog.Warn("LOGTO_ENDPOINT or LOGTO_API_RESOURCE not set; /api/v1/me/profile disabled")
 	}
 
+	// Logto Phase 3 Task 9: webhook handler + on-demand user mirror.
+	//
+	// The webhook is constructed unconditionally (it short-circuits
+	// to 500 INTERNAL_ERROR if the signing key is empty, so an
+	// accidental misconfiguration can't silently accept unsigned
+	// requests). The Logto Management API client is constructed
+	// only when all four env vars are set; without it MirrorUser
+	// is left disabled (the router conditionally chains it).
+	userSyncService := service.NewUserSyncService(queries)
+	webhookHandler := handler.NewLogtoWebhookHandler(
+		userSyncService,
+		os.Getenv("LOGTO_WEBHOOK_SIGNING_KEY"),
+	)
+
+	var logtoClient *logto.Client
+	mgmtAppID := os.Getenv("LOGTO_MANAGEMENT_API_APP_ID")
+	mgmtAppSecret := os.Getenv("LOGTO_MANAGEMENT_API_APP_SECRET")
+	mgmtResource := os.Getenv("LOGTO_MANAGEMENT_API_RESOURCE")
+	if logtoEndpoint != "" && mgmtAppID != "" && mgmtAppSecret != "" && mgmtResource != "" {
+		logtoClient = logto.NewClient(logto.Config{
+			Endpoint:               logtoEndpoint,
+			ManagementAPIAppID:     mgmtAppID,
+			ManagementAPIAppSecret: mgmtAppSecret,
+			ManagementAPIResource:  mgmtResource,
+		})
+	} else {
+		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled")
+	}
+
 	// Phase 4C: WebSocket handler
 	wsHandler := ws.NewHandler(ps, logger)
 
@@ -265,6 +295,12 @@ func main() {
 		SportsHandler:  sportsHandler,
 		ProfileHandler: profileHandler,
 		JWTValidator:   jwtValidator,
+
+		// Logto Phase 3 Task 9
+		LogtoWebhookHandler: webhookHandler,
+		LogtoClient:         logtoClient,
+		UserSyncService:     userSyncService,
+		Queries:             queries,
 	})
 
 	srv := &http.Server{

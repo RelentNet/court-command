@@ -10,7 +10,9 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/court-command/court-command/auth"
+	"github.com/court-command/court-command/db/generated"
 	"github.com/court-command/court-command/handler"
+	"github.com/court-command/court-command/logto"
 	"github.com/court-command/court-command/middleware"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
@@ -94,6 +96,25 @@ type Config struct {
 	// nil and the routes simply don't register.
 	ProfileHandler *handler.ProfileHandler
 	JWTValidator   *auth.Validator
+
+	// Logto Phase 3 Task 9: webhook + on-demand user mirror.
+	//
+	// LogtoWebhookHandler is mounted publicly at
+	// /api/v1/webhooks/logto -- no auth middleware in front; the
+	// HMAC signature on the Logto-Signature-Sha-256 header IS the
+	// auth. Leaving it nil disables the route entirely (used by
+	// testutil.TestServer where no Logto deps are wired).
+	//
+	// LogtoClient + UserSyncService + Queries together enable the
+	// MirrorUser middleware on /api/v1/me/* protected routes. All
+	// three must be non-nil for the middleware to be chained;
+	// otherwise the routes still work but skip the on-demand
+	// mirror (the webhook path will eventually populate the row,
+	// at which point requests start succeeding).
+	LogtoWebhookHandler *handler.LogtoWebhookHandler
+	LogtoClient         *logto.Client
+	UserSyncService     *service.UserSyncService
+	Queries             *generated.Queries
 }
 
 // New creates a chi.Router with all middleware and routes mounted.
@@ -131,9 +152,27 @@ func New(cfg *Config) chi.Router {
 		if cfg.ProfileHandler != nil && cfg.JWTValidator != nil {
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.RequireJWT(cfg.JWTValidator, true))
+				// Task 9: chain MirrorUser AFTER RequireJWT so the
+				// local users row is guaranteed to exist for the
+				// JWT subject before the handler runs. Conditional
+				// because testutil.TestServer doesn't wire the
+				// Logto deps; in that case we keep the legacy
+				// behavior (handler resolves users.id directly via
+				// ProfileService.LookupUserByLogtoSubject).
+				if cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+					r.Use(middleware.MirrorUser(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
+				}
 				r.Get("/me/profile", cfg.ProfileHandler.GetMyProfile)
 				r.Patch("/me/profile", cfg.ProfileHandler.PatchMyProfile)
 			})
+		}
+
+		// Logto webhook (public -- HMAC signature IS the auth).
+		// Mounted under /api/v1 like every other API route so a
+		// future API gateway / reverse proxy that path-routes on
+		// /api/v1 catches this too.
+		if cfg.LogtoWebhookHandler != nil {
+			r.Post("/webhooks/logto", cfg.LogtoWebhookHandler.Handle)
 		}
 
 		// Auth routes (public)

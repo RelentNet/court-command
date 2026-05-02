@@ -144,3 +144,52 @@ WHERE id = $1
   AND deleted_at IS NULL
   AND (logto_user_id IS NULL OR logto_user_id = @logto_user_id::TEXT)
 RETURNING *;
+
+-- name: CreateUserFromLogto :one
+-- Used by webhooks/handler when Logto fires User.Created and we have
+-- no local mirror yet. password_hash is NOT NULL on the table; we
+-- write a sentinel '' string because Phase 6 will drop the column
+-- entirely. role defaults via column default ('player').
+--
+-- date_of_birth is NOT NULL on the legacy schema and Logto does not
+-- expose DOB on the user record. We seed with the SQL epoch sentinel
+-- '1900-01-01'; users provide their real DOB when they fill out the
+-- profile form (which writes to player_profiles.date_of_birth, the
+-- forward-looking home for that field after the Phase 6 cutover).
+INSERT INTO users (
+    email, first_name, last_name, password_hash, date_of_birth,
+    logto_user_id, status, role
+)
+VALUES (
+    @email::TEXT, @first_name::TEXT, @last_name::TEXT, '',
+    DATE '1900-01-01',
+    @logto_user_id::TEXT, 'active', 'player'
+)
+RETURNING *;
+
+-- name: UpdateUserFromLogto :one
+-- Used by webhooks for User.Data.Updated. Updates email + display_name
+-- (synthesizes from name) only. first_name/last_name stay as set at
+-- creation; if Logto's name changes, the human re-edits here.
+UPDATE users
+SET
+    email        = @email::TEXT,
+    display_name = sqlc.narg('display_name'),
+    updated_at   = now()
+WHERE id = @id
+RETURNING *;
+
+-- name: SoftDeleteUserByLogtoUserID :exec
+-- Used by webhooks for User.Deleted. Sets deleted_at; leaves the row
+-- so referential integrity (e.g. tournaments.created_by) survives.
+--
+-- We deliberately do NOT change users.status here: the legacy CHECK
+-- constraint accepts only ('active','suspended','banned','unclaimed',
+-- 'merged'); soft-delete state is conveyed by deleted_at IS NOT NULL,
+-- which every existing query already filters on. This matches the
+-- pattern of SoftDeleteUser above.
+UPDATE users
+SET deleted_at = now(),
+    updated_at = now()
+WHERE logto_user_id = @logto_user_id::TEXT
+  AND deleted_at IS NULL;

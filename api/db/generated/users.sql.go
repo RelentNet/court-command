@@ -207,6 +207,87 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const createUserFromLogto = `-- name: CreateUserFromLogto :one
+INSERT INTO users (
+    email, first_name, last_name, password_hash, date_of_birth,
+    logto_user_id, status, role
+)
+VALUES (
+    $1::TEXT, $2::TEXT, $3::TEXT, '',
+    DATE '1900-01-01',
+    $4::TEXT, 'active', 'player'
+)
+RETURNING id, public_id, email, password_hash, first_name, last_name, date_of_birth, display_name, status, merged_into_id, role, created_at, updated_at, deleted_at, gender, handedness, avatar_url, bio, city, state_province, country, phone, paddle_brand, paddle_model, dupr_id, vair_id, emergency_contact_name, emergency_contact_phone, medical_notes, waiver_accepted_at, is_profile_hidden, address_line_1, address_line_2, postal_code, latitude, longitude, formatted_address, logto_user_id
+`
+
+type CreateUserFromLogtoParams struct {
+	Email       string `json:"email"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	LogtoUserID string `json:"logto_user_id"`
+}
+
+// Used by webhooks/handler when Logto fires User.Created and we have
+// no local mirror yet. password_hash is NOT NULL on the table; we
+// write a sentinel ” string because Phase 6 will drop the column
+// entirely. role defaults via column default ('player').
+//
+// date_of_birth is NOT NULL on the legacy schema and Logto does not
+// expose DOB on the user record. We seed with the SQL epoch sentinel
+// '1900-01-01'; users provide their real DOB when they fill out the
+// profile form (which writes to player_profiles.date_of_birth, the
+// forward-looking home for that field after the Phase 6 cutover).
+func (q *Queries) CreateUserFromLogto(ctx context.Context, arg CreateUserFromLogtoParams) (User, error) {
+	row := q.db.QueryRow(ctx, createUserFromLogto,
+		arg.Email,
+		arg.FirstName,
+		arg.LastName,
+		arg.LogtoUserID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.DateOfBirth,
+		&i.DisplayName,
+		&i.Status,
+		&i.MergedIntoID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Gender,
+		&i.Handedness,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.City,
+		&i.StateProvince,
+		&i.Country,
+		&i.Phone,
+		&i.PaddleBrand,
+		&i.PaddleModel,
+		&i.DuprID,
+		&i.VairID,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+		&i.MedicalNotes,
+		&i.WaiverAcceptedAt,
+		&i.IsProfileHidden,
+		&i.AddressLine1,
+		&i.AddressLine2,
+		&i.PostalCode,
+		&i.Latitude,
+		&i.Longitude,
+		&i.FormattedAddress,
+		&i.LogtoUserID,
+	)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, public_id, email, password_hash, first_name, last_name, date_of_birth, display_name, status, merged_into_id, role, created_at, updated_at, deleted_at, gender, handedness, avatar_url, bio, city, state_province, country, phone, paddle_brand, paddle_model, dupr_id, vair_id, emergency_contact_name, emergency_contact_phone, medical_notes, waiver_accepted_at, is_profile_hidden, address_line_1, address_line_2, postal_code, latitude, longitude, formatted_address, logto_user_id FROM users
 WHERE email = $1 AND deleted_at IS NULL
@@ -667,6 +748,27 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const softDeleteUserByLogtoUserID = `-- name: SoftDeleteUserByLogtoUserID :exec
+UPDATE users
+SET deleted_at = now(),
+    updated_at = now()
+WHERE logto_user_id = $1::TEXT
+  AND deleted_at IS NULL
+`
+
+// Used by webhooks for User.Deleted. Sets deleted_at; leaves the row
+// so referential integrity (e.g. tournaments.created_by) survives.
+//
+// We deliberately do NOT change users.status here: the legacy CHECK
+// constraint accepts only ('active','suspended','banned','unclaimed',
+// 'merged'); soft-delete state is conveyed by deleted_at IS NOT NULL,
+// which every existing query already filters on. This matches the
+// pattern of SoftDeleteUser above.
+func (q *Queries) SoftDeleteUserByLogtoUserID(ctx context.Context, logtoUserID string) error {
+	_, err := q.db.Exec(ctx, softDeleteUserByLogtoUserID, logtoUserID)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users SET
     first_name = COALESCE($2, first_name),
@@ -691,6 +793,71 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.LastName,
 		arg.DisplayName,
 	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.DateOfBirth,
+		&i.DisplayName,
+		&i.Status,
+		&i.MergedIntoID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Gender,
+		&i.Handedness,
+		&i.AvatarUrl,
+		&i.Bio,
+		&i.City,
+		&i.StateProvince,
+		&i.Country,
+		&i.Phone,
+		&i.PaddleBrand,
+		&i.PaddleModel,
+		&i.DuprID,
+		&i.VairID,
+		&i.EmergencyContactName,
+		&i.EmergencyContactPhone,
+		&i.MedicalNotes,
+		&i.WaiverAcceptedAt,
+		&i.IsProfileHidden,
+		&i.AddressLine1,
+		&i.AddressLine2,
+		&i.PostalCode,
+		&i.Latitude,
+		&i.Longitude,
+		&i.FormattedAddress,
+		&i.LogtoUserID,
+	)
+	return i, err
+}
+
+const updateUserFromLogto = `-- name: UpdateUserFromLogto :one
+UPDATE users
+SET
+    email        = $1::TEXT,
+    display_name = $2,
+    updated_at   = now()
+WHERE id = $3
+RETURNING id, public_id, email, password_hash, first_name, last_name, date_of_birth, display_name, status, merged_into_id, role, created_at, updated_at, deleted_at, gender, handedness, avatar_url, bio, city, state_province, country, phone, paddle_brand, paddle_model, dupr_id, vair_id, emergency_contact_name, emergency_contact_phone, medical_notes, waiver_accepted_at, is_profile_hidden, address_line_1, address_line_2, postal_code, latitude, longitude, formatted_address, logto_user_id
+`
+
+type UpdateUserFromLogtoParams struct {
+	Email       string  `json:"email"`
+	DisplayName *string `json:"display_name"`
+	ID          int64   `json:"id"`
+}
+
+// Used by webhooks for User.Data.Updated. Updates email + display_name
+// (synthesizes from name) only. first_name/last_name stay as set at
+// creation; if Logto's name changes, the human re-edits here.
+func (q *Queries) UpdateUserFromLogto(ctx context.Context, arg UpdateUserFromLogtoParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserFromLogto, arg.Email, arg.DisplayName, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
