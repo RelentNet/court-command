@@ -3,7 +3,7 @@ import { Button } from '../../components/Button'
 import { useAuth } from '../../auth/useAuth'
 
 export function PublicHero() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, signIn } = useAuth()
   const navigate = useNavigate()
 
   return (
@@ -36,7 +36,7 @@ export function PublicHero() {
           <Button
             size="lg"
             variant="primary"
-            onClick={() => navigate({ to: '/login', search: { redirect: '/' } })}
+            onClick={() => signIn('/')}
           >
             Sign In to Get Started
           </Button>

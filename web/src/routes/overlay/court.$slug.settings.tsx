@@ -21,7 +21,7 @@
 // role once the constraint is relaxed.
 
 import { useEffect, useMemo, useState } from 'react'
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import {
   AlertCircle,
   ChevronDown,
@@ -89,8 +89,7 @@ function OverlaySettingsRoute() {
 
 function OverlaySettingsPage() {
   const { slug } = Route.useParams()
-  const navigate = useNavigate()
-  const { user, isLoading: authLoading, isAuthenticated } = useAuth()
+  const { user, isLoading: authLoading, isAuthenticated, signIn } = useAuth()
   const [activeTab, setActiveTab] = useState<TabId>('elements')
 
   // Resolve slug → courtID so downstream mutation hooks can target the
@@ -118,11 +117,9 @@ function OverlaySettingsPage() {
     return <FullPageSpinner label="Checking access…" />
   }
   if (!isAuthenticated || !user) {
-    // Not logged in — send to login and bounce back.
-    navigate({
-      to: '/login',
-      search: { redirect: `/overlay/court/${slug}/settings` },
-    })
+    // Not logged in — kick the OIDC sign-in flow with a returnTo
+    // so the operator lands back here after auth.
+    signIn(`/overlay/court/${slug}/settings`)
     return null
   }
   if (!ROLE_ALLOWLIST.has(user.role)) {
