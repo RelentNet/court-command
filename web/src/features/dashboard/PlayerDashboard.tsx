@@ -1,4 +1,4 @@
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { useDashboard } from './hooks'
 import { StatsSummary } from './StatsSummary'
 import { UpcomingMatches } from './UpcomingMatches'

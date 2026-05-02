@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Navigate } from '@tanstack/react-router'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { Skeleton } from '../../components/Skeleton'
 
 interface AdminGuardProps {

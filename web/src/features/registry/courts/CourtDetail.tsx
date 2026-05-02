@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useCourt } from './hooks'
 import { useCourtMatches } from '../../scoring/hooks'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { Badge } from '../../../components/Badge'
 import { InfoRow } from '../../../components/InfoRow'
 import { Skeleton } from '../../../components/Skeleton'

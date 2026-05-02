@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import {
   useUpdateDivisionStatus,
   useDeleteDivision,

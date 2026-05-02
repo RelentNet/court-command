@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useOrg, useDeleteOrg, useBlockOrg, useUnblockOrg, useOrgBlockStatus, useMyOrgRole } from './hooks'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { MembersPanel } from './MembersPanel'
 import { OrgTeamsPanel } from './OrgTeamsPanel'
 import { InfoRow } from '../../../components/InfoRow'

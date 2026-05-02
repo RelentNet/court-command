@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { ThemeToggle } from './ThemeToggle'
-import { useAuth } from '../features/auth/hooks'
+import { useAuth } from '../auth/useAuth'
 import { cn } from '../lib/cn'
 
 interface TabItem {

@@ -5,7 +5,7 @@ import { Search, MapPin } from 'lucide-react'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Input'
 import { Skeleton } from '../../components/Skeleton'
-import { useAuth } from '../../features/auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import {
   useAllCourts,
   useCourtsForTournament,

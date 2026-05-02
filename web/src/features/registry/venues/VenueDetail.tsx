@@ -1,5 +1,5 @@
 import { useVenue, useSubmitForReview, useUpdateVenueStatus, useCanManageVenue } from './hooks'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { useToast } from '../../../components/Toast'
 import { CourtListPanel } from './CourtListPanel'
 import { VenueManagersPanel } from './VenueManagersPanel'

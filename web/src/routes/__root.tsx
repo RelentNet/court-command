@@ -5,7 +5,7 @@ import { PublicTopBar } from '../components/PublicTopBar'
 import { PublicBottomTabs } from '../components/PublicBottomTabs'
 import { ImpersonationBanner } from '../components/ImpersonationBanner'
 import { AuthGuard } from '../features/auth/AuthGuard'
-import { useAuth, useLogout } from '../features/auth/hooks'
+import { useAuth } from '../auth/useAuth'
 import { cn } from '../lib/cn'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useState, useEffect } from 'react'
@@ -67,8 +67,7 @@ function RootLayout() {
 }
 
 function AuthenticatedLayout() {
-  const { user } = useAuth()
-  const logout = useLogout()
+  const { user, signOut } = useAuth()
   const isMobile = useIsMobile()
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -88,7 +87,7 @@ function AuthenticatedLayout() {
     <>
       <ImpersonationBanner />
       <a href="#main-content" className="skip-to-content">Skip to content</a>
-      <Sidebar user={user} onLogout={() => logout.mutate()} />
+      <Sidebar user={user} onLogout={() => signOut('/')} />
       <main id="main-content" className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isImpersonating ? 'pt-10' : '', isMobile ? 'pt-14' : expanded ? 'ml-[220px]' : 'ml-14')}>
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
           <Outlet />
@@ -104,8 +103,7 @@ function AuthenticatedLayout() {
  * top bar + bottom tab bar (mobile-app style navigation).
  */
 function PublicLayout() {
-  const { user, isLoading } = useAuth()
-  const logout = useLogout()
+  const { user, isLoading, signOut } = useAuth()
   const isMobile = useIsMobile()
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -126,7 +124,7 @@ function PublicLayout() {
         <a href="#main-content" className="skip-to-content">Skip to content</a>
         <Sidebar
           user={user}
-          onLogout={() => logout.mutate()}
+          onLogout={() => signOut('/')}
         />
         <main id="main-content" className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isMobile ? 'pt-14' : expanded ? 'ml-[220px]' : 'ml-14')}>
           <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">

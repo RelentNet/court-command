@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { useSearchModal } from '../features/search/SearchContext'
-import { useAuth } from '../features/auth/hooks'
+import { useAuth } from '../auth/useAuth'
 
 export function PublicTopBar() {
   const { openSearch } = useSearchModal()

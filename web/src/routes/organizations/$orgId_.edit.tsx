@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { OrgForm } from '../../features/registry/organizations/OrgForm'
 import { useOrg, useMyOrgRole } from '../../features/registry/organizations/hooks'
-import { useAuth } from '../../features/auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { Skeleton } from '../../components/Skeleton'
 import { EmptyState } from '../../components/EmptyState'
 import { Button } from '../../components/Button'

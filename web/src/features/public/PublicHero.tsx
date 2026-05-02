@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '../../components/Button'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 
 export function PublicHero() {
   const { isAuthenticated, isLoading } = useAuth()

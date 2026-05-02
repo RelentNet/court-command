@@ -1,4 +1,4 @@
-import { useAuth } from '../features/auth/hooks'
+import { useAuth } from '../auth/useAuth'
 import { useStopImpersonation } from '../features/admin/hooks'
 import { useToast } from './Toast'
 import { Eye, X } from 'lucide-react'

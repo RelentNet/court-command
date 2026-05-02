@@ -7,7 +7,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { useToast } from '../../components/Toast'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { BarChart3, RefreshCw } from 'lucide-react'
 
 interface Props {

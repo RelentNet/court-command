@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { useGetTournament, useListDivisions } from './hooks'
 import { TabLayout } from '../../components/TabLayout'
 import { Skeleton } from '../../components/Skeleton'
