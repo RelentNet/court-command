@@ -83,6 +83,9 @@ type Config struct {
 
 	// Phase 4C: WebSocket
 	WSHandler chi.Router
+
+	// Logto Phase 3: public sport directory
+	SportsHandler *handler.SportsHandler
 }
 
 // New creates a chi.Router with all middleware and routes mounted.
@@ -104,6 +107,12 @@ func New(cfg *Config) chi.Router {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes (no auth required)
 		r.Get("/health", cfg.HealthHandler.Check)
+
+		// Sport directory (public — sport picker fetches this before the
+		// user picks an org and gets a JWT, so no auth middleware here).
+		if cfg.SportsHandler != nil {
+			r.Get("/sports", cfg.SportsHandler.ListSports)
+		}
 
 		// Auth routes (public)
 		r.Route("/auth", func(r chi.Router) {

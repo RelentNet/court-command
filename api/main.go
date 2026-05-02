@@ -165,6 +165,10 @@ func main() {
 	settingsService := service.NewSettingsService(pool)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
 
+	// Logto Phase 3: public sport directory
+	sportsService := service.NewSportsService(queries)
+	sportsHandler := handler.NewSportsHandler(sportsService)
+
 	// Phase 4C: WebSocket handler
 	wsHandler := ws.NewHandler(ps, logger)
 
@@ -233,6 +237,9 @@ func main() {
 
 		// Phase 4C
 		WSHandler: wsHandler.Routes(),
+
+		// Logto Phase 3
+		SportsHandler: sportsHandler,
 	})
 
 	srv := &http.Server{

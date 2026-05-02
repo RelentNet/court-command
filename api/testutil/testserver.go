@@ -180,6 +180,10 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	settingsService := service.NewSettingsService(pool)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
 
+	// Logto Phase 3: public sport directory
+	sportsService := service.NewSportsService(queries)
+	sportsHandler := handler.NewSportsHandler(sportsService)
+
 	r := router.New(&router.Config{
 		DB:             pool,
 		SessionStore:   store,
@@ -237,6 +241,9 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 
 		// CMS Settings
 		SettingsHandler: settingsHandler,
+
+		// Logto Phase 3
+		SportsHandler: sportsHandler,
 	})
 
 	ts := httptest.NewServer(r)
