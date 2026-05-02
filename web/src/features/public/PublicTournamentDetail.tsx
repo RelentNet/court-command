@@ -42,7 +42,7 @@ interface PublicTournamentDetailProps {
 
 export function PublicTournamentDetail({ slug }: PublicTournamentDetailProps) {
   const { data: tournament, isLoading, isError } = usePublicTournamentBySlug(slug)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, signIn } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   usePageTitle(tournament?.name ?? 'Tournament')
 
@@ -183,15 +183,14 @@ export function PublicTournamentDetail({ slug }: PublicTournamentDetailProps) {
                 </Button>
               </Link>
             ) : (
-              <Link
-                to="/login"
-                search={{ redirect: `/public/tournaments/${tournament.slug}` }}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => signIn(`/public/tournaments/${tournament.slug}`)}
               >
-                <Button variant="primary" size="sm">
-                  <LogIn className="h-4 w-4 mr-1" />
-                  Sign In to Register
-                </Button>
-              </Link>
+                <LogIn className="h-4 w-4 mr-1" />
+                Sign In to Register
+              </Button>
             )}
           </div>
         </Card>

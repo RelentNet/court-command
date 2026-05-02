@@ -6,10 +6,11 @@ import { ThemeToggle } from './ThemeToggle'
 import { Avatar } from './Avatar'
 import {
   LayoutDashboard, Trophy, Medal, MapPin, Users, UsersRound, Building2, Tv, Menu, ChevronLeft, LogOut,
-  Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper,
+  Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper, Repeat,
 } from 'lucide-react'
 import { useSearchModal } from '../features/search/SearchContext'
 import { useSport } from '../auth/SportContext'
+import { useAuth } from '../auth/useAuth'
 
 interface SidebarUser {
   first_name: string
@@ -121,6 +122,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const matchRoute = useMatchRoute()
   const location = useLocation()
   const { sport } = useSport()
+  const { signIn } = useAuth()
   const sportSlug = sport?.slug ?? ''
   const isAuthenticated = !!user
   const navGroups = isAuthenticated ? getAuthNavGroups(user?.role, sportSlug) : publicNavGroups
@@ -167,9 +169,13 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           {user ? (
             <Avatar name={displayName} size="sm" />
           ) : (
-            <Link to="/login" search={{ redirect: '/' }} className="text-sm font-medium text-cyan-400 hover:text-cyan-300">
+            <button
+              type="button"
+              onClick={() => signIn('/')}
+              className="text-sm font-medium text-cyan-400 hover:text-cyan-300"
+            >
               Sign In
-            </Link>
+            </button>
           )}
         </header>
         {mobileOpen && (
@@ -295,6 +301,20 @@ function SidebarFooter({ expanded, displayName, publicId, onLogout, sportSlug }:
   return (
     <div className={cn('border-t border-(--color-border) p-2 space-y-1')}>
       <ThemeToggle collapsed={!expanded} />
+      {/* Switch sport: bounces back to the sport picker (/) so the user
+          can re-pick. Useful for multi-sport users; SportGuard also
+          redirects here when the URL sport doesn't match the JWT org. */}
+      <Link
+        to="/"
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)',
+          expanded ? '' : 'justify-center px-2',
+        )}
+        title={!expanded ? 'Switch sport' : undefined}
+      >
+        <Repeat className="h-5 w-5 shrink-0" />
+        {expanded && <span>Switch sport</span>}
+      </Link>
       {expanded ? (
         <div className="flex items-center gap-3 px-3 py-2">
           <Link to="/$sport/profile" params={{ sport: sportSlug }} className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-(--color-bg-hover) -mx-1 px-1 py-0.5 transition-colors">
@@ -318,21 +338,22 @@ function SidebarFooter({ expanded, displayName, publicId, onLogout, sportSlug }:
 }
 
 function PublicFooter({ expanded }: { expanded: boolean }) {
+  const { signIn } = useAuth()
   return (
     <div className={cn('border-t border-(--color-border) p-2 space-y-1')}>
       <ThemeToggle collapsed={!expanded} />
-      <Link
-        to="/login"
-        search={{ redirect: '/' }}
+      <button
+        type="button"
+        onClick={() => signIn('/')}
         className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-cyan-400 hover:bg-cyan-500/10',
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-cyan-400 hover:bg-cyan-500/10 w-full',
           expanded ? '' : 'justify-center px-2',
         )}
         title={!expanded ? 'Sign In' : undefined}
       >
         <LogIn className="h-5 w-5 shrink-0" />
         {expanded && <span>Sign In</span>}
-      </Link>
+      </button>
     </div>
   )
 }

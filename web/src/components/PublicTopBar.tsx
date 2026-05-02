@@ -5,7 +5,7 @@ import { useAuth } from '../auth/useAuth'
 
 export function PublicTopBar() {
   const { openSearch } = useSearchModal()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, signIn } = useAuth()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 border-b border-(--color-border) bg-(--color-bg-sidebar)/95 backdrop-blur-sm">
@@ -47,13 +47,13 @@ export function PublicTopBar() {
             Dashboard
           </Link>
         ) : (
-          <Link
-            to="/login"
-            search={{ redirect: '/' }}
+          <button
+            type="button"
+            onClick={() => signIn('/')}
             className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-cyan-500 text-white hover:bg-cyan-600 transition-colors"
           >
             Sign In
-          </Link>
+          </button>
         )}
       </div>
     </header>

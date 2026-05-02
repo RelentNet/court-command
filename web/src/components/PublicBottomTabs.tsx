@@ -35,7 +35,7 @@ const TABS: TabItem[] = [
 export function PublicBottomTabs() {
   const [moreOpen, setMoreOpen] = useState(false)
   const matchRoute = useMatchRoute()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, signIn } = useAuth()
 
   const isActive = (path: string) => {
     if (path === '/') return matchRoute({ to: '/', fuzzy: false })
@@ -147,14 +147,17 @@ export function PublicBottomTabs() {
               />
 
               {!isAuthenticated && (
-                <MoreLink
-                  icon={LogIn}
-                  label="Sign In"
-                  to="/login"
-                  search={{ redirect: '/' }}
-                  onClick={() => setMoreOpen(false)}
-                  accent
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false)
+                    signIn('/')
+                  }}
+                  className="flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm font-medium transition-colors text-cyan-400 hover:bg-cyan-500/10"
+                >
+                  <LogIn className="h-5 w-5 shrink-0" />
+                  <span>Sign In</span>
+                </button>
               )}
 
               <div className="pt-2 border-t border-(--color-border) mt-2">

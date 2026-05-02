@@ -10,7 +10,7 @@ import { cn } from '../lib/cn'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useState, useEffect } from 'react'
 
-const NO_SHELL_ROUTES = ['/login', '/register', '/auth/callback']
+const NO_SHELL_ROUTES = ['/auth/callback']
 
 // Public routes: do not require auth. If a user is logged in, they get the
 // shell; otherwise the page renders without sidebar/header chrome.
