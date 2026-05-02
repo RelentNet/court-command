@@ -1,14 +1,29 @@
-const API_BASE = import.meta.env.VITE_API_URL || ''
+// web/src/lib/api.ts
+//
+// Phase 3 swap: cookie-based fetch -> Bearer-token fetch.
+// Token is org-scoped + API-resource-scoped. Slug + orgID + token
+// fetcher are pushed into module state by SportProvider / AuthProvider.
 
-export interface ApiError {
-  code: string
-  message: string
+const API_BASE = import.meta.env.VITE_API_URL || ''
+const API_RESOURCE = import.meta.env.VITE_LOGTO_API_RESOURCE
+
+let currentSportSlug = ''
+let currentOrgID = ''
+export function setCurrentSport(slug: string, orgID: string) {
+  currentSportSlug = slug
+  currentOrgID = orgID
 }
 
-export class ApiRequestError extends Error {
-  code: string
-  status: number
+// (resource, organizationID) => Promise<token | null>
+let getAccessTokenFn: ((resource: string, organizationID?: string) => Promise<string | null>) | null = null
+export function setGetAccessTokenFn(fn: typeof getAccessTokenFn) {
+  getAccessTokenFn = fn
+}
 
+export interface ApiError { code: string; message: string }
+
+export class ApiRequestError extends Error {
+  code: string; status: number
   constructor(status: number, code: string, message: string) {
     super(message)
     this.name = 'ApiRequestError'
@@ -17,80 +32,72 @@ export class ApiRequestError extends Error {
   }
 }
 
+async function buildHeaders(extra?: HeadersInit): Promise<Headers> {
+  const h = new Headers(extra)
+  if (getAccessTokenFn) {
+    // If we're inside a sport scope, request the org-bound token; if not
+    // (sport picker, public routes), request a plain API token. Logto
+    // returns null pre-authentication; in that case we send no auth header.
+    const orgID = currentOrgID || undefined
+    const token = await getAccessTokenFn(API_RESOURCE, orgID)
+    if (token) h.set('Authorization', `Bearer ${token}`)
+  }
+  if (currentSportSlug) h.set('X-Sport', currentSportSlug)
+  return h
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    await throwApiError(response)
-  }
-
-  if (response.status === 204) {
-    return undefined as unknown as T
-  }
-
+  if (!response.ok) await throwApiError(response)
+  if (response.status === 204) return undefined as unknown as T
   const body = await response.json()
   return body.data !== undefined ? body.data : body
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-  })
+  const headers = await buildHeaders()
+  const response = await fetch(`${API_BASE}${path}`, { headers })
   return handleResponse<T>(response)
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  const headers = await buildHeaders(body ? { 'Content-Type': 'application/json' } : undefined)
   const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    method: 'POST', headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   return handleResponse<T>(response)
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const headers = await buildHeaders({ 'Content-Type': 'application/json' })
   const response = await fetch(`${API_BASE}${path}`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method: 'PATCH', headers, body: JSON.stringify(body),
   })
   return handleResponse<T>(response)
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  const headers = await buildHeaders({ 'Content-Type': 'application/json' })
   const response = await fetch(`${API_BASE}${path}`, {
-    method: 'PUT',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    method: 'PUT', headers, body: JSON.stringify(body),
   })
   return handleResponse<T>(response)
 }
 
 export async function apiDelete<T = void>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'DELETE',
-    credentials: 'include',
-  })
+  const headers = await buildHeaders()
+  const response = await fetch(`${API_BASE}${path}`, { method: 'DELETE', headers })
   return handleResponse<T>(response)
 }
 
 export interface PaginatedData<T> {
-  items: T[]
-  total: number
-  limit: number
-  offset: number
+  items: T[]; total: number; limit: number; offset: number
 }
 
 export async function apiGetPaginated<T>(path: string): Promise<PaginatedData<T>> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    await throwApiError(response)
-  }
-
+  const headers = await buildHeaders()
+  const response = await fetch(`${API_BASE}${path}`, { headers })
+  if (!response.ok) await throwApiError(response)
   const body = await response.json()
   return {
     items: body.data || [],
@@ -109,8 +116,6 @@ async function throwApiError(response: Response): Promise<never> {
       code = body.error.code || code
       message = body.error.message || message
     }
-  } catch {
-    // not JSON
-  }
+  } catch { /* not JSON */ }
   throw new ApiRequestError(response.status, code, message)
 }
