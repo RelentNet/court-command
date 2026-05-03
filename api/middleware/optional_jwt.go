@@ -74,9 +74,23 @@ func OptionalJWT(
 			// the validator config used everywhere else in the app.
 			claims, err := validator.Validate(r.Context(), token, true)
 			if err != nil {
-				// Don't break public reads on a bad/expired token.
-				// Routine probes log at debug.
-				slog.DebugContext(r.Context(), "optional-jwt validate failed", "err", err)
+				// JWKS unavailable is an infrastructure failure -- the
+				// auth provider is down. We still pass through (the
+				// permissive contract), but log at ERROR so operators
+				// see the signal during an outage. Without this branch,
+				// every authenticated mixed-auth write silently 401s
+				// (handler-level guard fires) and the only logs are
+				// debug-level "validate failed" messages typically
+				// filtered out at LevelInfo.
+				if errors.Is(err, auth.ErrJWKSUnavailable) {
+					slog.ErrorContext(r.Context(),
+						"optional-jwt jwks unavailable; mixed-auth writes will 401 until Logto recovers",
+						"err", err)
+				} else {
+					// Routine probes (expired, bad sig, wrong aud)
+					// log at debug -- they're spammy and not actionable.
+					slog.DebugContext(r.Context(), "optional-jwt validate failed", "err", err)
+				}
 				next.ServeHTTP(w, r)
 				return
 			}
