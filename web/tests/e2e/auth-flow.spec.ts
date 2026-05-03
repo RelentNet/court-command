@@ -111,6 +111,17 @@ test('full auth flow: sport picker -> Logto sign-in -> dashboard -> profile save
   // navigates there.
   await expect(page).toHaveURL(/\/pickleball\/dashboard/, { timeout: 25_000 })
 
+  // Assert the dashboard actually rendered with content -- not just
+  // an empty Loading… stub. This proves the JWT-session bridge
+  // populated session.Data so /api/v1/dashboard (which reads
+  // session.SessionData inside the handler) returned 200 with data.
+  // Phase 3.5 C1 verification: this is the smoking-gun assertion
+  // that a JWT-authenticated user can hit a session-cookie-style
+  // endpoint via the bridge.
+  await expect(page.getByRole('heading', { name: 'My Court Command' }))
+    .toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/Welcome back,/)).toBeVisible()
+
   // ----- Profile -----
   await page.goto('/pickleball/profile')
   await expect(page.getByRole('heading', { name: /Edit profile/i })).toBeVisible({ timeout: 10_000 })
