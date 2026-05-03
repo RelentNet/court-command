@@ -52,7 +52,18 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
-// IsDevelopment returns true if running in development mode.
+// IsDevelopment returns true if running in development mode. Treats
+// empty Env (the default) as development so an unconfigured local
+// stack doesn't accidentally trip production-only safety checks.
 func (c *Config) IsDevelopment() bool {
-	return c.Env == "development"
+	return c.Env == "" || c.Env == "development" || c.Env == "dev" || c.Env == "local"
+}
+
+// IsProduction returns true when running in production mode. Anything
+// that isn't a recognized dev marker counts as production -- this is
+// the safe default so a misspelled APP_ENV (e.g. "prod" or "staging")
+// still triggers production-only safety checks like the Logto Mgmt
+// API fail-fast.
+func (c *Config) IsProduction() bool {
+	return !c.IsDevelopment()
 }

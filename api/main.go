@@ -179,6 +179,47 @@ func main() {
 	// deployments. JWKS lives at the same /oidc/jwks path on both.
 	logtoEndpoint := os.Getenv("LOGTO_ENDPOINT")
 	logtoAPIResource := os.Getenv("LOGTO_API_RESOURCE")
+	mgmtAppID := os.Getenv("LOGTO_MANAGEMENT_API_APP_ID")
+	mgmtAppSecret := os.Getenv("LOGTO_MANAGEMENT_API_APP_SECRET")
+	mgmtResource := os.Getenv("LOGTO_MANAGEMENT_API_RESOURCE")
+	webhookSigningKey := os.Getenv("LOGTO_WEBHOOK_SIGNING_KEY")
+
+	// Phase 3.6 review I5: fail-fast in production when ANY required
+	// Logto env var is missing. Pre-3.6 we only checked the four Mgmt
+	// API vars (I1); this expanded check also covers LOGTO_API_RESOURCE
+	// (without it, jwtValidator is nil and the SPA's JWT requests 401)
+	// and LOGTO_WEBHOOK_SIGNING_KEY (without it, webhook deliveries 500
+	// at runtime). cfg.IsProduction() treats anything that isn't a
+	// recognized dev marker as production, so APP_ENV=staging /
+	// APP_ENV=prod also trip the check.
+	if cfg.IsProduction() {
+		var missing []string
+		if logtoEndpoint == "" {
+			missing = append(missing, "LOGTO_ENDPOINT")
+		}
+		if logtoAPIResource == "" {
+			missing = append(missing, "LOGTO_API_RESOURCE")
+		}
+		if mgmtAppID == "" {
+			missing = append(missing, "LOGTO_MANAGEMENT_API_APP_ID")
+		}
+		if mgmtAppSecret == "" {
+			missing = append(missing, "LOGTO_MANAGEMENT_API_APP_SECRET")
+		}
+		if mgmtResource == "" {
+			missing = append(missing, "LOGTO_MANAGEMENT_API_RESOURCE")
+		}
+		if webhookSigningKey == "" {
+			missing = append(missing, "LOGTO_WEBHOOK_SIGNING_KEY")
+		}
+		if len(missing) > 0 {
+			slog.Error("required Logto env vars missing in production",
+				"missing", missing,
+				"env", cfg.Env)
+			os.Exit(1)
+		}
+	}
+
 	var jwtValidator *auth.Validator
 	var profileHandler *handler.ProfileHandler
 	if logtoEndpoint != "" && logtoAPIResource != "" {
@@ -204,13 +245,10 @@ func main() {
 	userSyncService := service.NewUserSyncService(queries)
 	webhookHandler := handler.NewLogtoWebhookHandler(
 		userSyncService,
-		os.Getenv("LOGTO_WEBHOOK_SIGNING_KEY"),
+		webhookSigningKey,
 	)
 
 	var logtoClient *logto.Client
-	mgmtAppID := os.Getenv("LOGTO_MANAGEMENT_API_APP_ID")
-	mgmtAppSecret := os.Getenv("LOGTO_MANAGEMENT_API_APP_SECRET")
-	mgmtResource := os.Getenv("LOGTO_MANAGEMENT_API_RESOURCE")
 	if logtoEndpoint != "" && mgmtAppID != "" && mgmtAppSecret != "" && mgmtResource != "" {
 		logtoClient = logto.NewClient(logto.Config{
 			Endpoint:               logtoEndpoint,
@@ -219,19 +257,6 @@ func main() {
 			ManagementAPIResource:  mgmtResource,
 		})
 	} else {
-		// Phase 3.5 fix (review I1): in production, missing Logto
-		// Mgmt API config is a deployment foot-gun -- the auth chain
-		// silently degrades to cookie-only and the SPA's first
-		// post-signup request 404s. Fail fast in production so the
-		// operator sees the misconfiguration immediately.
-		if cfg.Env == "production" {
-			slog.Error("Logto Management API env vars are required in production",
-				"missing_endpoint", logtoEndpoint == "",
-				"missing_app_id", mgmtAppID == "",
-				"missing_app_secret", mgmtAppSecret == "",
-				"missing_resource", mgmtResource == "")
-			os.Exit(1)
-		}
 		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
 	}
 

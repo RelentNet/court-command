@@ -164,6 +164,16 @@ func New(cfg *Config) chi.Router {
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
 	r.Use(middleware.MaxBodySize(1 << 20))           // 1 MB default limit
 	r.Use(middleware.OptionalAuth(cfg.SessionStore)) // Populate session data when cookie present
+	// Phase 3.6 C1: OptionalJWT mirrors OptionalAuth for the JWT path.
+	// Mixed-auth route groups (those mounted without an explicit
+	// useAuth wrapper -- e.g. /leagues, /tournaments where reads are
+	// public and writes do handler-level `if sess == nil { 401 }`)
+	// rely on a global middleware to populate session.Data. Without
+	// this, the SPA's JWT can never reach those handlers.
+	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+		r.Use(middleware.OptionalJWT(
+			cfg.JWTValidator, cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
+	}
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {

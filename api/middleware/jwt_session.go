@@ -102,6 +102,14 @@ func JWTSession(client LogtoUserFetcher, queries JWTSessionQueries, userSync Use
 			}
 
 			data := userToSessionData(&user)
+			// Phase 3.6 review C2 fix: derive role from JWT claims so
+			// admin privileges flow through even when the local users.role
+			// column is the 'player' default from CreateUserFromLogto.
+			// Logto is the source of truth for org roles; the local DB
+			// catches up later (Phase 6 or via webhook).
+			if elevated := elevatedRoleFromClaims(claims); elevated != "" && elevated != data.Role {
+				data.Role = elevated
+			}
 			ctx := session.SetSessionData(r.Context(), data)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -124,4 +132,23 @@ func userToSessionData(u *generated.User) *session.Data {
 		d.CreatedAt = u.CreatedAt.Unix()
 	}
 	return d
+}
+
+// elevatedRoleFromClaims maps Logto org-roles to the local users.role
+// strings that RequirePlatformAdmin and other handler-level checks
+// expect. Returns empty string if no elevation is warranted (caller
+// keeps the local DB role).
+//
+// Mapping today is one-way and minimal: any user who holds the
+// platform_admin role in ANY org is treated as platform_admin globally.
+// Other org roles (tournament_director, referee, scorekeeper) don't
+// elevate the global users.role -- they're handled per-tournament by
+// tournament_staff. This matches Phase 1's spec.
+func elevatedRoleFromClaims(c auth.Claims) string {
+	for _, role := range c.OrganizationRoles {
+		if role == "platform_admin" {
+			return "platform_admin"
+		}
+	}
+	return ""
 }
