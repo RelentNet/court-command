@@ -57,17 +57,22 @@ test.beforeAll(async ({ request }) => {
   }
 })
 
-test('full auth flow: sport picker -> Logto sign-in -> dashboard -> profile save', async ({ page }) => {
-  // ----- Sport picker -----
+test('full auth flow: public landing -> sign in -> dashboard -> profile save', async ({ page }) => {
+  // ----- Public landing -----
+  // Anonymous visitors land on PublicLanding with the public hero
+  // (sign-in CTA) + tournament/league/venue directories. No
+  // auto-redirect to Logto for unauthenticated users -- public live
+  // scores and tournaments must be visible without forcing auth.
   await page.goto('/')
-  await expect(page.getByText('Choose your sport')).toBeVisible()
 
-  const pickleballBtn = page.getByRole('button', { name: /Pickleball/i })
-  await expect(pickleballBtn).toBeVisible()
-
-  // useAuth.signIn() stashes /pickleball/dashboard in sessionStorage
-  // and calls Logto's signIn() which 302s the browser to :3001.
-  await pickleballBtn.click()
+  // PublicHero shows "Sign In to Get Started" when not authenticated.
+  // Click it to start the OIDC flow. signIn(returnTo='/') will stash
+  // '/' in sessionStorage; after callback we'll be back at root which
+  // (for an authenticated single-sport user) auto-redirects to
+  // /pickleball/dashboard.
+  const signInBtn = page.getByRole('button', { name: /Sign In to Get Started/i })
+  await expect(signInBtn).toBeVisible({ timeout: 10_000 })
+  await signInBtn.click()
 
   // ----- Logto hosted sign-in (origin localhost:3001) -----
   await expect(page).toHaveURL(/localhost:3001/, { timeout: 15_000 })
@@ -139,8 +144,25 @@ test('full auth flow: sport picker -> Logto sign-in -> dashboard -> profile save
   await expect(page.getByRole('alert').filter({ hasText: /Profile saved/i }))
     .toBeVisible({ timeout: 8_000 })
 
-  // ----- Reload, value persists -----
-  await page.reload()
+  // ----- Admin (Phase 3.6 C2 verify) -----
+  // The bootstrap admin is platform_admin in Logto org-roles. The
+  // bridge's elevatedRoleFromClaims promotes session.Data.Role from
+  // 'player' (the local users.role default) to 'platform_admin' per
+  // request based on claims.OrganizationRoles. AdminGuard separately
+  // checks user.role from /api/v1/auth/me, which reads the local
+  // users.role column.
+  //
+  // For this E2E both must align: the local row must say
+  // platform_admin AND the JWT must carry the org-role. We assert
+  // by visiting /pickleball/admin and looking for the dashboard
+  // heading; if AdminGuard's role check fails, we'd be redirected
+  // back to /pickleball/dashboard.
+  await page.goto('/pickleball/admin')
+  await expect(page.getByRole('heading', { name: /Admin Dashboard/i }))
+    .toBeVisible({ timeout: 10_000 })
+
+  // ----- Profile reload, value persists -----
+  await page.goto('/pickleball/profile')
   await expect(page.getByLabel(/^Phone$/, { exact: true }).first())
     .toHaveValue(TEST_PHONE, { timeout: 10_000 })
 })

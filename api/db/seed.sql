@@ -1,13 +1,29 @@
 -- Court Command v2 — Development Seed Data
--- Run with: make seed
--- Requires: migrations already applied, empty or safe-to-overwrite database
--- Password for all test users: TestPass123! (bcrypt hash below)
--- Daniel Velez password: PASSword123!
+-- Run with: make seed (uses docker-compose.dev.yml)
+-- Requires: migrations applied + Logto seeded (`make logto-seed`).
+--           The bootstrap admin (admin@courtcommand.local) must exist
+--           in the local users table, mirrored from Logto on first sign-in.
+--
+-- Phase 3.6+ Logto-aware behavior:
+-- - The bootstrap admin (mirrored from Logto, logto_user_id IS NOT NULL)
+--   is preserved across re-seeds. Domain data uses their users.id as
+--   created_by_user_id.
+-- - Other seeded "users" are SHADOW PLAYERS with status='unclaimed' and
+--   logto_user_id=NULL. They have names/emails/etc. so TDs can register
+--   them in tournaments. When a real Logto user later signs up with
+--   the same email, Phase 4+ claim logic will merge the rows.
+-- - The non-admin staff (td1@, ref1@, etc.) stay status='active' so
+--   role-gated UI workflows have staff to attach to tournaments. None
+--   of these accounts can sign in via Logto -- they're domain fixtures.
+--
+-- All seeded sport_id columns point at Pickleball (the only sport at
+-- launch). Demo Sport, if present, gets no seeded fixtures.
 
--- Bcrypt hash for "TestPass123!"
--- Generated via: htpasswd -bnBC 10 "" TestPass123! | tr -d ':\n' | sed 's/$2y/$2a/'
-
--- Wipe all existing data for a clean seed (CASCADE handles FK ordering)
+-- Wipe all existing DOMAIN data for a clean seed (CASCADE handles FK
+-- ordering). DO NOT TRUNCATE users -- the bootstrap admin (mirrored
+-- from Logto) must persist. Domain data we DO wipe will cascade-delete
+-- shadow users via the foreign keys (e.g. team_rosters, registrations).
+-- After the cascade, only the bootstrap admin remains in users.
 TRUNCATE TABLE
   activity_logs,
   ad_configs,
@@ -38,13 +54,20 @@ TRUNCATE TABLE
   org_memberships,
   team_rosters,
   teams,
-  organizations,
-  users
+  organizations
 CASCADE;
 
--- Reset sequences so IDs start fresh
-ALTER SEQUENCE users_id_seq RESTART WITH 1;
-ALTER SEQUENCE user_public_id_seq RESTART WITH 10000;
+-- Wipe all NON-bootstrap users individually so the bootstrap admin row
+-- (and its player_profiles cascade child) survives. Match by Logto
+-- linkage rather than email, since the bootstrap admin email is
+-- configurable but logto_user_id IS NOT NULL is the source of truth.
+DELETE FROM users WHERE logto_user_id IS NULL;
+
+-- Reset sequences for tables we just truncated. users_id_seq and
+-- user_public_id_seq are NOT reset (the bootstrap admin holds id=1
+-- and public_id='CC-10000' from being mirrored on first signin; the
+-- shadow users that follow continue from whatever the sequences
+-- have advanced to).
 ALTER SEQUENCE teams_id_seq RESTART WITH 1;
 ALTER SEQUENCE organizations_id_seq RESTART WITH 1;
 ALTER SEQUENCE venues_id_seq RESTART WITH 1;
@@ -79,6 +102,9 @@ ALTER SEQUENCE venue_managers_id_seq RESTART WITH 1;
 
 DO $$
 DECLARE
+  -- Pickleball sport id (Phase 2+ -- all seeded fixtures attach here)
+  pickleball_id BIGINT;
+
   -- Admin / staff accounts
   admin_id BIGINT;
   td1_id BIGINT;
@@ -143,17 +169,37 @@ DECLARE
   -- League registrations (2)
   lr1_id BIGINT; lr2_id BIGINT;
 
-  pw_hash TEXT := '$2a$10$/gWAyV6CPKiin37643WZ9etvC/Vg2S6/F3xftSbZwJ2DzSdUonMiS';
-  daniel_pw TEXT := '$2a$10$PWhdJ2i9ZwvfYY8qlrjBBeADmp2y0Q2N8xE0dDT0gbuAc32.3TnWK';
+  -- Sentinel password_hash for shadow users -- they cannot sign in via
+  -- Logto (logto_user_id IS NULL). Empty string matches the sentinel
+  -- the Phase 3.5 webhook handler uses for newly-mirrored users; the
+  -- column stays NOT NULL until Phase 6 cutover drops it.
+  pw_hash TEXT := '';
 BEGIN
 
 -- ============================================================
--- 1. USERS (24 total: 1 admin, 2 TDs, 2 refs, 1 scorekeeper, 1 broadcast op, 1 daniel, 16 players)
+-- 0. RESOLVE BOOTSTRAP ADMIN + PICKLEBALL SPORT ID
 -- ============================================================
+-- The bootstrap admin is mirrored from Logto (logto_user_id IS NOT NULL).
+-- We look them up by Logto-linkage rather than email so the seed
+-- survives a configurable LOGTO_BOOTSTRAP_EMAIL.
+SELECT id INTO admin_id FROM users WHERE logto_user_id IS NOT NULL ORDER BY id LIMIT 1;
+IF admin_id IS NULL THEN
+  RAISE EXCEPTION 'No Logto-linked admin user found. Run `make logto-seed` and sign in once before seeding domain data.';
+END IF;
 
-INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'admin@courtcommand.com', pw_hash, 'Admin', 'User', '1990-01-15', 'platform_admin', 'active')
-RETURNING id INTO admin_id;
+SELECT id INTO pickleball_id FROM sports WHERE slug = 'pickleball';
+IF pickleball_id IS NULL THEN
+  RAISE EXCEPTION 'Sport `pickleball` not found in sports table. Migrations must run first.';
+END IF;
+
+-- ============================================================
+-- 1. USERS (23 shadow users: 2 TDs, 2 refs, 1 scorekeeper, 1 broadcast op, 1 daniel, 16 players)
+-- ============================================================
+-- These are SHADOW PLAYERS / staff with logto_user_id=NULL. They cannot
+-- sign in via Logto on their own. status='unclaimed' for players (the
+-- explicit "TD-created" status); status='active' for staff so
+-- role-gated workflows still work in dev.
+-- The bootstrap admin (admin_id, resolved above) is reused as needed.
 
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status)
 VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'td1@courtcommand.com', pw_hash, 'Tournament', 'Director', '1985-06-20', 'tournament_director', 'active')
@@ -179,44 +225,48 @@ INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_
 VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'broadcast@courtcommand.com', pw_hash, 'Broadcast', 'Operator', '1993-07-04', 'broadcast_operator', 'active')
 RETURNING id INTO broadcast_id;
 
--- Daniel Velez — permanent admin
+-- Daniel Velez — shadow admin (cannot sign in via Logto on this row;
+-- the real Daniel signs in with admin@courtcommand.local during dev,
+-- which mirrors to admin_id above. This row exists so domain data
+-- can attribute ownership/creation to "Daniel" without conflating
+-- with the dev bootstrap admin).
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'daniel.f.velez@gmail.com', daniel_pw, 'Daniel', 'Velez', '1990-01-01', 'platform_admin', 'active')
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'daniel.f.velez@gmail.com', pw_hash, 'Daniel', 'Velez', '1990-01-01', 'platform_admin', 'unclaimed')
 RETURNING id INTO daniel_id;
 
 -- 16 Players (variety of cities, genders, handedness)
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'alex.j@demo.com', pw_hash, 'Alex', 'Johnson', '1995-04-12', 'player', 'active', 'male', 'right', 'Dallas', 'TX', 'US') RETURNING id INTO p1_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'alex.j@demo.com', pw_hash, 'Alex', 'Johnson', '1995-04-12', 'player', 'unclaimed', 'male', 'right', 'Dallas', 'TX', 'US') RETURNING id INTO p1_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'maria.g@demo.com', pw_hash, 'Maria', 'Garcia', '1993-08-25', 'player', 'active', 'female', 'right', 'Dallas', 'TX', 'US') RETURNING id INTO p2_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'maria.g@demo.com', pw_hash, 'Maria', 'Garcia', '1993-08-25', 'player', 'unclaimed', 'female', 'right', 'Dallas', 'TX', 'US') RETURNING id INTO p2_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'james.w@demo.com', pw_hash, 'James', 'Wilson', '1990-11-03', 'player', 'active', 'male', 'left', 'Fort Worth', 'TX', 'US') RETURNING id INTO p3_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'james.w@demo.com', pw_hash, 'James', 'Wilson', '1990-11-03', 'player', 'unclaimed', 'male', 'left', 'Fort Worth', 'TX', 'US') RETURNING id INTO p3_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'sarah.c@demo.com', pw_hash, 'Sarah', 'Chen', '1997-02-18', 'player', 'active', 'female', 'right', 'Fort Worth', 'TX', 'US') RETURNING id INTO p4_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'sarah.c@demo.com', pw_hash, 'Sarah', 'Chen', '1997-02-18', 'player', 'unclaimed', 'female', 'right', 'Fort Worth', 'TX', 'US') RETURNING id INTO p4_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'mike.b@demo.com', pw_hash, 'Mike', 'Brown', '1992-07-30', 'player', 'active', 'male', 'right', 'Austin', 'TX', 'US') RETURNING id INTO p5_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'mike.b@demo.com', pw_hash, 'Mike', 'Brown', '1992-07-30', 'player', 'unclaimed', 'male', 'right', 'Austin', 'TX', 'US') RETURNING id INTO p5_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'lisa.p@demo.com', pw_hash, 'Lisa', 'Park', '1996-12-05', 'player', 'active', 'female', 'left', 'Austin', 'TX', 'US') RETURNING id INTO p6_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'lisa.p@demo.com', pw_hash, 'Lisa', 'Park', '1996-12-05', 'player', 'unclaimed', 'female', 'left', 'Austin', 'TX', 'US') RETURNING id INTO p6_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'david.k@demo.com', pw_hash, 'David', 'Kim', '1994-09-14', 'player', 'active', 'male', 'right', 'Houston', 'TX', 'US') RETURNING id INTO p7_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'david.k@demo.com', pw_hash, 'David', 'Kim', '1994-09-14', 'player', 'unclaimed', 'male', 'right', 'Houston', 'TX', 'US') RETURNING id INTO p7_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'emma.d@demo.com', pw_hash, 'Emma', 'Davis', '1998-05-22', 'player', 'active', 'female', 'right', 'Houston', 'TX', 'US') RETURNING id INTO p8_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'emma.d@demo.com', pw_hash, 'Emma', 'Davis', '1998-05-22', 'player', 'unclaimed', 'female', 'right', 'Houston', 'TX', 'US') RETURNING id INTO p8_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'carlos.r@demo.com', pw_hash, 'Carlos', 'Rodriguez', '1991-03-08', 'player', 'active', 'male', 'right', 'San Antonio', 'TX', 'US') RETURNING id INTO p9_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'carlos.r@demo.com', pw_hash, 'Carlos', 'Rodriguez', '1991-03-08', 'player', 'unclaimed', 'male', 'right', 'San Antonio', 'TX', 'US') RETURNING id INTO p9_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'jenny.l@demo.com', pw_hash, 'Jenny', 'Lee', '1996-07-19', 'player', 'active', 'female', 'right', 'San Antonio', 'TX', 'US') RETURNING id INTO p10_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'jenny.l@demo.com', pw_hash, 'Jenny', 'Lee', '1996-07-19', 'player', 'unclaimed', 'female', 'right', 'San Antonio', 'TX', 'US') RETURNING id INTO p10_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'kevin.m@demo.com', pw_hash, 'Kevin', 'Martinez', '1989-12-01', 'player', 'active', 'male', 'left', 'El Paso', 'TX', 'US') RETURNING id INTO p11_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'kevin.m@demo.com', pw_hash, 'Kevin', 'Martinez', '1989-12-01', 'player', 'unclaimed', 'male', 'left', 'El Paso', 'TX', 'US') RETURNING id INTO p11_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'amy.t@demo.com', pw_hash, 'Amy', 'Taylor', '1994-05-15', 'player', 'active', 'female', 'right', 'El Paso', 'TX', 'US') RETURNING id INTO p12_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'amy.t@demo.com', pw_hash, 'Amy', 'Taylor', '1994-05-15', 'player', 'unclaimed', 'female', 'right', 'El Paso', 'TX', 'US') RETURNING id INTO p12_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'brandon.h@demo.com', pw_hash, 'Brandon', 'Harris', '1993-10-22', 'player', 'active', 'male', 'right', 'Plano', 'TX', 'US') RETURNING id INTO p13_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'brandon.h@demo.com', pw_hash, 'Brandon', 'Harris', '1993-10-22', 'player', 'unclaimed', 'male', 'right', 'Plano', 'TX', 'US') RETURNING id INTO p13_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'rachel.w@demo.com', pw_hash, 'Rachel', 'White', '1997-08-30', 'player', 'active', 'female', 'right', 'Plano', 'TX', 'US') RETURNING id INTO p14_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'rachel.w@demo.com', pw_hash, 'Rachel', 'White', '1997-08-30', 'player', 'unclaimed', 'female', 'right', 'Plano', 'TX', 'US') RETURNING id INTO p14_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'tyler.n@demo.com', pw_hash, 'Tyler', 'Nguyen', '1990-06-14', 'player', 'active', 'male', 'right', 'Arlington', 'TX', 'US') RETURNING id INTO p15_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'tyler.n@demo.com', pw_hash, 'Tyler', 'Nguyen', '1990-06-14', 'player', 'unclaimed', 'male', 'right', 'Arlington', 'TX', 'US') RETURNING id INTO p15_id;
 INSERT INTO users (public_id, email, password_hash, first_name, last_name, date_of_birth, role, status, gender, handedness, city, state_province, country)
-VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'olivia.s@demo.com', pw_hash, 'Olivia', 'Scott', '1998-01-25', 'player', 'active', 'female', 'left', 'Arlington', 'TX', 'US') RETURNING id INTO p16_id;
+VALUES ('CC-' || lpad(nextval('user_public_id_seq')::TEXT, 5, '0'), 'olivia.s@demo.com', pw_hash, 'Olivia', 'Scott', '1998-01-25', 'player', 'unclaimed', 'female', 'left', 'Arlington', 'TX', 'US') RETURNING id INTO p16_id;
 
 -- ============================================================
 -- 2. ORGANIZATIONS (3)
@@ -681,16 +731,17 @@ INSERT INTO announcements (league_id, title, body, is_pinned, created_by_user_id
 
 RAISE NOTICE 'Seed data inserted successfully!';
 RAISE NOTICE '';
-RAISE NOTICE 'Test accounts (password: TestPass123!):';
-RAISE NOTICE '  admin@courtcommand.com (platform_admin)';
-RAISE NOTICE '  td1@courtcommand.com (tournament_director)';
-RAISE NOTICE '  td2@courtcommand.com (tournament_director)';
-RAISE NOTICE '  ref1@courtcommand.com (head_referee)';
-RAISE NOTICE '  ref2@courtcommand.com (referee)';
-RAISE NOTICE '  scorekeeper@courtcommand.com (scorekeeper)';
-RAISE NOTICE '  broadcast@courtcommand.com (broadcast_operator)';
-RAISE NOTICE '  daniel.f.velez@gmail.com (platform_admin) — password: PASSword123!';
-RAISE NOTICE '  alex.j@demo.com through olivia.s@demo.com (16 players)';
+RAISE NOTICE 'Sign-in: bootstrap admin (Logto-mirrored, id=%) is the only user who can sign in', admin_id;
+RAISE NOTICE '';
+RAISE NOTICE 'Shadow users (logto_user_id IS NULL, cannot sign in directly):';
+RAISE NOTICE '  td1@courtcommand.com / td2@courtcommand.com (tournament_director, status=active)';
+RAISE NOTICE '  ref1@courtcommand.com / ref2@courtcommand.com (head_referee / referee, status=active)';
+RAISE NOTICE '  scorekeeper@courtcommand.com (status=active)';
+RAISE NOTICE '  broadcast@courtcommand.com (broadcast_operator, status=active)';
+RAISE NOTICE '  daniel.f.velez@gmail.com (platform_admin, status=unclaimed)';
+RAISE NOTICE '  alex.j@demo.com through olivia.s@demo.com (16 players, status=unclaimed)';
+RAISE NOTICE 'When a real Logto user signs up with a matching email, Phase 4+ claim';
+RAISE NOTICE 'logic will merge the rows -- not implemented yet.';
 RAISE NOTICE '';
 -- ==========================================
 -- 17. AD CONFIGS (RelentNet default ads)
@@ -703,8 +754,28 @@ VALUES
 
 RAISE NOTICE '  3 ad configs (RelentNet)';
 
+-- ==========================================
+-- 18. SPORT_ID BACKFILL (Phase 2+)
+-- ==========================================
+-- Phase 2 added sport_id to organizations/leagues/tournaments/venues/
+-- divisions, all nullable. The migration backfilled existing rows but
+-- the seed inserts above don't supply sport_id, so they default to NULL.
+-- Backend list queries filter by X-Sport, so NULL means invisible. Here
+-- we attach every seeded row to Pickleball so it shows up under
+-- /pickleball/* in the SPA. (Phase 6 cutover will flip these columns
+-- to NOT NULL and the seed inserts will be amended to set sport_id
+-- inline.)
+UPDATE organizations SET sport_id = pickleball_id WHERE sport_id IS NULL;
+UPDATE leagues       SET sport_id = pickleball_id WHERE sport_id IS NULL;
+UPDATE tournaments   SET sport_id = pickleball_id WHERE sport_id IS NULL;
+UPDATE venues        SET sport_id = pickleball_id WHERE sport_id IS NULL;
+UPDATE divisions     SET sport_id = pickleball_id WHERE sport_id IS NULL;
+
+RAISE NOTICE '  Backfilled sport_id=pickleball on all seeded fixtures';
+
 RAISE NOTICE 'Entities created:';
-RAISE NOTICE '  24 users, 3 orgs, 8 teams, 2 venues, 8 courts';
+RAISE NOTICE '  1 bootstrap admin (preserved) + 23 shadow users (16 unclaimed players + 7 staff)';
+RAISE NOTICE '  3 orgs, 8 teams, 2 venues, 8 courts';
 RAISE NOTICE '  2 leagues, 3 seasons, 2 division templates';
 RAISE NOTICE '  3 tournaments, 6 divisions, 2 pods';
 RAISE NOTICE '  12 registrations, 6 bracket matches + 2 quick matches';

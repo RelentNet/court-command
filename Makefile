@@ -100,11 +100,24 @@ test-db: up
 test: test-db
 	cd api && go test ./... -v -count=1
 
-# Seed development data (all entity types — run after migrations)
-seed: up
-	@echo "Seeding development data..."
-	docker compose exec -T db psql -U courtcommand -d courtcommand < api/db/seed.sql
-	@echo "Done! Login with admin@courtcommand.com / TestPass123!"
+# Seed development domain data (orgs, tournaments, leagues, venues,
+# matches, etc.) against the dev stack (docker-compose.dev.yml).
+# Preserves the Logto-bootstrap admin row (logto_user_id IS NOT NULL);
+# only wipes domain tables and shadow users.
+#
+# Prereqs:
+#   1. make dev-up         # postgres + redis + logto running
+#   2. make migrate-up     # schema is current
+#   3. make logto-seed     # Logto provisioned; bootstrap admin row exists
+#   4. (sign in once via the SPA so the admin is mirrored to local users)
+#
+# After seeding, the bootstrap admin remains the only signin-capable
+# user; all other users are shadow players (status='unclaimed') / staff
+# fixtures with logto_user_id=NULL.
+seed:
+	@echo "Seeding development domain data..."
+	docker compose -f docker-compose.dev.yml exec -T db psql -U courtcommand -d courtcommand < api/db/seed.sql
+	@echo "Done. Sign in via the SPA with the Logto bootstrap admin to see the seeded fixtures."
 
 # ---- Backup & Restore ----
 

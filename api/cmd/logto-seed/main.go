@@ -144,6 +144,14 @@ type config struct {
 	// If empty, that step is skipped with a warning -- the operator
 	// must then patch sports.logto_org_id by hand.
 	DatabaseURL string
+	// SeedDemoSport controls whether the Demo Sport organization is
+	// created. Defaults to true in dev (APP_ENV != "production") and
+	// false in production. Override with SEED_DEMO_SPORT=true|false.
+	// Demo Sport exists for E2E tests and to exercise the multi-sport
+	// plumbing; at production launch only Pickleball is offered, so
+	// the picker auto-redirects (VITE_AUTO_REDIRECT_SINGLE_SPORT) and
+	// users never see a sport selection screen.
+	SeedDemoSport bool
 }
 
 func loadConfig() (*config, error) {
@@ -159,6 +167,7 @@ func loadConfig() (*config, error) {
 		BootstrapPassword:    envOrDefault("LOGTO_BOOTSTRAP_PASSWORD", "TestPass123!"),
 		BootstrapName:        envOrDefault("LOGTO_BOOTSTRAP_NAME", "Local Admin"),
 		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		SeedDemoSport:        seedDemoSportFromEnv(),
 	}
 	var missing []string
 	if cfg.Endpoint == "" {
@@ -184,6 +193,19 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
+// seedDemoSportFromEnv reports whether the Demo Sport organization
+// should be created. Explicit SEED_DEMO_SPORT=true|false wins; otherwise
+// the default depends on APP_ENV: production seeds only Pickleball;
+// any other env (including "" / "development") seeds both. This keeps
+// E2E tests and local dev exercising the multi-sport plumbing while
+// keeping the launch tenant clean.
+func seedDemoSportFromEnv() bool {
+	if v := os.Getenv("SEED_DEMO_SPORT"); v != "" {
+		return strings.EqualFold(v, "true") || v == "1"
+	}
+	return os.Getenv("APP_ENV") != "production"
+}
+
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -202,6 +224,11 @@ func main() {
 
 	log.Printf("Logto seed starting against %s", cfg.Endpoint)
 	log.Printf("  M2M app ID: %s", cfg.MgmtAppID)
+	if cfg.SeedDemoSport {
+		log.Printf("  Demo Sport: enabled (SEED_DEMO_SPORT, APP_ENV=%q)", os.Getenv("APP_ENV"))
+	} else {
+		log.Printf("  Demo Sport: SKIPPED (production launch mode)")
+	}
 
 	// Sanity-check that the Management API token mints. Catches bad credentials
 	// up front rather than partway through.
@@ -227,7 +254,7 @@ func main() {
 	if err := seedOrgRoles(ctx, client, result); err != nil {
 		log.Fatalf("org roles: %v", err)
 	}
-	if err := seedOrganizations(ctx, client, result); err != nil {
+	if err := seedOrganizations(ctx, client, cfg, result); err != nil {
 		log.Fatalf("organizations: %v", err)
 	}
 	if err := seedBootstrapAdmin(ctx, client, cfg, result); err != nil {
@@ -447,14 +474,31 @@ func seedOrgRoles(ctx context.Context, c *logto.Client, r *seedResult) error {
 	return nil
 }
 
-func seedOrganizations(ctx context.Context, c *logto.Client, r *seedResult) error {
-	for _, spec := range []struct {
+func seedOrganizations(ctx context.Context, c *logto.Client, cfg *config, r *seedResult) error {
+	specs := []struct {
 		name, desc string
 		idField    *string
 	}{
 		{pickleballOrgName, pickleballOrgDesc, &r.PickleballOrgID},
-		{demoSportOrgName, demoSportOrgDesc, &r.DemoSportOrgID},
-	} {
+	}
+	if cfg.SeedDemoSport {
+		specs = append(specs, struct {
+			name, desc string
+			idField    *string
+		}{demoSportOrgName, demoSportOrgDesc, &r.DemoSportOrgID})
+	} else {
+		// Idempotency for previously-seeded tenants: if Demo Sport
+		// already exists from an earlier dev seed, capture its ID
+		// (so syncSportsOrgIDs can still update the local row) but
+		// don't create it. We never delete; flipping the flag back
+		// on resumes the original behavior.
+		existing, err := c.FindOrgByName(ctx, demoSportOrgName)
+		if err == nil && existing != nil {
+			log.Printf("✓ Demo Sport org exists from prior seed (id=%s); leaving in place", existing.ID)
+			r.DemoSportOrgID = existing.ID
+		}
+	}
+	for _, spec := range specs {
 		existing, err := c.FindOrgByName(ctx, spec.name)
 		if err != nil {
 			return fmt.Errorf("find org %q: %w", spec.name, err)
@@ -500,7 +544,17 @@ func seedBootstrapAdmin(ctx context.Context, c *logto.Client, cfg *config, r *se
 		return fmt.Errorf("internal error: %q role ID not resolved", platformAdminRoleName)
 	}
 
-	for _, orgID := range []string{r.PickleballOrgID, r.DemoSportOrgID} {
+	// Build the list of orgs to grant platform_admin in. Skip Demo
+	// Sport when it wasn't seeded (production launch mode); the
+	// admin can be re-granted later if Demo Sport is added.
+	var orgIDs []string
+	if r.PickleballOrgID != "" {
+		orgIDs = append(orgIDs, r.PickleballOrgID)
+	}
+	if r.DemoSportOrgID != "" {
+		orgIDs = append(orgIDs, r.DemoSportOrgID)
+	}
+	for _, orgID := range orgIDs {
 		if err := c.AddUserToOrganization(ctx, orgID, r.BootstrapUserID); err != nil {
 			var apiErr *logto.APIError
 			// 422 = already a member; 200/201 = newly added. Treat both as success.
@@ -515,7 +569,7 @@ func seedBootstrapAdmin(ctx context.Context, c *logto.Client, cfg *config, r *se
 			}
 		}
 	}
-	log.Printf("✓ Bootstrap admin is platform_admin in both sport orgs")
+	log.Printf("✓ Bootstrap admin is platform_admin in %d sport org(s)", len(orgIDs))
 	return nil
 }
 
@@ -730,12 +784,18 @@ func seedSignInExperience(ctx context.Context, c *logto.Client) error {
 func syncSportsOrgIDs(ctx context.Context, cfg *config, r *seedResult) error {
 	if cfg.DatabaseURL == "" {
 		log.Printf("⚠ DATABASE_URL not set -- skipping sports.logto_org_id sync. Patch by hand:")
-		log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='pickleball';", r.PickleballOrgID)
-		log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='demo_sport';", r.DemoSportOrgID)
+		if r.PickleballOrgID != "" {
+			log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='pickleball';", r.PickleballOrgID)
+		}
+		if r.DemoSportOrgID != "" {
+			log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='demo_sport';", r.DemoSportOrgID)
+		} else if !cfg.SeedDemoSport {
+			log.Printf("    UPDATE sports SET is_active=false WHERE slug='demo_sport'; -- production launch mode")
+		}
 		return nil
 	}
-	if r.PickleballOrgID == "" || r.DemoSportOrgID == "" {
-		return fmt.Errorf("sport org IDs not set -- seedOrganizations must run first")
+	if r.PickleballOrgID == "" {
+		return fmt.Errorf("PickleballOrgID not set -- seedOrganizations must run first")
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -751,13 +811,31 @@ func syncSportsOrgIDs(ctx context.Context, cfg *config, r *seedResult) error {
 	}
 	pickleballRows := tag.RowsAffected()
 
-	tag, err = pool.Exec(ctx,
-		"UPDATE sports SET logto_org_id=$1 WHERE slug='demo_sport'",
-		r.DemoSportOrgID)
-	if err != nil {
-		return fmt.Errorf("update demo_sport: %w", err)
+	var demoRows int64
+	if r.DemoSportOrgID != "" {
+		// Demo Sport was seeded (or pre-existed): keep its logto_org_id
+		// in sync. Make sure it's also is_active=true in case a previous
+		// production-launch seed had deactivated it.
+		tag, err := pool.Exec(ctx,
+			"UPDATE sports SET logto_org_id=$1, is_active=true WHERE slug='demo_sport'",
+			r.DemoSportOrgID)
+		if err != nil {
+			return fmt.Errorf("update demo_sport: %w", err)
+		}
+		demoRows = tag.RowsAffected()
+	} else if !cfg.SeedDemoSport {
+		// Production launch mode: hide Demo Sport from the picker by
+		// flipping is_active=false. The local row stays in place (so
+		// any historical foreign-key references still resolve), but
+		// /api/v1/sports filters where is_active=true and the SPA only
+		// sees Pickleball -- triggering the auto-redirect.
+		tag, err := pool.Exec(ctx,
+			"UPDATE sports SET is_active=false WHERE slug='demo_sport'")
+		if err != nil {
+			return fmt.Errorf("deactivate demo_sport: %w", err)
+		}
+		log.Printf("✓ Demo Sport hidden from picker (is_active=false; %d row(s))", tag.RowsAffected())
 	}
-	demoRows := tag.RowsAffected()
 
 	log.Printf("✓ Synced sports.logto_org_id (pickleball: %d row(s), demo_sport: %d row(s))",
 		pickleballRows, demoRows)
