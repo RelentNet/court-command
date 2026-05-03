@@ -37,7 +37,11 @@ import { test, expect } from '@playwright/test'
 
 const ADMIN_EMAIL = process.env.E2E_LOGTO_EMAIL || 'admin@courtcommand.local'
 const ADMIN_PASS  = process.env.E2E_LOGTO_PASS  || 'TestPass123!'
-const TEST_PHONE  = '555-0100'
+// Use the current millisecond timestamp so consecutive runs always
+// see a different value than what's stored, so the form's "No changes
+// to save" path doesn't short-circuit the Save handler. The number
+// fits 13 digits so it stays in the phone-field's expected range.
+const TEST_PHONE  = `555-${Date.now() % 10000}`.padEnd(8, '0')
 
 // Skip the whole file if the backend isn't reachable. A confusing
 // locator timeout on the sport picker is much worse than a one-line

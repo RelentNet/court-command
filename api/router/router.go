@@ -117,6 +117,39 @@ type Config struct {
 	Queries             *generated.Queries
 }
 
+// authMiddlewares returns the middleware chain that should gate
+// authenticated route groups. In production (cfg.JWTValidator != nil)
+// this is RequireJWT + JWTSession -- validates the Logto JWT and
+// populates session.Data via on-demand mirror lookup, so existing
+// handlers that read session.SessionData(r.Context()) continue working
+// without code changes.
+//
+// In testutil/cookie-only environments (cfg.JWTValidator == nil) this
+// falls back to the legacy RequireAuth(SessionStore) cookie path so
+// existing test fixtures keep working.
+//
+// Phase 6 cutover will drop the cookie branch entirely.
+func authMiddlewares(cfg *Config) []func(http.Handler) http.Handler {
+	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+		return []func(http.Handler) http.Handler{
+			middleware.RequireJWT(cfg.JWTValidator, true),
+			middleware.JWTSession(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService),
+		}
+	}
+	return []func(http.Handler) http.Handler{
+		middleware.RequireAuth(cfg.SessionStore),
+	}
+}
+
+// useAuth applies the chain returned by authMiddlewares to a chi
+// router. Equivalent to r.Use(authMiddlewares(cfg)...) but a function
+// so the call sites read more obviously.
+func useAuth(r chi.Router, cfg *Config) {
+	for _, mw := range authMiddlewares(cfg) {
+		r.Use(mw)
+	}
+}
+
 // New creates a chi.Router with all middleware and routes mounted.
 func New(cfg *Config) chi.Router {
 	r := chi.NewRouter()
@@ -191,12 +224,19 @@ func New(cfg *Config) chi.Router {
 			r.Post("/login", cfg.AuthHandler.Login)
 			r.Post("/logout", cfg.AuthHandler.Logout)
 
+			// Authenticated /auth/* sub-routes. Use the same JWT/cookie
+			// auth chain as the rest of the app so the SPA's JWT
+			// reaches MyTournamentStaff (Phase 3 fix C6).
+			//
+			// /auth/me itself is mounted in the dedicated Phase 3 JWT
+			// block above when JWTValidator is configured. When it's
+			// nil (testutil mode), authMiddlewares falls back to the
+			// cookie path and we mount the legacy /me here too.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				if cfg.JWTValidator == nil {
-					// Legacy fallback: in JWT-less environments (testutil
-					// server, cookie-only deployments), keep /auth/me
-					// reachable via cookie. Phase 6 deletes this branch.
+					// Legacy fallback for testutil/cookie-only environments.
+					// Phase 6 cutover deletes this branch entirely.
 					r.Get("/me", cfg.AuthHandler.Me)
 				}
 				r.Get("/me/tournament-staff", cfg.AuthHandler.MyTournamentStaff)
@@ -205,31 +245,31 @@ func New(cfg *Config) chi.Router {
 
 		// Player routes (authenticated)
 		r.Route("/players", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.PlayerHandler.Routes())
 		})
 
 		// Team routes (authenticated)
 		r.Route("/teams", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.TeamHandler.Routes())
 		})
 
 		// Organization routes (authenticated)
 		r.Route("/organizations", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.OrgHandler.Routes())
 		})
 
 		// Venue routes (authenticated)
 		r.Route("/venues", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.VenueHandler.Routes())
 		})
 
 		// Court routes (authenticated — standalone/floating courts)
 		r.Route("/courts", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.CourtHandler.Routes())
 		})
 
@@ -244,14 +284,14 @@ func New(cfg *Config) chi.Router {
 				r.Mount("/", cfg.SeasonHandler.Routes())
 			})
 			r.Route("/{leagueID}/division-templates", func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.DivTemplateHandler.Routes())
 			})
 			r.Route("/{leagueID}/announcements", func(r chi.Router) {
 				r.Mount("/", cfg.AnnouncementHandler.LeagueAnnouncementRoutes())
 			})
 			r.Route("/{leagueID}/registrations", func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.LeagueRegHandler.Routes())
 			})
 		})
@@ -301,7 +341,7 @@ func New(cfg *Config) chi.Router {
 
 		// Scoring presets (mixed auth: public reads, handler-level auth on writes)
 		r.Route("/scoring-presets", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.ScoringPresetHandler.Routes())
 		})
 
@@ -319,7 +359,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated writes/reads.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.MatchHandler.Routes())
 			})
 		})
@@ -333,7 +373,7 @@ func New(cfg *Config) chi.Router {
 
 		// Bracket generation (authenticated)
 		r.Route("/divisions/{divisionID}/bracket", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.BracketHandler.Routes())
 		})
 
@@ -344,7 +384,7 @@ func New(cfg *Config) chi.Router {
 
 		// Team-scoped matches
 		r.Route("/teams/{teamID}/matches", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.MatchHandler.TeamRoutes())
 		})
 
@@ -358,7 +398,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated writes/reads.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.MatchSeriesHandler.Routes())
 			})
 		})
@@ -370,7 +410,7 @@ func New(cfg *Config) chi.Router {
 
 		// Quick matches (authenticated)
 		r.Route("/quick-matches", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.QuickMatchHandler.Routes())
 		})
 
@@ -385,7 +425,7 @@ func New(cfg *Config) chi.Router {
 
 		// Player dashboard (authenticated)
 		r.Route("/dashboard", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.DashboardHandler.Routes())
 		})
 
@@ -413,7 +453,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated control panel routes
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Get("/court/{courtID}/config", cfg.OverlayHandler.GetConfig)
 				r.Put("/court/{courtID}/config/theme", cfg.OverlayHandler.UpdateTheme)
 				r.Put("/court/{courtID}/config/elements", cfg.OverlayHandler.UpdateElements)
@@ -427,7 +467,7 @@ func New(cfg *Config) chi.Router {
 
 		// Source Profile routes (authenticated)
 		r.Route("/source-profiles", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.SourceProfileHandler.Routes())
 		})
 
@@ -436,13 +476,13 @@ func New(cfg *Config) chi.Router {
 		// Stop impersonation — must be OUTSIDE admin group because
 		// the impersonated session has the target user's role (not platform_admin)
 		r.Route("/admin/stop-impersonation", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Post("/", cfg.AdminHandler.StopImpersonation)
 		})
 
 		// Admin routes (authenticated + platform_admin only)
 		r.Route("/admin", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Use(middleware.RequirePlatformAdmin)
 			r.Mount("/", cfg.AdminHandler.Routes())
 			if cfg.AdHandler != nil {
@@ -467,7 +507,7 @@ func New(cfg *Config) chi.Router {
 
 		// Upload routes (authenticated)
 		r.Route("/uploads", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.UploadHandler.Routes())
 		})
 
