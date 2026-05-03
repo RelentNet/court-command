@@ -48,6 +48,12 @@ export function useAuth() {
       try {
         return await apiGet<User>('/api/v1/auth/me')
       } catch (err: any) {
+        // 401: token rejected — treat as logged out at the SDK layer.
+        // 404: user mirror missing — bridge/middleware should never
+        //      let this happen for valid JWT subjects, but guard anyway.
+        // Other errors (5xx, network): re-throw so React Query retries
+        //      and surfaces the error rather than silently logging the
+        //      user out (Phase 3 review C4).
         if (err.status === 401 || err.status === 404) return null
         throw err
       }
@@ -68,8 +74,18 @@ export function useAuth() {
 
   return {
     user: me.data ?? null,
+    // isLoading covers both: SDK still loading tokens, OR the /me query
+    // is in flight. Either way, downstream guards should wait.
     isLoading: logtoLoading || me.isLoading,
-    isAuthenticated: !!isAuthenticated && !!me.data,
+    // Phase 3.5 fix (review C4): isAuthenticated tracks the SDK's view
+    // of token validity ONLY. Previously this was `&& !!me.data`,
+    // which meant a transient backend error (503, network blip) on
+    // /api/v1/auth/me would flip isAuthenticated to false and bounce
+    // the user through a fresh sign-in cycle even though their token
+    // was still valid. The /me query now coexists as `user` data;
+    // components that need user info should null-check `user` and
+    // render a skeleton rather than gating on isAuthenticated.
+    isAuthenticated: !!isAuthenticated,
     isImpersonating: !!me.data?.impersonation?.active,
     error: me.error,
     signIn,

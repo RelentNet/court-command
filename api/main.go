@@ -219,7 +219,20 @@ func main() {
 			ManagementAPIResource:  mgmtResource,
 		})
 	} else {
-		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled")
+		// Phase 3.5 fix (review I1): in production, missing Logto
+		// Mgmt API config is a deployment foot-gun -- the auth chain
+		// silently degrades to cookie-only and the SPA's first
+		// post-signup request 404s. Fail fast in production so the
+		// operator sees the misconfiguration immediately.
+		if cfg.Env == "production" {
+			slog.Error("Logto Management API env vars are required in production",
+				"missing_endpoint", logtoEndpoint == "",
+				"missing_app_id", mgmtAppID == "",
+				"missing_app_secret", mgmtAppSecret == "",
+				"missing_resource", mgmtResource == "")
+			os.Exit(1)
+		}
+		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
 	}
 
 	// Phase 4C: WebSocket handler
