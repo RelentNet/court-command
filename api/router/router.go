@@ -162,6 +162,10 @@ func New(cfg *Config) chi.Router {
 				if cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
 					r.Use(middleware.MirrorUser(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
 				}
+				// Phase 3 fix: /api/v1/auth/me is now JWT-authenticated.
+				// The legacy cookie-mounted /auth/me below is removed in
+				// the same commit; the SPA only authenticates via JWT.
+				r.Get("/auth/me", cfg.AuthHandler.MeJWT)
 				r.Get("/me/profile", cfg.ProfileHandler.GetMyProfile)
 				r.Patch("/me/profile", cfg.ProfileHandler.PatchMyProfile)
 			})
@@ -175,16 +179,26 @@ func New(cfg *Config) chi.Router {
 			r.Post("/webhooks/logto", cfg.LogtoWebhookHandler.Handle)
 		}
 
-		// Auth routes (public)
+		// Auth routes. /register, /login, /logout stay on the cookie
+		// path until Phase 6 cutover deletes them. /auth/me is mounted
+		// on the JWT-protected block above when the JWT validator is
+		// configured (production); when it's nil (testutil.TestServer
+		// for legacy cookie-only tests), we fall back to the
+		// cookie-session Me handler here so existing tests that exercise
+		// the login -> /me flow keep working.
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", cfg.AuthHandler.Register)
 			r.Post("/login", cfg.AuthHandler.Login)
 			r.Post("/logout", cfg.AuthHandler.Logout)
 
-			// Authenticated auth routes
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.RequireAuth(cfg.SessionStore))
-				r.Get("/me", cfg.AuthHandler.Me)
+				if cfg.JWTValidator == nil {
+					// Legacy fallback: in JWT-less environments (testutil
+					// server, cookie-only deployments), keep /auth/me
+					// reachable via cookie. Phase 6 deletes this branch.
+					r.Get("/me", cfg.AuthHandler.Me)
+				}
 				r.Get("/me/tournament-staff", cfg.AuthHandler.MyTournamentStaff)
 			})
 		})

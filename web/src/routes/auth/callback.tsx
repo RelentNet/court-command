@@ -15,6 +15,7 @@
 // AuthGuard). __root.tsx's NO_SHELL_ROUTES already includes
 // '/auth/callback'.
 
+import { useRef } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useHandleSignInCallback } from '@logto/react'
 import { consumePostAuthTarget } from '../../auth/useAuth'
@@ -26,11 +27,17 @@ export const Route = createFileRoute('/auth/callback')({
 function AuthCallback() {
   const navigate = useNavigate()
 
-  // useHandleSignInCallback fires the SDK's token exchange exactly once
-  // (StrictMode-safe — the SDK guards against double invocation of the
-  // /token endpoint with the same authorization code). The callback
-  // runs after the token is in the SDK's internal cache.
+  // The SDK's useHandleSignInCallback dedups the /token exchange but
+  // does NOT dedup the onComplete callback. In React StrictMode (and
+  // any rerender path) the callback can fire twice, which would
+  // consume the sessionStorage redirect target twice -- second call
+  // gets the default '/' and overrides the first navigate. Guard with
+  // a ref so the post-auth redirect logic runs once per mount.
+  const navigatedRef = useRef(false)
+
   const { isLoading } = useHandleSignInCallback(() => {
+    if (navigatedRef.current) return
+    navigatedRef.current = true
     const target = consumePostAuthTarget()
     void navigate({ to: target })
   })

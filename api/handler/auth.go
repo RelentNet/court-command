@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/court-command/court-command/auth"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
 )
@@ -139,6 +140,34 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 
 	Success(w, resp)
+}
+
+// MeJWT handles GET /api/v1/auth/me when the request is JWT-authenticated
+// (Phase 3+). Reads claims from context (set by RequireJWT), looks up
+// the local users mirror row by Logto user ID, returns the same
+// MeResponse shape as the legacy Me handler.
+//
+// Impersonation is not supported on the JWT path -- impersonation is a
+// session-cookie mechanic. Phase 6 (which deletes the cookie path
+// entirely) will need a Logto-native impersonation story or drop
+// the feature.
+func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		Unauthorized(w, "missing claims")
+		return
+	}
+	user, err := h.authService.GetCurrentUserByLogtoSubject(r.Context(), claims.Subject)
+	if err != nil {
+		var notFoundErr *service.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			NotFound(w, notFoundErr.Message)
+			return
+		}
+		InternalError(w, "failed to fetch user")
+		return
+	}
+	Success(w, &MeResponse{UserResponse: user})
 }
 
 // MyTournamentStaff handles GET /api/v1/auth/me/tournament-staff.

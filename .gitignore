@@ -21,3 +21,8 @@ web/src/routeTree.gen.ts
 *.tsbuildinfo
 backups/
 ghost-theme/cc-ghost-theme.zip
+
+# Playwright (Phase 3 Task 10)
+web/test-results/
+web/playwright-report/
+web/blob-report/
