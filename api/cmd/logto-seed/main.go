@@ -2,7 +2,15 @@
 // Court Command needs: SPA app, Court Command API resource + scopes, M2M app
 // role assignment, organization template (roles + scopes + role-scope
 // mappings), Pickleball + Demo Sport organizations, bootstrap admin user
-// with platform_admin role in both orgs, and the Court Command webhook.
+// with platform_admin role in both orgs, the Court Command webhook, the
+// sign-in experience configured for email-based sign-in, and a Logto
+// User-type role bound to all 12 API scopes assigned to the bootstrap admin.
+//
+// If DATABASE_URL is set, the seeder also connects to the Court Command
+// application Postgres database and syncs sports.logto_org_id to the IDs
+// of the orgs it just created in Logto. Without this sync, X-Sport
+// header lookups in the backend cannot resolve to the local Logto org
+// IDs and every sport-scoped request will 403.
 //
 // Designed to mirror what was done by hand in production (per
 // docs/LOGTO_SETUP.md). Running this script against an already-seeded
@@ -20,6 +28,7 @@
 //   LOGTO_BOOTSTRAP_EMAIL           defaults to admin@courtcommand.local
 //   LOGTO_BOOTSTRAP_PASSWORD        defaults to TestPass123! (DO NOT use in prod)
 //   LOGTO_BOOTSTRAP_NAME            defaults to "Local Admin"
+//   DATABASE_URL                    optional; if set, syncs sports.logto_org_id
 //
 // Usage:
 //   go run ./cmd/logto-seed
@@ -41,6 +50,7 @@ import (
 	"time"
 
 	"github.com/court-command/court-command/logto"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (
@@ -54,6 +64,13 @@ const (
 	demoSportOrgDesc      = "Test organization that exercises the multi-sport plumbing"
 	courtCommandHookName  = "Court Command Backend"
 	platformAdminRoleName = "platform_admin"
+
+	// apiUserRoleName is a Logto User-type role bound to all 12 API
+	// resource scopes. Granted to the bootstrap admin so their access
+	// tokens carry write:profile, manage_*, etc. Without it, the SPA
+	// will receive a token with NO API scopes and every PATCH/POST
+	// will 403 even though the user is "platform_admin" in their org.
+	apiUserRoleName = "Court Command API (all scopes)"
 )
 
 // apiScopes are the 12 Court Command API scopes registered on the API
@@ -122,6 +139,11 @@ type config struct {
 	BootstrapEmail        string
 	BootstrapPassword     string
 	BootstrapName         string
+	// DatabaseURL is the Court Command application Postgres URL. If set,
+	// the seeder also syncs sports.logto_org_id to the local Logto orgs.
+	// If empty, that step is skipped with a warning -- the operator
+	// must then patch sports.logto_org_id by hand.
+	DatabaseURL string
 }
 
 func loadConfig() (*config, error) {
@@ -136,6 +158,7 @@ func loadConfig() (*config, error) {
 		BootstrapEmail:       envOrDefault("LOGTO_BOOTSTRAP_EMAIL", "admin@courtcommand.local"),
 		BootstrapPassword:    envOrDefault("LOGTO_BOOTSTRAP_PASSWORD", "TestPass123!"),
 		BootstrapName:        envOrDefault("LOGTO_BOOTSTRAP_NAME", "Local Admin"),
+		DatabaseURL:          os.Getenv("DATABASE_URL"),
 	}
 	var missing []string
 	if cfg.Endpoint == "" {
@@ -210,21 +233,34 @@ func main() {
 	if err := seedBootstrapAdmin(ctx, client, cfg, result); err != nil {
 		log.Fatalf("bootstrap admin: %v", err)
 	}
+	if err := seedAPIUserRole(ctx, client, cfg, result); err != nil {
+		log.Fatalf("API user role: %v", err)
+	}
+	if err := seedEmailConnector(ctx, client); err != nil {
+		log.Fatalf("email connector: %v", err)
+	}
+	if err := seedSignInExperience(ctx, client); err != nil {
+		log.Fatalf("sign-in experience: %v", err)
+	}
 	if err := seedWebhook(ctx, client, cfg, result); err != nil {
 		log.Fatalf("webhook: %v", err)
+	}
+	if err := syncSportsOrgIDs(ctx, cfg, result); err != nil {
+		log.Fatalf("sync sports.logto_org_id: %v", err)
 	}
 
 	printSummary(cfg, result)
 }
 
 type seedResult struct {
-	APIResourceID    string
-	SPAAppID         string
-	OrgScopeIDs      map[string]string // scope name -> ID
-	OrgRoleIDs       map[string]string // role name -> ID
-	PickleballOrgID  string
-	DemoSportOrgID   string
-	BootstrapUserID  string
+	APIResourceID     string
+	SPAAppID          string
+	OrgScopeIDs       map[string]string // scope name -> ID
+	OrgRoleIDs        map[string]string // role name -> ID
+	PickleballOrgID   string
+	DemoSportOrgID    string
+	BootstrapUserID   string
+	APIUserRoleID     string // Logto User-type role bound to all 12 API scopes
 	WebhookSigningKey string
 }
 
@@ -504,6 +540,230 @@ func seedWebhook(ctx context.Context, c *logto.Client, cfg *config, r *seedResul
 	}
 	log.Printf("✓ Created webhook %q (id=%s) -> %s", courtCommandHookName, created.ID, cfg.WebhookURL)
 	r.WebhookSigningKey = created.SigningKey
+	return nil
+}
+
+// seedAPIUserRole creates a Logto User-type role bound to all 12 API
+// resource scopes and assigns it to the bootstrap admin. Without this
+// the SPA receives an access token that has the org scopes (manage_*,
+// read_all) but NONE of the API resource scopes (write:profile, etc.),
+// so every protected handler returns 403.
+//
+// Idempotent: the role is found by name; existing scope bindings are
+// skipped; user-role grants treat 422 as already-assigned.
+func seedAPIUserRole(ctx context.Context, c *logto.Client, _ *config, r *seedResult) error {
+	if r.APIResourceID == "" {
+		return fmt.Errorf("APIResourceID not set -- seedAPIResource must run first")
+	}
+	if r.BootstrapUserID == "" {
+		return fmt.Errorf("BootstrapUserID not set -- seedBootstrapAdmin must run first")
+	}
+
+	// Step 1: find or create the role.
+	role, err := c.FindRoleByName(ctx, apiUserRoleName)
+	if err != nil {
+		return fmt.Errorf("find role: %w", err)
+	}
+	if role == nil {
+		created, err := c.CreateRole(ctx, logto.CreateRoleParams{
+			Name:        apiUserRoleName,
+			Description: "Grants every Court Command API scope. Assigned to dev/admin users so their JWTs carry write:profile, manage_*, etc.",
+			Type:        "User",
+		})
+		if err != nil {
+			return fmt.Errorf("create role: %w", err)
+		}
+		role = created
+		log.Printf("✓ Created Logto user role %q (id=%s)", apiUserRoleName, role.ID)
+	} else {
+		log.Printf("✓ Logto user role %q exists (id=%s)", apiUserRoleName, role.ID)
+	}
+	r.APIUserRoleID = role.ID
+
+	// Step 2: bind every API resource scope to the role (idempotent).
+	allScopes, err := c.ListResourceScopes(ctx, r.APIResourceID)
+	if err != nil {
+		return fmt.Errorf("list resource scopes: %w", err)
+	}
+	bound, err := c.ListRoleScopes(ctx, role.ID)
+	if err != nil {
+		return fmt.Errorf("list role scopes: %w", err)
+	}
+	boundSet := make(map[string]bool, len(bound))
+	for _, s := range bound {
+		boundSet[s.ID] = true
+	}
+	var toBind []string
+	for _, s := range allScopes {
+		if !boundSet[s.ID] {
+			toBind = append(toBind, s.ID)
+		}
+	}
+	if len(toBind) > 0 {
+		// Logto's POST /api/roles/{id}/scopes accepts a list and is
+		// generally OK with adding new scopes; if any one is already
+		// bound it returns 422. We pre-filtered, but allow that
+		// race in case the server state shifted between list and post.
+		if err := c.AssignScopesToRole(ctx, role.ID, toBind); err != nil {
+			var apiErr *logto.APIError
+			if errors.As(err, &apiErr) && apiErr.Status == 422 {
+				log.Printf("✓ API role scope bindings already current (422 from Logto)")
+			} else {
+				return fmt.Errorf("assign scopes to role: %w", err)
+			}
+		}
+	}
+	log.Printf("✓ API role scopes: %d existing, %d added (target: %d)", len(bound), len(toBind), len(allScopes))
+
+	// Step 3: grant the role to the bootstrap admin (idempotent).
+	if err := c.AssignRolesToUser(ctx, r.BootstrapUserID, []string{role.ID}); err != nil {
+		var apiErr *logto.APIError
+		if errors.As(err, &apiErr) && apiErr.Status == 422 {
+			log.Printf("✓ Bootstrap admin already has %q role", apiUserRoleName)
+			return nil
+		}
+		return fmt.Errorf("assign role to user: %w", err)
+	}
+	log.Printf("✓ Granted %q role to bootstrap admin", apiUserRoleName)
+	return nil
+}
+
+// seedEmailConnector registers Logto's bundled http-email connector
+// pointed at a discard URL. Logto refuses to enable email-based
+// sign-in without an email connector configured. We use http-email
+// rather than the test-only mock-email-service (which isn't registered
+// in production Logto builds). Our sign-up flow sets verify=false, so
+// Logto never actually fires an email -- the connector exists purely
+// to satisfy the sign-in-experience validator.
+//
+// In production, replace the connector with a real one (sendgrid-email,
+// aws-ses-mail, simple-mail-transfer-protocol) before flipping
+// verify=true.
+//
+// Idempotent: lists existing connectors first; only registers if no
+// connector with the same connector_id is present.
+func seedEmailConnector(ctx context.Context, c *logto.Client) error {
+	const httpEmailConnectorID = "http-email"
+	existing, err := c.ListConnectors(ctx)
+	if err != nil {
+		return fmt.Errorf("list connectors: %w", err)
+	}
+	for _, conn := range existing {
+		if conn.ConnectorID == httpEmailConnectorID {
+			log.Printf("✓ Email connector %q exists (id=%s)", httpEmailConnectorID, conn.ID)
+			return nil
+		}
+	}
+	// Discard URL: pointed at localhost:9999 which has nothing
+	// listening. Logto will fail the actual HTTP POST when an email
+	// would be sent, but for our flow no email is ever triggered
+	// (sign-up verify=false, no password reset flows wired up yet).
+	created, err := c.CreateConnector(ctx, logto.CreateConnectorParams{
+		ConnectorID: httpEmailConnectorID,
+		Config: map[string]interface{}{
+			"endpoint": "http://localhost:9999/discard",
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create connector: %w", err)
+	}
+	log.Printf("✓ Registered email connector %q (id=%s; discard endpoint)", httpEmailConnectorID, created.ID)
+	return nil
+}
+
+// seedSignInExperience configures the tenant to accept email-based
+// sign-in. Default Logto installs only enable username+password; users
+// created with primaryEmail (no username) cannot sign in until this
+// runs. Idempotent: PATCH always overwrites with the same payload, so
+// re-running is a no-op.
+//
+// Requires seedEmailConnector to run first; Logto rejects email
+// methods without a configured email connector.
+func seedSignInExperience(ctx context.Context, c *logto.Client) error {
+	params := logto.UpdateSignInExperienceParams{
+		SignIn: &logto.SignInConfig{
+			Methods: []logto.SignInMethod{
+				{
+					Identifier:        logto.SignInIdentifierEmail,
+					Password:          true,
+					VerificationCode:  false,
+					IsPasswordPrimary: true,
+				},
+				{
+					Identifier:        logto.SignInIdentifierUsername,
+					Password:          true,
+					VerificationCode:  false,
+					IsPasswordPrimary: false,
+				},
+			},
+		},
+		// Logto requires verify=true when the sign-up identifier is
+		// email or phone. Our http-email connector points at a
+		// discard URL, so verification emails go nowhere -- this is
+		// fine for E2E and local dev because we DON'T exercise the
+		// sign-up flow (the bootstrap admin is created by the seeder
+		// via the Mgmt API, bypassing sign-in-experience entirely).
+		// Production must replace the connector before relying on
+		// sign-up self-service.
+		SignUp: &logto.SignUpConfig{
+			Identifiers: []logto.SignInIdentifier{logto.SignInIdentifierEmail},
+			Password:    true,
+			Verify:      true,
+		},
+	}
+	if err := c.UpdateSignInExperience(ctx, params); err != nil {
+		return fmt.Errorf("update sign-in experience: %w", err)
+	}
+	log.Printf("✓ Sign-in experience configured (email + username identifiers, email-only signup)")
+	return nil
+}
+
+// syncSportsOrgIDs connects to the Court Command application database
+// and updates sports.logto_org_id rows to match the Pickleball and
+// Demo Sport orgs the seeder just created in Logto. Without this sync,
+// the backend's apiFetch -> SportProvider chain cannot resolve a slug
+// to a Logto org ID and every X-Sport request will 403.
+//
+// Skipped silently if DATABASE_URL is unset (e.g. an operator running
+// the seeder without the app stack up). Logs a warning so the operator
+// knows to patch sports.logto_org_id manually.
+func syncSportsOrgIDs(ctx context.Context, cfg *config, r *seedResult) error {
+	if cfg.DatabaseURL == "" {
+		log.Printf("⚠ DATABASE_URL not set -- skipping sports.logto_org_id sync. Patch by hand:")
+		log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='pickleball';", r.PickleballOrgID)
+		log.Printf("    UPDATE sports SET logto_org_id='%s' WHERE slug='demo_sport';", r.DemoSportOrgID)
+		return nil
+	}
+	if r.PickleballOrgID == "" || r.DemoSportOrgID == "" {
+		return fmt.Errorf("sport org IDs not set -- seedOrganizations must run first")
+	}
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connect to app database: %w", err)
+	}
+	defer pool.Close()
+
+	tag, err := pool.Exec(ctx,
+		"UPDATE sports SET logto_org_id=$1 WHERE slug='pickleball'",
+		r.PickleballOrgID)
+	if err != nil {
+		return fmt.Errorf("update pickleball: %w", err)
+	}
+	pickleballRows := tag.RowsAffected()
+
+	tag, err = pool.Exec(ctx,
+		"UPDATE sports SET logto_org_id=$1 WHERE slug='demo_sport'",
+		r.DemoSportOrgID)
+	if err != nil {
+		return fmt.Errorf("update demo_sport: %w", err)
+	}
+	demoRows := tag.RowsAffected()
+
+	log.Printf("✓ Synced sports.logto_org_id (pickleball: %d row(s), demo_sport: %d row(s))",
+		pickleballRows, demoRows)
+	if pickleballRows == 0 && demoRows == 0 {
+		log.Printf("⚠ Zero rows updated -- did migrations run? (sports table may be empty)")
+	}
 	return nil
 }
 

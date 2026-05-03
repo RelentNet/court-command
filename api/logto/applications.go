@@ -124,3 +124,72 @@ func (c *Client) ListRoles(ctx context.Context) ([]Role, error) {
 	}
 	return roles, nil
 }
+
+// FindRoleByName scans roles for an exact name match.
+func (c *Client) FindRoleByName(ctx context.Context, name string) (*Role, error) {
+	roles, err := c.ListRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range roles {
+		if roles[i].Name == name {
+			return &roles[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// CreateRoleParams is the body for POST /api/roles.
+type CreateRoleParams struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Type is "User" or "MachineToMachine". The seeder creates User-type
+	// roles for the bootstrap admin's API resource scopes.
+	Type string `json:"type,omitempty"`
+}
+
+// CreateRole creates a new Logto-platform role.
+func (c *Client) CreateRole(ctx context.Context, p CreateRoleParams) (*Role, error) {
+	var r Role
+	if err := c.doJSON(ctx, http.MethodPost, "/api/roles", p, &r); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// AssignScopesToRole binds a set of API resource scopes to a role.
+// scopeIDs come from ListResourceScopes(resourceID). Idempotent: Logto
+// rejects already-bound scopes; the seeder catches the 422 and ignores it.
+func (c *Client) AssignScopesToRole(ctx context.Context, roleID string, scopeIDs []string) error {
+	body := map[string]interface{}{"scopeIds": scopeIDs}
+	path := fmt.Sprintf("/api/roles/%s/scopes", roleID)
+	return c.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+// ListRoleScopes returns the API resource scopes bound to a role.
+func (c *Client) ListRoleScopes(ctx context.Context, roleID string) ([]Scope, error) {
+	var scopes []Scope
+	path := fmt.Sprintf("/api/roles/%s/scopes?page_size=100", roleID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &scopes); err != nil {
+		return nil, err
+	}
+	return scopes, nil
+}
+
+// AssignRolesToUser grants Logto-platform roles to a user. Idempotent on
+// Logto's side; 422 on duplicate is the expected response.
+func (c *Client) AssignRolesToUser(ctx context.Context, userID string, roleIDs []string) error {
+	body := map[string]interface{}{"roleIds": roleIDs}
+	path := fmt.Sprintf("/api/users/%s/roles", userID)
+	return c.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+// ListUserRoles returns the Logto-platform roles assigned to a user.
+func (c *Client) ListUserRoles(ctx context.Context, userID string) ([]Role, error) {
+	var roles []Role
+	path := fmt.Sprintf("/api/users/%s/roles?page_size=100", userID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &roles); err != nil {
+		return nil, err
+	}
+	return roles, nil
+}

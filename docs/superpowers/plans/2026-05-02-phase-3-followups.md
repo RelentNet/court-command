@@ -1,93 +1,53 @@
-# Phase 3 Follow-ups (Local DB Patches Pending Seeder Updates)
+# Phase 3 Follow-ups — RESOLVED in Phase 3.5
 
-This document captures Logto Mgmt API config that was patched directly in the local Logto database during Phase 3 Task 10 debugging. These changes need to be applied to the seeder (`api/cmd/logto-seed/main.go`) so future fresh local stacks (and eventual production) get them automatically.
+**Status: All three patches now applied automatically by `make logto-seed`.**
 
-## 1. Sign-in experience: allow email as identifier
+This document originally captured three Logto Mgmt API config changes
+that had been patched directly in the local Logto database during Phase
+3 Task 10 debugging, with TODO entries for the seeder. Phase 3.5 (commit
+to follow) implemented all three. The remaining content here documents
+what was done so future seeder maintainers understand the design.
 
-**Default state** (after fresh `make logto-seed`):
-- Sign-in identifiers: `["username"]` only
-- Sign-up identifiers: `["username"]` only
+## Resolved patches
 
-This means users can't sign in with their email address — they get "The username is invalid" — and after sign-in Logto demands they set a username.
+### 1. Sign-in experience: email as identifier ✅
 
-**Local patch applied** (during Task 10):
-```sql
-UPDATE sign_in_experiences
-SET sign_in = jsonb_set(
-  sign_in,
-  '{methods}',
-  '[{"password": true, "identifier": "email", "verificationCode": false, "isPasswordPrimary": true},
-    {"password": true, "identifier": "username", "verificationCode": false, "isPasswordPrimary": false}]'::jsonb
-)
-WHERE tenant_id='default';
+**Was:** SQL patch flipping `sign_in.methods` and `sign_up.identifiers` from `username` to `email` in the `sign_in_experiences` table.
 
-UPDATE sign_in_experiences
-SET sign_up = '{"verify": false, "password": true, "identifiers": ["email"]}'::jsonb
-WHERE tenant_id='default';
-```
+**Now:** `seedSignInExperience` in `api/cmd/logto-seed/main.go` calls `PATCH /api/sign-in-exp` with both `email` (primary, password) and `username` (secondary) sign-in methods, and email as the sole sign-up identifier.
 
-**Seeder fix needed:** call Logto's `PATCH /api/sign-in-exp` Mgmt API endpoint to set `signIn.methods` and `signUp.identifiers` to use email. Reference: https://docs.logto.io/docs/references/sign-in-experience.
+**Caveat:** Logto rejects email-based sign-in unless an email connector is registered, AND requires `verify=true` when the sign-up identifier is email. That cascades into two more changes:
 
-## 2. Bootstrap admin needs an API resource role with all 12 scopes
+- New `seedEmailConnector` step registers the bundled `http-email` connector pointed at a discard URL (`http://localhost:9999/discard`). Real production deployments must replace this with `sendgrid-email-service`, `aws-ses-mail`, etc. before the sign-up flow becomes self-service.
+- `SignUpConfig.Verify` is `true`. Since our SPA never exercises the public sign-up flow (the bootstrap admin is created by the seeder via Mgmt API, bypassing sign-in-experience), the unreachable verification email is harmless for dev.
 
-**Default state**: bootstrap admin (`admin@courtcommand.local`, user ID `j3akxwq2mvk1`) has **no user role** — only the `platform_admin` ORG role in both sport orgs. Org roles bind ORG scopes (`manage_tournaments` etc.), but the API resource scopes (`read:profile`, `write:profile`, `read:tournaments` etc.) require a **user-level role** that's bound to the resource scopes.
+### 2. Bootstrap admin's API role ✅
 
-Without this, the access token contains only org scopes — the backend handlers that check API scopes (e.g. `ProfileHandler.PatchMyProfile` checks `claims.HasScope("write:profile")`) reject every request with 403.
+**Was:** SQL inserts creating a `role-cc-api-all` user role, binding all 12 API scopes via `roles_scopes`, and granting via `users_roles`.
 
-**Local patch applied:**
-```sql
--- 1. Create a user role bound to the API resource scopes
-INSERT INTO roles (id, name, description, tenant_id, type)
-VALUES ('role-cc-api-all', 'Court Command API (all scopes)',
-        'Bootstrap role for E2E and dev users; grants every API scope',
-        'default', 'User');
+**Now:** `seedAPIUserRole` in `api/cmd/logto-seed/main.go` creates a Logto User-type role named `"Court Command API (all scopes)"` (constant `apiUserRoleName`), uses `ListResourceScopes`/`ListRoleScopes` to find the diff, calls `AssignScopesToRole` to bind missing scopes, then `AssignRolesToUser` to grant to the bootstrap admin. All three sub-steps are idempotent.
 
--- 2. Bind all 12 API scopes to the role
-INSERT INTO roles_scopes (id, tenant_id, role_id, scope_id)
-SELECT substr(md5(s.id || 'cc'), 1, 21), 'default', 'role-cc-api-all', s.id
-FROM scopes s
-JOIN resources r ON s.resource_id=r.id
-WHERE r.indicator='http://localhost:8080/api';
+This eliminates the 403 cascade where the bootstrap admin held org roles (`platform_admin`) but no API resource scopes, so PATCH `/me/profile` returned 403 on `claims.HasScope("write:profile")`.
 
--- 3. Grant the role to the bootstrap admin
-INSERT INTO users_roles (id, tenant_id, user_id, role_id)
-VALUES ('ur-cc-admin', 'default', 'j3akxwq2mvk1', 'role-cc-api-all');
-```
+### 3. `sports.logto_org_id` sync ✅
 
-**Seeder fix needed:**
-1. Add a `Court Command API (all scopes)` user role via `POST /api/roles` (type=User)
-2. Bind all 12 API resource scopes to it via `POST /api/roles/{roleId}/scopes`
-3. Grant the role to the bootstrap admin via `POST /api/users/{userId}/roles`
+**Was:** `UPDATE sports SET logto_org_id='<local Logto org id>' WHERE slug='pickleball';` (and same for `demo_sport`) applied by hand after every fresh seed.
 
-Reference Logto API: https://openapi.logto.io/#tag/Roles
+**Now:** `syncSportsOrgIDs` in `api/cmd/logto-seed/main.go` connects to the application database via `DATABASE_URL` (same env var the backend uses) and runs the two updates. Skipped silently with a log warning when `DATABASE_URL` is unset, in which case the seeder prints the SQL the operator should run.
 
-## 3. Sports table org IDs (already noted in earlier session)
+## Remaining seeder follow-up (NOT YET DONE)
 
-The `sports.logto_org_id` column was seeded with **production** Logto org IDs in migration 00041. For local dev, these need to point at the LOCAL Logto org IDs (`085h6zjwe4ql`, `ijxxqalg47ed`).
+### 4. Map Logto org-roles to local users.role
+
+The bootstrap admin is granted the `platform_admin` org role in Logto, but the local `users.role` defaults to `'player'` from `CreateUserFromLogto`. For backend authorization checks (`RequirePlatformAdmin`) to succeed, the local row must reflect the elevated role.
 
 Currently patched manually:
 ```sql
-UPDATE sports SET logto_org_id='085h6zjwe4ql' WHERE slug='pickleball';
-UPDATE sports SET logto_org_id='ijxxqalg47ed' WHERE slug='demo_sport';
+UPDATE users SET role='platform_admin' WHERE logto_user_id='j3akxwq2mvk1';
 ```
 
-**Better approach:** the seeder already creates the orgs and prints their IDs. After creating, the seeder should also UPDATE the `sports` table (in the application DB, not Logto's DB) so the IDs are kept in sync. This makes the migration's hardcoded prod IDs purely production-only.
+This isn't strictly a *seeder* problem — the `users` row is created by the **webhook handler** (or the `MirrorUser` middleware) when the user first authenticates. The right fix is in the JWT-session bridge (`api/middleware/jwt_session.go`) or the webhook handler: read `claims.OrganizationRoles`, derive the local role (e.g., `platform_admin` if the user has that role in any org, else `player`), and update `users.role` on every login. Defer to Phase 4 when role-derived authorization gets a closer look.
 
-## Suggested integration into `make logto-seed`
+## Why the seeder integration matters
 
-Add a final step to `api/cmd/logto-seed/main.go` that:
-
-1. Calls `PATCH /api/sign-in-exp` to enable email-based sign-in
-2. Creates the `Court Command API (all scopes)` user role and binds all 12 API scopes
-3. Grants that role to the bootstrap admin
-4. Connects to the application Postgres and `UPDATE sports SET logto_org_id=...` to match the orgs the seeder just created
-
-Each step should be idempotent (check before insert/update, swallow 422/409 conflict responses).
-
-## Status
-
-These are **local-only** for now. The committed seeder doesn't apply any of them. Anyone running `make dev-up` followed by `make logto-seed` from scratch will need to either:
-- Apply these SQL patches manually (instructions above), OR
-- Wait for the seeder enhancement that bundles them (no GitHub issue yet — track here).
-
-Phase 3 E2E test (`web/tests/e2e/auth-flow.spec.ts`) depends on all three patches being in place.
+Without the seeder fixes, every developer setting up a local stack would have to run a multi-step SQL patch incantation by hand AND remember to repeat it whenever they wiped `pgdata_dev`. The Phase 3.5 changes make `make dev-up && make migrate-up && make logto-seed` produce a fully working stack, no manual steps. The Playwright E2E test now passes against a freshly-reseeded Logto with no operator intervention beyond entering the bootstrap admin's credentials in the test browser.
