@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Search, X, Users, UsersRound, Building2, Trophy, Medal, MapPin } from 'lucide-react'
 import { useGlobalSearch } from './hooks'
 import { SearchResultGroup, type SearchResultItem } from './SearchResultGroup'
+import { useSport } from '../../auth/SportContext'
 import type {
   SearchPlayerResult,
   SearchTeamResult,
@@ -18,9 +19,20 @@ interface SearchModalProps {
 
 // ---------------------------------------------------------------------------
 // Mappers: convert wire types to SearchResultItem
+//
+// Routes after Phase 3 restructure:
+//   - Tournaments / Leagues / Venues have public detail pages at
+//     /public/<entity>/<slug> -- always linkable, no auth required.
+//   - Players / Teams / Organizations only have auth-protected detail
+//     pages at /<sport>/<entity>/<id-or-slug>. When no sport is active
+//     (anonymous on /, /public/*, /overlay, etc.) we skip these entities
+//     entirely to avoid producing a Link whose `to` doesn't match any
+//     registered route -- which crashes useLinkProps with "Cannot read
+//     properties of null (reading 'isServer')" and blanks the page.
 // ---------------------------------------------------------------------------
 
-function mapPlayers(items: SearchPlayerResult[]): SearchResultItem[] {
+function mapPlayers(items: SearchPlayerResult[], sportSlug: string): SearchResultItem[] {
+  if (!sportSlug) return []
   return items
     .filter((p) => !p.is_profile_hidden)
     .slice(0, 3)
@@ -28,25 +40,27 @@ function mapPlayers(items: SearchPlayerResult[]): SearchResultItem[] {
       id: p.id,
       label: p.display_name || `${p.first_name} ${p.last_name}`,
       subtitle: [p.city, p.state_province].filter(Boolean).join(', ') || undefined,
-      link: `/players/${p.public_id}`,
+      link: `/${sportSlug}/players/${p.public_id}`,
     }))
 }
 
-function mapTeams(items: SearchTeamResult[]): SearchResultItem[] {
+function mapTeams(items: SearchTeamResult[], sportSlug: string): SearchResultItem[] {
+  if (!sportSlug) return []
   return items.slice(0, 3).map((t) => ({
     id: t.id,
     label: t.name,
     subtitle: t.short_name !== t.name ? t.short_name : undefined,
-    link: `/teams/${t.slug}`,
+    link: `/${sportSlug}/teams/${t.slug}`,
   }))
 }
 
-function mapOrganizations(items: SearchOrganizationResult[]): SearchResultItem[] {
+function mapOrganizations(items: SearchOrganizationResult[], sportSlug: string): SearchResultItem[] {
+  if (!sportSlug) return []
   return items.slice(0, 3).map((o) => ({
     id: o.id,
     label: o.name,
     subtitle: [o.city, o.state_province].filter(Boolean).join(', ') || undefined,
-    link: `/organizations/${o.slug}`,
+    link: `/${sportSlug}/organizations/${o.slug}`,
   }))
 }
 
@@ -55,7 +69,7 @@ function mapTournaments(items: SearchTournamentResult[]): SearchResultItem[] {
     id: t.id,
     label: t.name,
     subtitle: t.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-    link: `/tournaments/${t.slug}`,
+    link: `/public/tournaments/${t.slug}`,
   }))
 }
 
@@ -64,7 +78,7 @@ function mapLeagues(items: SearchLeagueResult[]): SearchResultItem[] {
     id: l.id,
     label: l.name,
     subtitle: [l.city, l.state_province].filter(Boolean).join(', ') || undefined,
-    link: `/leagues/${l.slug}`,
+    link: `/public/leagues/${l.slug}`,
   }))
 }
 
@@ -73,7 +87,7 @@ function mapVenues(items: SearchVenueResult[]): SearchResultItem[] {
     id: v.id,
     label: v.name,
     subtitle: [v.city, v.state_province].filter(Boolean).join(', ') || undefined,
-    link: `/venues/${v.slug}`,
+    link: `/public/venues/${v.slug}`,
   }))
 }
 
@@ -85,6 +99,8 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const { data: results, isLoading } = useGlobalSearch(query)
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
 
   // Focus input when opened
   useEffect(() => {
@@ -104,9 +120,9 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
 
   const groups = results
     ? [
-        { title: 'Players', icon: <Users className="h-4 w-4" />, items: mapPlayers(results.players) },
-        { title: 'Teams', icon: <UsersRound className="h-4 w-4" />, items: mapTeams(results.teams) },
-        { title: 'Organizations', icon: <Building2 className="h-4 w-4" />, items: mapOrganizations(results.organizations) },
+        { title: 'Players', icon: <Users className="h-4 w-4" />, items: mapPlayers(results.players, sportSlug) },
+        { title: 'Teams', icon: <UsersRound className="h-4 w-4" />, items: mapTeams(results.teams, sportSlug) },
+        { title: 'Organizations', icon: <Building2 className="h-4 w-4" />, items: mapOrganizations(results.organizations, sportSlug) },
         { title: 'Tournaments', icon: <Trophy className="h-4 w-4" />, items: mapTournaments(results.tournaments) },
         { title: 'Leagues', icon: <Medal className="h-4 w-4" />, items: mapLeagues(results.leagues) },
         { title: 'Venues', icon: <MapPin className="h-4 w-4" />, items: mapVenues(results.venues) },

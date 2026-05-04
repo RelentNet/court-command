@@ -7,6 +7,7 @@ import { ImpersonationBanner } from '../components/ImpersonationBanner'
 import { AuthGuard } from '../features/auth/AuthGuard'
 import { useAuth } from '../auth/useAuth'
 import { SportProvider } from '../auth/SportContext'
+import { SearchModalMount } from '../features/search/SearchContext'
 import { cn } from '../lib/cn'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useState, useEffect } from 'react'
@@ -58,9 +59,15 @@ function RootLayout() {
   // AuthenticatedLayout / PublicLayout below) sees the current sport
   // via useSport(). The provider derives the slug from useLocation()
   // — must be called inside <RouterProvider>, which RootLayout already is.
+  //
+  // SearchModalMount is rendered here (inside RouterProvider) so the
+  // search results' <Link> children have a valid router context.
+  // SearchProvider in App.tsx only owns state; it lives outside
+  // RouterProvider so app-shell components can call openSearch().
   return (
     <SportProvider>
       <RootLayoutInner />
+      <SearchModalMount />
     </SportProvider>
   )
 }
