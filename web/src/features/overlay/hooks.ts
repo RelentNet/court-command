@@ -44,9 +44,54 @@ export function useOverlayConfig(courtID: number | null | undefined) {
     queryKey: ['overlay', 'config', courtID],
     queryFn: () =>
       apiGet<CourtOverlayConfig>(`/api/v1/overlay/court/${courtID}/config`),
+    select: normalizeOverlayConfig,
     enabled: courtID != null && courtID > 0,
     staleTime: 2 * 60 * 1000,
   })
+}
+
+/**
+ * Backend `config.elements` may omit keys (e.g. for a freshly-created
+ * court that has never had its overlay configured, or for newly-added
+ * element kinds that pre-existing rows haven't migrated to). Fill in
+ * a `{visible: false}` default for every missing key so renderer
+ * components can safely access `config.elements.<key>.visible` without
+ * defensive null guards in 12 different files.
+ *
+ * Default keys mirror ALL_ELEMENT_KEYS in contract.ts.
+ */
+const ALL_ELEMENT_KEYS: Array<keyof ElementsConfig> = [
+  'scoreboard',
+  'lower_third',
+  'player_card',
+  'team_card',
+  'sponsor_bug',
+  'tournament_bug',
+  'coming_up_next',
+  'match_result',
+  'custom_text',
+  'bracket_snapshot',
+  'pool_standings',
+  'series_score',
+]
+
+function normalizeOverlayConfig(c: CourtOverlayConfig): CourtOverlayConfig {
+  const incoming = (c.elements ?? {}) as Partial<ElementsConfig>
+  const elements = {} as ElementsConfig
+  for (const key of ALL_ELEMENT_KEYS) {
+    const existing = incoming[key]
+    // Each element config extends ElementConfigBase ({visible: boolean}).
+    // Spread existing first so any element-specific extras (e.g.
+    // CustomTextConfig.text) survive; visible defaults to false.
+    elements[key] = {
+      visible: false,
+      ...(existing ?? {}),
+    } as ElementsConfig[typeof key]
+  }
+  return {
+    ...c,
+    elements,
+  }
 }
 
 export interface OverlayDataOptions {

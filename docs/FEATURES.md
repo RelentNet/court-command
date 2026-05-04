@@ -357,6 +357,7 @@ Pickleball-specific scoring logic + UI for officials.
 
 ### Element library
 - ✅ Scoreboard (live match score, server indicator, set count) — null-safe on idle courts (no live match) since `useOverlayData` normalizes `team_*.players: null` → `[]`
+- ✅ Element configs (all 12 keys) are normalized in `useOverlayConfig` — backend's `config.elements` can omit keys (newly-created courts, newly-added element kinds before migration), the hook fills in `{visible: false}` defaults so every renderer can safely access `config.elements.<key>.visible`
 - ✅ Lower third (player names, sponsor)
 - ✅ Player card (info card with photo + stats)
 - ✅ Team card (team logo + roster)
