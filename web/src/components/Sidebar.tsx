@@ -56,7 +56,12 @@ function getBaseAuthNavGroups(sportSlug: string): NavGroup[] {
       { label: 'Scorekeeper', icon: ClipboardList, path: `${s}/scorekeeper` },
       { label: 'Quick Match', icon: Zap, path: `${s}/quick-match` },
     ]},
-    { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay' }] },
+    // Note: trailing slash is intentional. The TanStack Router file-based
+    // route is registered with fullPath '/overlay/'. Without the slash,
+    // TanStack matches /overlay against the parametrized /$sport route
+    // (with params.sport='overlay'), and SportGuard bounces to /, which
+    // then auto-redirects to dashboard for single-sport authenticated users.
+    { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay/' }] },
   ]
 }
 

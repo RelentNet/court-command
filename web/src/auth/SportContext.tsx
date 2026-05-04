@@ -53,6 +53,21 @@ function extractSportSlugFromPathname(pathname: string): string {
   return first
 }
 
+/**
+ * True when the current pathname's first segment is a reserved root
+ * (public, overlay, auth, tv) or empty. Useful for guards that should
+ * NOT bounce to / when a non-sport URL happens to match the /$sport
+ * parametrized route -- e.g. /overlay (no trailing slash) being
+ * captured as params.sport='overlay'.
+ *
+ * Exported so SportGuard inside routes/$sport.tsx can short-circuit.
+ */
+export function isReservedNonSportPath(pathname: string): boolean {
+  const m = pathname.match(/^\/([^/]*)/)
+  if (!m) return true
+  return RESERVED_FIRST_SEGMENTS.has(m[1])
+}
+
 export function SportProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const slug = extractSportSlugFromPathname(location.pathname)
