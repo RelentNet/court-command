@@ -7,6 +7,7 @@ import { Avatar } from './Avatar'
 import {
   LayoutDashboard, Trophy, Medal, MapPin, Users, UsersRound, Building2, Tv, Menu, ChevronLeft, LogOut,
   Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper, Repeat,
+  Radio, Calendar,
 } from 'lucide-react'
 import { useSearchModal } from '../features/search/SearchContext'
 import { useSport } from '../auth/SportContext'
@@ -40,6 +41,17 @@ function getBaseAuthNavGroups(sportSlug: string): NavGroup[] {
       { label: 'Home', icon: Home, path: '/' },
       { label: 'Dashboard', icon: LayoutDashboard, path: `${s}/dashboard` },
       { label: 'My Assets', icon: FolderKanban, path: `${s}/manage` },
+    ]},
+    // Public-facing browse: same pages anonymous visitors see, but
+    // accessed from inside the authenticated shell. Smoke 1.1, 1.9,
+    // 1.10, 3.1 -- signed-in users explicitly want these accessible
+    // (TDs want to preview their tournaments' public view; refs want
+    // to see live scores from the same browser session).
+    { label: 'Browse', items: [
+      { label: 'Live Scores', icon: Radio, path: '/public/live' },
+      { label: 'Events', icon: Calendar, path: '/public/events' },
+      // path is the React key only; href triggers the external <a> branch.
+      { label: 'News', icon: Newspaper, path: '#news', href: 'https://news.courtcommand.app' },
     ]},
     { label: 'Events', items: [
       { label: 'Leagues', icon: Medal, path: `${s}/leagues` },
@@ -88,22 +100,26 @@ function getAuthNavGroups(role: string | undefined, sportSlug: string): NavGroup
   const baseAuthNavGroups = getBaseAuthNavGroups(sportSlug)
   const groups: NavGroup[] = []
 
-  // Core nav (Home, Dashboard, My Assets) — all authenticated users
-  groups.push(baseAuthNavGroups[0]) // Home/Dashboard/My Assets
-  groups.push(baseAuthNavGroups[1]) // Events (Leagues, Tournaments)
-  groups.push(baseAuthNavGroups[2]) // Manage (Venues, Players, Teams, Orgs)
+  // Indices match the array order in getBaseAuthNavGroups:
+  //   [0] Home/Dashboard/My Assets
+  //   [1] Browse (Live, Events, News) -- public surface for signed-in users
+  //   [2] Events (Leagues, Tournaments)
+  //   [3] Manage (Venues, Players, Teams, Orgs)
+  //   [4] Scoring (Ref, Scorekeeper, Quick Match) -- gated by SCORING_ROLES
+  //   [5] Broadcast (Overlay) -- gated by BROADCAST_ROLES
+  groups.push(baseAuthNavGroups[0])
+  groups.push(baseAuthNavGroups[1])
+  groups.push(baseAuthNavGroups[2])
+  groups.push(baseAuthNavGroups[3])
 
-  // Scoring — only scoring-eligible roles
   if (role && SCORING_ROLES.has(role)) {
-    groups.push(baseAuthNavGroups[3]) // Scoring
+    groups.push(baseAuthNavGroups[4])
   }
 
-  // Broadcast — only broadcast-eligible roles
   if (role && BROADCAST_ROLES.has(role)) {
-    groups.push(baseAuthNavGroups[4]) // Broadcast
+    groups.push(baseAuthNavGroups[5])
   }
 
-  // Admin — platform_admin only
   if (role === 'platform_admin') {
     groups.push(getAdminNavGroup(sportSlug))
   }
@@ -126,9 +142,15 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const isMobile = useIsMobile()
   const matchRoute = useMatchRoute()
   const location = useLocation()
-  const { sport } = useSport()
+  const { sport, sports } = useSport()
   const { signIn } = useAuth()
-  const sportSlug = sport?.slug ?? ''
+  // Sidebar links to /<sport>/dashboard etc. need a slug even when the
+  // current route doesn't carry one (e.g. on /, /public/*, /overlay/*).
+  // Fall back to the first known sport so the links are always
+  // navigable. Single-sport launch mode (Pickleball-only) means this
+  // is essentially a constant; multi-sport users default to the first
+  // alphabetically-active sport until they pick.
+  const sportSlug = sport?.slug ?? sports[0]?.slug ?? ''
   const isAuthenticated = !!user
   const navGroups = isAuthenticated ? getAuthNavGroups(user?.role, sportSlug) : publicNavGroups
 

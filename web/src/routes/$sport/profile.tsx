@@ -26,6 +26,7 @@ import { Textarea } from '../../components/Textarea'
 import { FormField } from '../../components/FormField'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../components/Toast'
+import { AddressInput, type AddressData } from '../../components/AddressInput'
 
 // PlayerProfile mirrors api/service/profile.go's PlayerProfileDTO field
 // for field. Keep these in sync. The omitempty on the Go side means
@@ -363,55 +364,37 @@ function ProfileEdit() {
           </FormField>
         </fieldset>
 
-        {/* Address */}
+        {/* Address: Google Places autocomplete (smoke 5.9). Falls
+            back to manual editing if the API key isn't configured --
+            AddressInput renders a plain text input + the same fields
+            below it for manual override. */}
         <fieldset className="space-y-3">
           <legend className="text-lg font-semibold">Address</legend>
-          <FormField label="Address line 1" htmlFor="address_line_1">
-            <Input
-              id="address_line_1"
-              value={draft.address_line_1 ?? ''}
-              onChange={(e) => setField('address_line_1', e.target.value)}
-            />
-          </FormField>
-          <FormField label="Address line 2" htmlFor="address_line_2">
-            <Input
-              id="address_line_2"
-              value={draft.address_line_2 ?? ''}
-              onChange={(e) => setField('address_line_2', e.target.value)}
-            />
-          </FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="City" htmlFor="city">
-              <Input
-                id="city"
-                value={draft.city ?? ''}
-                onChange={(e) => setField('city', e.target.value)}
-              />
-            </FormField>
-            <FormField label="State / Province" htmlFor="state_province">
-              <Input
-                id="state_province"
-                value={draft.state_province ?? ''}
-                onChange={(e) => setField('state_province', e.target.value)}
-              />
-            </FormField>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Country" htmlFor="country">
-              <Input
-                id="country"
-                value={draft.country ?? ''}
-                onChange={(e) => setField('country', e.target.value)}
-              />
-            </FormField>
-            <FormField label="Postal code" htmlFor="postal_code">
-              <Input
-                id="postal_code"
-                value={draft.postal_code ?? ''}
-                onChange={(e) => setField('postal_code', e.target.value)}
-              />
-            </FormField>
-          </div>
+          <AddressInput
+            value={{
+              formatted_address: '',
+              address_line_1: draft.address_line_1 ?? '',
+              address_line_2: draft.address_line_2 ?? '',
+              city: draft.city ?? '',
+              state_province: draft.state_province ?? '',
+              country: draft.country ?? '',
+              postal_code: draft.postal_code ?? '',
+              latitude: null,
+              longitude: null,
+            }}
+            onChange={(addr: AddressData) => {
+              // AddressInput emits the full structured shape from
+              // Google Places. We mirror each field into draft so the
+              // Save diff catches the changes.
+              setField('address_line_1', addr.address_line_1)
+              setField('address_line_2', addr.address_line_2)
+              setField('city', addr.city)
+              setField('state_province', addr.state_province)
+              setField('country', addr.country)
+              setField('postal_code', addr.postal_code)
+            }}
+            label="Address"
+          />
         </fieldset>
 
         {/* Emergency Contact (no relation field -- column doesn't exist) */}

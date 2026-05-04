@@ -109,12 +109,17 @@ test('full auth flow: public landing -> sign in -> dashboard -> profile save', a
     .first()
     .click()
 
-  // ----- Callback -> dashboard -----
+  // ----- Callback -> public landing (auth'd shell) -----
   // Logto -> <origin>/auth/callback?code=...&state=... -> the callback
   // route exchanges the code, reads sessionStorage['logto_post_redirect']
-  // (set to /pickleball/dashboard by signIn before redirect), and
-  // navigates there.
-  await expect(page).toHaveURL(/\/pickleball\/dashboard/, { timeout: 25_000 })
+  // (set to '/' by signIn before redirect), and navigates there.
+  // After Phase 3.7+ tweaks (smoke 1.1/3.1), '/' renders PublicLanding
+  // for authenticated users too -- no auto-redirect to dashboard.
+  await expect(page).toHaveURL(/localhost:5173\/$/, { timeout: 25_000 })
+
+  // Click "Dashboard" in the now-visible authenticated sidebar.
+  await page.getByRole('link', { name: 'Dashboard' }).first().click()
+  await expect(page).toHaveURL(/\/pickleball\/dashboard/, { timeout: 10_000 })
 
   // Assert the dashboard actually rendered with content -- not just
   // an empty Loading… stub. This proves the JWT-session bridge
@@ -123,9 +128,8 @@ test('full auth flow: public landing -> sign in -> dashboard -> profile save', a
   // Phase 3.5 C1 verification: this is the smoking-gun assertion
   // that a JWT-authenticated user can hit a session-cookie-style
   // endpoint via the bridge.
-  await expect(page.getByRole('heading', { name: 'My Court Command' }))
+  await expect(page.getByRole('heading', { name: /Welcome back,/ }))
     .toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText(/Welcome back,/)).toBeVisible()
 
   // ----- Profile -----
   await page.goto('/pickleball/profile')
