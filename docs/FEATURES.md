@@ -97,7 +97,16 @@ Routes that work without sign-in. The public face of the product.
 
 ### Sessions / impersonation
 - ✅ Cookie session path — kept as fallback for testutil server only (production uses JWT)
-- ⚠️ **Impersonation / masquerade — currently broken under JWT.** Backend code exists (`StartImpersonation`, `StopImpersonation`, `Impersonator*` fields on session.Data). Bridge middleware doesn't populate these from JWT claims. `IsImpersonating()` always returns false. `ImpersonationBanner` never renders. Session-cookie-only mechanism; needs Phase 4+ redesign to work with JWT.
+- ⚠️ **Impersonation / masquerade — currently non-functional under JWT, restoration path is Logto-native.** Existing backend code (`StartImpersonation`, `StopImpersonation`, `Impersonator*` fields on session.Data) is cookie-tied and doesn't see the JWT path. The correct fix is **NOT custom claim-stuffing** — Logto provides first-class impersonation via OAuth 2.0 Token Exchange (RFC 8693, see [docs](https://docs.logto.io/developers/user-impersonation)):
+  1. Backend admin endpoint validates "Sarah can impersonate Alex," then calls Logto Mgmt API `POST /api/subject-tokens` with `userId=alex` and a `context` object (ticket ID, reason, etc.) — returns a 10-min single-use `subjectToken`.
+  2. Frontend exchanges the subject token at Logto's `/oidc/token` with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange` + `subject_token` + `actor_token=<admin's_access_token>` → receives an access token where `sub=alex` and `act.sub=sarah`.
+  3. SPA stashes the impersonation token, `apiFetch` uses it for all subsequent requests. Backend RequireJWT validates it normally; user mirror sync flows naturally. The `act` claim is the audit signal.
+  4. Stop impersonation = discard the impersonation token, revert to admin's regular token.
+  
+  Prerequisites:
+  - Enable "Allow token exchange" on the SPA app in Logto (one-time toggle; seeder can apply via Mgmt API).
+  - Admin endpoint must enforce "platform_admin only" + log to `activity_logs` for audit.
+  - Frontend `ImpersonationBanner` reads the `act` claim from the current access token to render.
 
 ### Roles & Permissions
 - ✅ Logto org roles: `player`, `tournament_director`, `referee`, `scorekeeper`, `platform_admin`
@@ -557,7 +566,15 @@ Platform-admin-only console for managing the system. `/$sport/admin/*`
 Tracked here so they don't get lost.
 
 ### Auth / identity
-- 📋 Restore impersonation under JWT (claim-stuffing or Logto m2m actor delegation — see §2)
+- 📋 Restore impersonation via Logto OAuth 2.0 Token Exchange (RFC 8693) — see §2 for the full flow. Concrete tasks:
+  1. Enable "Allow token exchange" on SPA app via seeder (`PATCH /api/applications/:id` setting `customClientMetadata.allowTokenExchange=true`).
+  2. Backend: `POST /api/v1/admin/users/:userId/impersonate` (platform_admin only, logs to activity_logs) — calls Logto Mgmt `POST /api/subject-tokens`, returns subject token to frontend.
+  3. Backend: `POST /api/v1/admin/stop-impersonation` — no-op now (frontend handles), but keep for symmetry/audit log entry.
+  4. Frontend: when admin clicks "Impersonate" in UserDetail, POST to backend, then exchange at Logto's `/oidc/token` for the impersonation access token, store separately from admin's token.
+  5. Frontend `apiFetch`: prefer impersonation token over admin token when present.
+  6. Frontend `useAuth`: detect `act` claim → expose `isImpersonating: true` + `impersonator: act.sub`.
+  7. Frontend `ImpersonationBanner`: render whenever `act` claim is present, with "Stop impersonation" button that discards the impersonation token.
+  8. Cleanup: delete the legacy session-cookie `Impersonator*` fields, `StartImpersonation`/`StopImpersonation` cookie handlers, `users.session.Data.Impersonator*` once the new path lands.
 - 📋 Claim flow — merge unclaimed users with Logto-mirrored users by email match
 - 📋 Map all 5 Logto org roles → local users.role (currently only platform_admin elevation works)
 - 📋 Chain `RequireSportMatchesJWT` middleware on protected routes (cross-sport URL editing is a known data-leak window)
@@ -589,7 +606,7 @@ Tracked here so they don't get lost.
 
 ## 21. Known Broken / Regressed (top priority for repair)
 
-- ⚠️ **Impersonation under JWT** (§2) — biggest feature regression from cookie → JWT migration. Phase 4+.
+- ⚠️ **Impersonation under JWT** (§2) — biggest feature regression from cookie → JWT migration. Restoration path is Logto-native via OAuth 2.0 Token Exchange (RFC 8693); concrete 8-step plan in §20. Phase 4 priority.
 - ⚠️ **Cross-sport data leak window** (§3) — RequireSportMatchesJWT not chained. Phase 4 priority.
 - ⚠️ **Role mapping incomplete** (§2) — only platform_admin elevation works. TD/ref/scorekeeper org-role users land with `users.role='player'` until manually patched.
 
