@@ -1,10 +1,9 @@
 // web/src/routes/$sport.tsx
 //
-// Layout route for all sport-scoped pages. Wraps the subtree in
-// <SportProvider> so the X-Sport header + org-scoped Logto token are
-// pushed into module state synchronously during render.
+// Layout route for all sport-scoped pages. The SportProvider is mounted
+// globally in __root.tsx (so the Sidebar sees it too), so this file's
+// job is just to render the SportGuard which:
 //
-// Loading order:
 //   1. sports list still loading -> "Loading sport…"
 //   2. sports loaded but slug unknown -> navigate('/')
 //   3. otherwise -> render <Outlet />
@@ -14,21 +13,16 @@
 // query already implicitly validates the JWT and a 403 at that layer
 // will surface as `isAuthenticated=false`, sending the user back
 // through the picker.
-import { createFileRoute, Outlet, useParams, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { SportProvider, useSport } from '../auth/SportContext'
+import { useSport } from '../auth/SportContext'
 
 export const Route = createFileRoute('/$sport')({
   component: SportLayout,
 })
 
 function SportLayout() {
-  const { sport: slug } = useParams({ from: '/$sport' })
-  return (
-    <SportProvider slug={slug}>
-      <SportGuard />
-    </SportProvider>
-  )
+  return <SportGuard />
 }
 
 function SportGuard() {

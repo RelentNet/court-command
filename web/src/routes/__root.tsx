@@ -6,6 +6,7 @@ import { PublicBottomTabs } from '../components/PublicBottomTabs'
 import { ImpersonationBanner } from '../components/ImpersonationBanner'
 import { AuthGuard } from '../features/auth/AuthGuard'
 import { useAuth } from '../auth/useAuth'
+import { SportProvider } from '../auth/SportContext'
 import { cn } from '../lib/cn'
 import { useIsMobile } from '../hooks/useMediaQuery'
 import { useState, useEffect } from 'react'
@@ -53,6 +54,18 @@ export const Route = createRootRoute({
 })
 
 function RootLayout() {
+  // SportProvider wraps the entire tree so the Sidebar (rendered by
+  // AuthenticatedLayout / PublicLayout below) sees the current sport
+  // via useSport(). The provider derives the slug from useLocation()
+  // — must be called inside <RouterProvider>, which RootLayout already is.
+  return (
+    <SportProvider>
+      <RootLayoutInner />
+    </SportProvider>
+  )
+}
+
+function RootLayoutInner() {
   const location = useLocation()
   const pathname = location.pathname
   const isNoShell =
