@@ -14,6 +14,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // mount triggers signIn at most once.
   const redirectingRef = useRef(false)
 
+  // Once we've shown children at least once for an authenticated user,
+  // keep them mounted as long as isAuthenticated stays true -- even if
+  // isLoading transiently flips true (the Logto SDK's isLoading flips
+  // during getAccessToken refreshes inside apiFetch, and unmounting
+  // children mid-mutation kills in-flight onSuccess setState calls,
+  // causing form state to revert on remount; smoke 5.3 / 5.7).
+  const shownRef = useRef(false)
+  if (isAuthenticated && !isLoading) {
+    shownRef.current = true
+  }
+
   useEffect(() => {
     if (redirectingRef.current) return
     if (!isLoading && !isAuthenticated) {
@@ -24,7 +35,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, location.href, signIn])
 
-  if (isLoading) return <div>Loading…</div>
+  // First load: still loading and never shown children -> spinner.
+  if (isLoading && !shownRef.current) return <div>Loading…</div>
+  // Truly unauthenticated -> redirect copy while signIn navigates away.
   if (!isAuthenticated) return <div>Redirecting to sign in…</div>
+  // Authenticated (or transient isLoading after first show) -> children.
   return <>{children}</>
 }
