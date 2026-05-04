@@ -64,6 +64,14 @@ export interface OverlayDataOptions {
  * normal operation the overlay WebSocket pushes fresh data — callers
  * enable polling via the `refetchInterval` option only for the preview
  * pane, which doesn't maintain a WebSocket.
+ *
+ * Normalization: backend emits `team_*.players: null` and other
+ * potentially-null array fields when no live match is on the court
+ * (idle state). The `select` callback below converts these to `[]` so
+ * downstream renderers (TeamRow, PlayerCard, TeamCard, etc.) can
+ * safely call `.slice` / `.map` / `.length` without per-component null
+ * guards. The OverlayTeamData TS type still claims `PlayerBrief[]`
+ * (non-null) and matches what consumers see.
  */
 export function useOverlayData(
   courtID: number | null | undefined,
@@ -80,10 +88,26 @@ export function useOverlayData(
       apiGet<OverlayData>(
         `/api/v1/overlay/court/${courtID}/data${query ? '?' + query : ''}`,
       ),
+    select: normalizeOverlayData,
     enabled: courtID != null && courtID > 0,
     staleTime: 0,
     retry: 1,
   })
+}
+
+/**
+ * Coerces backend-null arrays into [] so downstream renderers don't
+ * crash. Centralized here because every consumer of useOverlayData
+ * is exposed to the same shape.
+ */
+function normalizeOverlayData(d: OverlayData): OverlayData {
+  return {
+    ...d,
+    team_1: { ...d.team_1, players: d.team_1.players ?? [] },
+    team_2: { ...d.team_2, players: d.team_2.players ?? [] },
+    completed_games: d.completed_games ?? [],
+    sponsor_logos: d.sponsor_logos ?? [],
+  }
 }
 
 /** Response shape from GET /api/v1/overlay/court/{slug}/resolve. */
