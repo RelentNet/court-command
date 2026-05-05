@@ -64,13 +64,22 @@ export function TVKioskBracket({
     intervalMs: cycleSeconds * 1_000,
   })
 
-  // Force body to be fully sized for kiosk mode.
+  // Force body to be fully sized for kiosk mode AND force dark theme.
+  // Smoke 14.2: TV/kiosk displays are typically dark venues (broadcast
+  // truck, scorer's table, courtside TVs); white backgrounds blow out
+  // viewers' eyes and are visible from the bleachers. Force dark
+  // regardless of the operator's system preference. Restored on
+  // unmount so navigating away doesn't re-theme the SPA.
   useEffect(() => {
+    const html = document.documentElement
+    const wasDark = html.classList.contains('dark')
+    html.classList.add('dark')
     const prevBg = document.body.style.background
     const prevOverflow = document.body.style.overflow
     document.body.style.background = 'var(--color-bg-primary, #000)'
     document.body.style.overflow = 'hidden'
     return () => {
+      if (!wasDark) html.classList.remove('dark')
       document.body.style.background = prevBg
       document.body.style.overflow = prevOverflow
     }

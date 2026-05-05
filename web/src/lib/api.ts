@@ -47,6 +47,16 @@ async function buildHeaders(extra?: HeadersInit): Promise<Headers> {
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
+  if (response.status === 401) {
+    // Smoke 17.4: if a request comes back 401, the user's session is
+    // gone -- tokens were revoked, expired, or a sibling tab signed
+    // out. Surface this as a global event so AuthProvider can do a
+    // cleanup + redirect to /. Without this, stale tabs just throw
+    // ApiRequestError repeatedly while the user navigates around.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('cc:auth-expired'))
+    }
+  }
   if (!response.ok) await throwApiError(response)
   if (response.status === 204) return undefined as unknown as T
   const body = await response.json()

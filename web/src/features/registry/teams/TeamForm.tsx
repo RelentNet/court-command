@@ -68,7 +68,21 @@ export function TeamForm({ team }: TeamFormProps) {
     mutation.mutate(payload, {
       onSuccess: (data) => {
         toast('success', isEditing ? 'Team updated' : 'Team created')
-        navigate({ to: '/$sport/teams/$teamId', params: { sport: sportSlug, teamId: String(data.id) } })
+        if (isEditing) {
+          // On edit, navigate back to detail so the user can see the
+          // updated row in context.
+          navigate({
+            to: '/$sport/teams/$teamId',
+            params: { sport: sportSlug, teamId: String(data.id) },
+          })
+        } else {
+          // Smoke 8.6: on create, navigate to the LIST so the user
+          // sees their new team alongside the rest. The previous
+          // behavior navigated to the detail page, where a blank
+          // skeleton flashed before the data arrived -- the user read
+          // that as "form vanished with no confirmation".
+          navigate({ to: '/$sport/teams', params: { sport: sportSlug } })
+        }
       },
       onError: (err) => toast('error', (err as Error).message),
     })

@@ -15,7 +15,7 @@
 // AuthGuard). __root.tsx's NO_SHELL_ROUTES already includes
 // '/auth/callback'.
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useHandleSignInCallback } from '@logto/react'
 import { consumePostAuthTarget } from '../../auth/useAuth'
@@ -34,6 +34,19 @@ function AuthCallback() {
   // gets the default '/' and overrides the first navigate. Guard with
   // a ref so the post-auth redirect logic runs once per mount.
   const navigatedRef = useRef(false)
+
+  // Smoke 17.6: hitting /auth/callback without ?code=&state= (e.g.
+  // from history) used to leave a blank page forever -- the SDK's
+  // useHandleSignInCallback only fires onComplete when there's a
+  // valid code in the URL. Detect the bare-URL case and bounce
+  // straight to / so the user sees something useful.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (!params.get('code') && !params.get('state')) {
+      void navigate({ to: '/' })
+    }
+  }, [navigate])
 
   const { isLoading } = useHandleSignInCallback(() => {
     if (navigatedRef.current) return

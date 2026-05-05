@@ -1,10 +1,12 @@
 // web/src/features/matches/MatchDetail.tsx
 import { useState } from 'react'
+import { Maximize2 } from 'lucide-react'
 import { AdSlot } from '../../components/AdSlot'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { Skeleton } from '../../components/Skeleton'
 import { useAuth } from '../../auth/useAuth'
+import { useSport } from '../../auth/SportContext'
 import { EventsTimeline } from '../scoring/EventsTimeline'
 import { ScoreOverrideModal } from '../scoring/ScoreOverrideModal'
 import { useMatch, useMatchEvents } from '../scoring/hooks'
@@ -30,6 +32,12 @@ export function MatchDetail({ publicId }: MatchDetailProps) {
   const matchQuery = useMatch(publicId)
   const eventsQuery = useMatchEvents(publicId)
   const auth = useAuth()
+  const { sport, sports } = useSport()
+  // Smoke 9.3: scoreboard fullscreen lives at
+  // /<sport>/matches/<publicId>/scoreboard. The fullscreen route is
+  // sport-prefixed; fall back to the first known sport when accessed
+  // from a public path that doesn't carry a slug.
+  const sportSlug = sport?.slug ?? sports[0]?.slug ?? ''
   const [showEvents, setShowEvents] = useState(false)
   const [overrideOpen, setOverrideOpen] = useState(false)
   const canOverride = !!auth.user && PRIVILEGED_ROLES.has(auth.user.role)
@@ -58,6 +66,22 @@ export function MatchDetail({ publicId }: MatchDetailProps) {
 
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-4">
+      {/* Smoke 9.3: fullscreen scoreboard link. Opens in a new tab so
+          the user can drop it on a TV/projector without losing the
+          detail page. */}
+      {sportSlug && (
+        <div className="flex justify-end">
+          <a
+            href={`/${sportSlug}/matches/${publicId}/scoreboard`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) underline-offset-4 hover:underline"
+          >
+            <Maximize2 className="h-4 w-4" />
+            Open fullscreen scoreboard
+          </a>
+        </div>
+      )}
       <MatchDetailHero match={match} />
 
       <div className="grid md:grid-cols-3 gap-4">

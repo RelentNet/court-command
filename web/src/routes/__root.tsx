@@ -113,11 +113,25 @@ function AuthenticatedLayout() {
       <ImpersonationBanner />
       <a href="#main-content" className="skip-to-content">Skip to content</a>
       <Sidebar user={user} onLogout={() => signOut('/')} />
-      <main id="main-content" className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isImpersonating ? 'pt-10' : '', isMobile ? 'pt-14' : expanded ? 'ml-[220px]' : 'ml-14')}>
+      <main
+        id="main-content"
+        className={cn(
+          'min-h-screen transition-[margin] duration-200 ease-in-out',
+          isImpersonating ? 'pt-10' : '',
+          // Mobile: top header (h-14) + bottom tabs (h-14). Reserve
+          // space at both ends so content isn't hidden under either.
+          isMobile ? 'pt-14 pb-16' : expanded ? 'ml-[220px]' : 'ml-14',
+        )}
+      >
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
           <Outlet />
         </div>
       </main>
+      {/* Smoke 16.3: bottom tab bar for authenticated mobile users.
+          Sidebar already collapses to a top header on mobile; without
+          these tabs, navigation requires opening the drawer for every
+          jump. */}
+      {isMobile && <PublicBottomTabs />}
     </>
   )
 }
@@ -151,11 +165,18 @@ function PublicLayout() {
           user={user}
           onLogout={() => signOut('/')}
         />
-        <main id="main-content" className={cn('min-h-screen transition-[margin] duration-200 ease-in-out', isMobile ? 'pt-14' : expanded ? 'ml-[220px]' : 'ml-14')}>
+        <main
+          id="main-content"
+          className={cn(
+            'min-h-screen transition-[margin] duration-200 ease-in-out',
+            isMobile ? 'pt-14 pb-16' : expanded ? 'ml-[220px]' : 'ml-14',
+          )}
+        >
           <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
             <Outlet />
           </div>
         </main>
+        {isMobile && <PublicBottomTabs />}
       </>
     )
   }

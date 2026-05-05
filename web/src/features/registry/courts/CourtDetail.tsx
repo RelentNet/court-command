@@ -102,6 +102,19 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
           ) : (
             <Badge variant="default">Inactive</Badge>
           )}
+          {/* Smoke 14.1: TV/Kiosk display link. /tv/courts/<slug> is
+              fullscreen no-shell -- meant for venue displays. Opens in
+              a new tab so admins keep their detail page open. */}
+          <a
+            href={`/tv/courts/${court.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-(--color-border) text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary) transition-colors"
+            title="Open fullscreen TV display in new tab"
+          >
+            <Tv size={14} />
+            TV display
+          </a>
           {isAdmin && (
             <Button variant="secondary" size="sm" onClick={() => setShowEdit(true)}>
               <Pencil size={14} className="mr-1" /> Edit

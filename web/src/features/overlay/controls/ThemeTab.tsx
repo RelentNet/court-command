@@ -331,12 +331,15 @@ function ColorOverrideInput({
   )
 }
 
+// Smoke 13.3 / 16.4: fixed-position pill so the saving indicator
+// doesn't push tab content down on autosave. Mirrors the style used
+// in ElementsTab; same bottom-right anchor as the toast stack.
 function SavingPill() {
   return (
     <div
       role="status"
       aria-live="polite"
-      className="inline-flex items-center gap-2 rounded-md bg-(--color-bg-secondary) px-3 py-1.5 text-xs text-(--color-text-secondary)"
+      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-lg border border-(--color-border) bg-(--color-bg-secondary) px-3 py-1.5 text-xs text-(--color-text-secondary) shadow-lg"
     >
       <Loader2 className="h-3 w-3 animate-spin" />
       Saving…

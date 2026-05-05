@@ -10,7 +10,7 @@ import { logtoConfig } from './LogtoConfig'
 import { setGetAccessTokenFn } from '../lib/api'
 
 function TokenWiring({ children }: { children: ReactNode }) {
-  const { getAccessToken } = useLogto()
+  const { getAccessToken, signOut, isAuthenticated } = useLogto()
   useEffect(() => {
     setGetAccessTokenFn(async (resource, organizationID) => {
       try {
@@ -24,6 +24,22 @@ function TokenWiring({ children }: { children: ReactNode }) {
     })
     return () => setGetAccessTokenFn(null)
   }, [getAccessToken])
+
+  // Smoke 17.4: when a sibling tab signs out (or the token is revoked
+  // server-side), apiFetch sees a 401 and emits cc:auth-expired. Tear
+  // down the local SDK state and bounce to / so the stale tab doesn't
+  // keep hitting protected endpoints with a dead token. We only act
+  // when the SDK still thinks we're authenticated -- avoids redirect
+  // loops on routes that are already public.
+  useEffect(() => {
+    function onExpired() {
+      if (!isAuthenticated) return
+      void signOut(`${window.location.origin}/`)
+    }
+    window.addEventListener('cc:auth-expired', onExpired)
+    return () => window.removeEventListener('cc:auth-expired', onExpired)
+  }, [isAuthenticated, signOut])
+
   return <>{children}</>
 }
 

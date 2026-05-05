@@ -1520,13 +1520,18 @@ function Toggle({
   )
 }
 
+// Smoke 13.3 / 16.4: render the saving indicator as a fixed-position
+// floating pill so it doesn't push the tab content down on every
+// checkbox toggle (autosave debounce fires constantly while operators
+// are editing). The pill sits bottom-right where toasts also appear,
+// matching the rest of the app's notification language.
 function SaveIndicator({ pending }: { pending: boolean }) {
   if (!pending) return null
   return (
     <div
       role="status"
       aria-live="polite"
-      className="inline-flex items-center gap-2 rounded-md bg-(--color-bg-secondary) px-3 py-1.5 text-xs text-(--color-text-secondary)"
+      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-lg border border-(--color-border) bg-(--color-bg-secondary) px-3 py-1.5 text-xs text-(--color-text-secondary) shadow-lg"
     >
       <Loader2 className="h-3 w-3 animate-spin" />
       Saving…

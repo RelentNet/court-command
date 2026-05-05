@@ -34,6 +34,14 @@ export function useKeyboardShortcuts(
         case '2':
           handlers.onPointTeam2?.()
           break
+        // Smoke 11.6: Space is a single-handed "point for serving team"
+        // shortcut. Side-out scoring means a successful rally for the
+        // serving team is a point; for the receiving team it's a side
+        // out (use S). Mapping Space -> onPointTeam1 keeps the one-key
+        // workflow refs expect.
+        case ' ':
+          handlers.onPointTeam1?.()
+          break
         case 's':
         case 'S':
           handlers.onSideOut?.()
