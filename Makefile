@@ -39,6 +39,37 @@ logto-seed:
 	@if [ ! -f .env ]; then echo "ERROR: .env not found. Copy from .env.example first."; exit 1; fi
 	@cd api && set -a && . ../.env && set +a && go run ./cmd/logto-seed
 
+# Provision a production Logto tenant + sync sports.logto_org_id
+# in the production app DB. Run ONCE at launch (re-running is safe;
+# every step is idempotent). Env source order:
+#   1. .env.prod (preferred -- gitignored, holds prod values)
+#   2. .env (fallback for operators with a single env file)
+#
+# Required vars in the env file:
+#   LOGTO_ENDPOINT                       https://logto.courtcommand.app
+#   LOGTO_API_RESOURCE                   https://api.courtcommand.app/api
+#   LOGTO_MANAGEMENT_API_APP_ID          (from Logto admin -> Apps -> M2M)
+#   LOGTO_MANAGEMENT_API_APP_SECRET      (same place)
+#   LOGTO_MANAGEMENT_API_RESOURCE        https://default.logto.app/api  (Logto-internal, fixed)
+#   LOGTO_SPA_REDIRECT_URI               https://courtcommand.app/auth/callback
+#   LOGTO_WEBHOOK_URL                    https://api.courtcommand.app/api/v1/webhooks/logto
+#   LOGTO_BOOTSTRAP_EMAIL/PASSWORD/NAME  for the first admin
+#   DATABASE_URL                         points at the prod app DB (for sports.logto_org_id sync)
+#   APP_ENV                              must be "production" to skip Demo Sport
+#
+# Output: prints LOGTO_PICKLEBALL_ORG_ID, LOGTO_WEBHOOK_SIGNING_KEY,
+# VITE_LOGTO_APP_ID etc. Paste into Coolify env, restart api+web.
+prod-bootstrap:
+	@ENV_FILE=.env.prod; if [ ! -f $$ENV_FILE ]; then ENV_FILE=.env; fi; \
+	if [ ! -f $$ENV_FILE ]; then echo "ERROR: neither .env.prod nor .env found"; exit 1; fi; \
+	echo "Sourcing $$ENV_FILE"; \
+	cd api && set -a && . ../$$ENV_FILE && set +a && \
+	if [ "$$APP_ENV" != "production" ]; then \
+	  echo "ERROR: APP_ENV is not 'production' -- refusing to run prod-bootstrap with dev settings"; \
+	  exit 1; \
+	fi; \
+	go run ./cmd/logto-seed
+
 # ---- Legacy single-stack (docker-compose.yaml -- prod / Coolify shape) ----
 
 # Start Docker services (db + redis only)

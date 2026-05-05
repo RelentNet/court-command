@@ -1,5 +1,8 @@
 # .gitignore
 .env
+.env.prod
+.env.production
+.env.local
 *.exe
 *.dll
 *.so

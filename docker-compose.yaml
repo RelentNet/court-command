@@ -55,6 +55,16 @@ services:
       PORT: "8080"
       APP_ENV: ${APP_ENV:-production}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://courtcommand.app,https://news.courtcommand.app}
+      # Logto OIDC (Phase 3+). Without these the API runs but every
+      # JWT-protected route 401s -- main.go fail-fast in production
+      # mode (APP_ENV=production) refuses to start when any are
+      # missing. See docs/LOGTO_SETUP.md for provisioning.
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
+      LOGTO_API_RESOURCE: ${LOGTO_API_RESOURCE:-}
+      LOGTO_MANAGEMENT_API_APP_ID: ${LOGTO_MANAGEMENT_API_APP_ID:-}
+      LOGTO_MANAGEMENT_API_APP_SECRET: ${LOGTO_MANAGEMENT_API_APP_SECRET:-}
+      LOGTO_MANAGEMENT_API_RESOURCE: ${LOGTO_MANAGEMENT_API_RESOURCE:-}
+      LOGTO_WEBHOOK_SIGNING_KEY: ${LOGTO_WEBHOOK_SIGNING_KEY:-}
     depends_on:
       db:
         condition: service_healthy
@@ -77,6 +87,15 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api.courtcommand.app}
         VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        # Logto OIDC -- these are baked into the JS bundle at build
+        # time. The frontend throws on init if VITE_LOGTO_ENDPOINT or
+        # VITE_LOGTO_APP_ID is missing. Set in Coolify env BEFORE the
+        # web service is rebuilt; changes require a build restart.
+        VITE_LOGTO_ENDPOINT: ${VITE_LOGTO_ENDPOINT:-}
+        VITE_LOGTO_APP_ID: ${VITE_LOGTO_APP_ID:-}
+        VITE_LOGTO_API_RESOURCE: ${VITE_LOGTO_API_RESOURCE:-}
+        VITE_AUTO_REDIRECT_SINGLE_SPORT: ${VITE_AUTO_REDIRECT_SINGLE_SPORT:-true}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     expose:
       - "80"
     depends_on:
