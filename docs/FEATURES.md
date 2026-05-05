@@ -610,6 +610,11 @@ Tracked here so they don't get lost.
 - ⚠️ **Impersonation under JWT** (§2) — biggest feature regression from cookie → JWT migration. Restoration path is Logto-native via OAuth 2.0 Token Exchange (RFC 8693); concrete 8-step plan in §20. Phase 4 priority.
 - ⚠️ **Cross-sport data leak window** (§3) — RequireSportMatchesJWT not chained. Phase 4 priority.
 - ⚠️ **Role mapping incomplete** (§2) — only platform_admin elevation works. TD/ref/scorekeeper org-role users land with `users.role='player'` until manually patched.
+- 🚧 **Ref console scoped down too far** (§8) — smoke 11.5: missing the verbal-calls UI, full event log on the scoring page, and game-history bar. Currently looks like a slimmed-down scorekeeper console. Phase 4 redesign needed; expand the Ref console with verbal calls (let-call, re-do, fault, line call) + log view alongside scoring.
+- 🚧 **Live stream embed on court detail** (§6) — smoke 8.15: backend marks court as live but no embedded video player rendered when no `stream_url` is set. Need a stream-config UI on Court detail (URL + type) for non-overlay use cases.
+- 🚧 **Quick match seed empty** (smoke 10.1) — seed.sql doesn't create active quick matches. Cosmetic; users create one and it appears.
+- 🚧 **API keys section may show fewer than seeded** (smoke 15.9) — user reported only 1 of 2 seeded keys visible. Investigate whether seed.sql actually inserts both, and whether listing query filters them. The `api_keys.logto_m2m_app_id` binding is optional; keys without it should still list.
+- 🗑️ **Deferred / future product features** (smoke 11.5, 15.11) — VAIR rating API integration + SSO from CC dashboard, expanded ref console (verbal calls, full log). All Phase 4+.
 
 ---
 
