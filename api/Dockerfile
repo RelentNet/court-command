@@ -37,7 +37,8 @@ RUN RESOLVED_COMMIT="${COMMIT:-unknown}" \
       -ldflags="-s -w \
         -X github.com/court-command/court-command/handler.buildCommit=${RESOLVED_COMMIT} \
         -X github.com/court-command/court-command/handler.buildBuiltAt=${BUILT_AT}" \
-      -o /court-command .
+      -o /court-command . \
+ && CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /logto-seed ./cmd/logto-seed
 
 # --- Stage 2: Run ---
 FROM alpine:3.20
@@ -49,8 +50,11 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries from builder. court-command is the API server; logto-seed
+# is the one-shot Logto provisioning tool used by docker-compose.bootstrap.yaml
+# to set up the Logto tenant + sync sports.logto_org_id on first deploy.
 COPY --from=builder /court-command .
+COPY --from=builder /logto-seed .
 
 # Copy migrations (embedded in binary via go:embed, but also available for manual goose runs)
 COPY --from=builder /app/db/migrations ./db/migrations

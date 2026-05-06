@@ -110,3 +110,31 @@ func (c *Client) ListConnectors(ctx context.Context) ([]Connector, error) {
 	}
 	return connectors, nil
 }
+
+// UpdateConnectorParams is the body for PATCH /api/connectors/{id}.
+// Fields are pointers so that omitting them leaves the existing value
+// alone (Logto's PATCH semantics on this endpoint).
+type UpdateConnectorParams struct {
+	Config      map[string]interface{} `json:"config,omitempty"`
+	SyncProfile *bool                  `json:"syncProfile,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// UpdateConnector patches a registered connector instance's config.
+// Used by the seeder to reconfigure the SMTP connector with new
+// credentials without having to delete + recreate (which would
+// invalidate any in-flight verification codes).
+func (c *Client) UpdateConnector(ctx context.Context, instanceID string, p UpdateConnectorParams) (*Connector, error) {
+	var out Connector
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/connectors/"+instanceID, p, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteConnector removes a connector instance. Used by the seeder
+// when migrating from one connector_id (e.g. dev's http-email) to
+// another (prod's simple-mail-transfer-protocol).
+func (c *Client) DeleteConnector(ctx context.Context, instanceID string) error {
+	return c.doJSON(ctx, http.MethodDelete, "/api/connectors/"+instanceID, nil, nil)
+}

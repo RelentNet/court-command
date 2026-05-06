@@ -46,6 +46,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -152,6 +153,26 @@ type config struct {
 	// the picker auto-redirects (VITE_AUTO_REDIRECT_SINGLE_SPORT) and
 	// users never see a sport selection screen.
 	SeedDemoSport bool
+	// SMTPHost / SMTPPort / SMTPUser / SMTPPass configure the Logto
+	// SMTP connector ("simple-mail-transfer-protocol"). When all four
+	// are non-empty the seeder registers/updates an SMTP connector and
+	// removes the dev http-email connector if present.
+	//
+	// When empty, the seeder falls back to the legacy http-email
+	// discard connector (dev only -- emails go nowhere). This lets
+	// `make logto-seed` keep working in local dev without any SMTP
+	// credentials, while production sets RESEND_* envs (or any other
+	// SMTP provider) to wire real email delivery.
+	SMTPHost  string
+	SMTPPort  int
+	SMTPUser  string
+	SMTPPass  string
+	EmailFrom string
+	EmailFromName string
+	// EmailVerifyOnSignUp toggles sign-up email verification. Forced
+	// false when SMTP isn't configured (otherwise sign-up would fail
+	// on every code-send). Defaults to true when SMTP is configured.
+	EmailVerifyOnSignUp bool
 }
 
 func loadConfig() (*config, error) {
@@ -168,6 +189,13 @@ func loadConfig() (*config, error) {
 		BootstrapName:        envOrDefault("LOGTO_BOOTSTRAP_NAME", "Local Admin"),
 		DatabaseURL:          os.Getenv("DATABASE_URL"),
 		SeedDemoSport:        seedDemoSportFromEnv(),
+		SMTPHost:             os.Getenv("SMTP_HOST"),
+		SMTPPort:             smtpPortFromEnv(),
+		SMTPUser:             os.Getenv("SMTP_USER"),
+		SMTPPass:             os.Getenv("SMTP_PASS"),
+		EmailFrom:            os.Getenv("EMAIL_FROM"),
+		EmailFromName:        envOrDefault("EMAIL_FROM_NAME", "Court Command"),
+		EmailVerifyOnSignUp:  emailVerifyOnSignUpFromEnv(),
 	}
 	var missing []string
 	if cfg.Endpoint == "" {
@@ -204,6 +232,43 @@ func seedDemoSportFromEnv() bool {
 		return strings.EqualFold(v, "true") || v == "1"
 	}
 	return os.Getenv("APP_ENV") != "production"
+}
+
+// smtpPortFromEnv parses SMTP_PORT, defaulting to 465 (TLS) which works
+// for Resend, AWS SES, and most providers. Returns 0 when SMTP isn't
+// configured at all (caller treats 0 as "use the http-email fallback").
+func smtpPortFromEnv() int {
+	v := os.Getenv("SMTP_PORT")
+	if v == "" {
+		return 465
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		log.Printf("warning: SMTP_PORT=%q is not numeric; ignoring", v)
+		return 465
+	}
+	return n
+}
+
+// emailVerifyOnSignUpFromEnv reports whether sign-up should require an
+// email-verification code. Explicit EMAIL_VERIFY_ON_SIGNUP=true|false
+// wins; otherwise defaults to true (email verification is industry
+// standard). The seeder will FORCE this to false when SMTP isn't
+// configured -- otherwise sign-up would fail on every attempt because
+// Logto cannot deliver the verification code.
+func emailVerifyOnSignUpFromEnv() bool {
+	if v := os.Getenv("EMAIL_VERIFY_ON_SIGNUP"); v != "" {
+		return strings.EqualFold(v, "true") || v == "1"
+	}
+	return true
+}
+
+// smtpConfigured reports whether all four SMTP env vars are set. The
+// seeder uses this to decide between registering the SMTP connector
+// (production path) and the legacy http-email discard connector
+// (local-dev path).
+func (c *config) smtpConfigured() bool {
+	return c.SMTPHost != "" && c.SMTPPort > 0 && c.SMTPUser != "" && c.SMTPPass != "" && c.EmailFrom != ""
 }
 
 func main() {
@@ -263,10 +328,10 @@ func main() {
 	if err := seedAPIUserRole(ctx, client, cfg, result); err != nil {
 		log.Fatalf("API user role: %v", err)
 	}
-	if err := seedEmailConnector(ctx, client); err != nil {
+	if err := seedEmailConnector(ctx, client, cfg); err != nil {
 		log.Fatalf("email connector: %v", err)
 	}
-	if err := seedSignInExperience(ctx, client); err != nil {
+	if err := seedSignInExperience(ctx, client, cfg); err != nil {
 		log.Fatalf("sign-in experience: %v", err)
 	}
 	if err := seedWebhook(ctx, client, cfg, result); err != nil {
@@ -682,47 +747,140 @@ func seedAPIUserRole(ctx context.Context, c *logto.Client, _ *config, r *seedRes
 	return nil
 }
 
-// seedEmailConnector registers Logto's bundled http-email connector
-// pointed at a discard URL. Logto refuses to enable email-based
-// sign-in without an email connector configured. We use http-email
-// rather than the test-only mock-email-service (which isn't registered
-// in production Logto builds). Our sign-up flow sets verify=false, so
-// Logto never actually fires an email -- the connector exists purely
-// to satisfy the sign-in-experience validator.
+// seedEmailConnector ensures the tenant has an email connector that
+// matches the seeder's environment.
 //
-// In production, replace the connector with a real one (sendgrid-email,
-// aws-ses-mail, simple-mail-transfer-protocol) before flipping
-// verify=true.
+// Two modes:
+//   - Production / real-email: when SMTP env vars are configured, register
+//     (or PATCH) a `simple-mail-transfer-protocol` connector with the
+//     supplied SMTP credentials and the four canonical email templates
+//     (Register, SignIn, ForgotPassword, Generic). If a leftover
+//     `http-email` discard connector exists from a prior dev seed, delete
+//     it first so Logto picks the SMTP one.
+//   - Local-dev / no-email: when SMTP isn't configured, register the
+//     legacy `http-email` connector pointed at a discard URL. Logto
+//     refuses to enable email-based sign-in without ANY email connector;
+//     the discard endpoint satisfies the validator while ensuring no
+//     email actually leaves the host.
 //
-// Idempotent: lists existing connectors first; only registers if no
-// connector with the same connector_id is present.
-func seedEmailConnector(ctx context.Context, c *logto.Client) error {
-	const httpEmailConnectorID = "http-email"
+// The function is idempotent and safe to re-run.
+func seedEmailConnector(ctx context.Context, c *logto.Client, cfg *config) error {
+	const (
+		httpEmailConnectorID = "http-email"
+		smtpConnectorID      = "simple-mail-transfer-protocol"
+	)
+
 	existing, err := c.ListConnectors(ctx)
 	if err != nil {
 		return fmt.Errorf("list connectors: %w", err)
 	}
-	for _, conn := range existing {
-		if conn.ConnectorID == httpEmailConnectorID {
-			log.Printf("✓ Email connector %q exists (id=%s)", httpEmailConnectorID, conn.ID)
-			return nil
+	var (
+		existingHTTP *logto.Connector
+		existingSMTP *logto.Connector
+	)
+	for i := range existing {
+		switch existing[i].ConnectorID {
+		case httpEmailConnectorID:
+			existingHTTP = &existing[i]
+		case smtpConnectorID:
+			existingSMTP = &existing[i]
 		}
 	}
-	// Discard URL: pointed at localhost:9999 which has nothing
-	// listening. Logto will fail the actual HTTP POST when an email
-	// would be sent, but for our flow no email is ever triggered
-	// (sign-up verify=false, no password reset flows wired up yet).
-	created, err := c.CreateConnector(ctx, logto.CreateConnectorParams{
-		ConnectorID: httpEmailConnectorID,
-		Config: map[string]interface{}{
-			"endpoint": "http://localhost:9999/discard",
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("create connector: %w", err)
+
+	if !cfg.smtpConfigured() {
+		// Dev path: ensure a discard http-email connector exists.
+		if existingHTTP != nil {
+			log.Printf("✓ Email connector %q exists (id=%s; discard endpoint)", httpEmailConnectorID, existingHTTP.ID)
+			return nil
+		}
+		created, err := c.CreateConnector(ctx, logto.CreateConnectorParams{
+			ConnectorID: httpEmailConnectorID,
+			Config: map[string]interface{}{
+				"endpoint": "http://localhost:9999/discard",
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("create http-email connector: %w", err)
+		}
+		log.Printf("✓ Registered email connector %q (id=%s; discard endpoint -- no real email)", httpEmailConnectorID, created.ID)
+		return nil
 	}
-	log.Printf("✓ Registered email connector %q (id=%s; discard endpoint)", httpEmailConnectorID, created.ID)
+
+	// Production path: SMTP connector with Resend (or any SMTP provider).
+	smtpConfig := map[string]interface{}{
+		"host":   cfg.SMTPHost,
+		"port":   cfg.SMTPPort,
+		"secure": cfg.SMTPPort == 465,
+		"auth": map[string]interface{}{
+			"user": cfg.SMTPUser,
+			"pass": cfg.SMTPPass,
+		},
+		"fromEmail": cfg.EmailFrom,
+		"fromName":  cfg.EmailFromName,
+		"templates": defaultEmailTemplates(),
+	}
+
+	if existingSMTP != nil {
+		// Update in place so we don't disrupt any in-flight verification
+		// codes that might be tied to the connector instance ID.
+		if _, err := c.UpdateConnector(ctx, existingSMTP.ID, logto.UpdateConnectorParams{
+			Config: smtpConfig,
+		}); err != nil {
+			return fmt.Errorf("update SMTP connector: %w", err)
+		}
+		log.Printf("✓ SMTP connector %q reconfigured (id=%s, host=%s:%d, from=%s)",
+			smtpConnectorID, existingSMTP.ID, cfg.SMTPHost, cfg.SMTPPort, cfg.EmailFrom)
+	} else {
+		created, err := c.CreateConnector(ctx, logto.CreateConnectorParams{
+			ConnectorID: smtpConnectorID,
+			Config:      smtpConfig,
+		})
+		if err != nil {
+			return fmt.Errorf("create SMTP connector: %w", err)
+		}
+		log.Printf("✓ Registered SMTP connector %q (id=%s, host=%s:%d, from=%s)",
+			smtpConnectorID, created.ID, cfg.SMTPHost, cfg.SMTPPort, cfg.EmailFrom)
+	}
+
+	// Tear down the dev discard connector if we just promoted to SMTP.
+	// Logto allows multiple email connectors but will round-robin or
+	// pick one arbitrarily; safer to leave only one.
+	if existingHTTP != nil {
+		if err := c.DeleteConnector(ctx, existingHTTP.ID); err != nil {
+			log.Printf("warning: failed to delete leftover http-email connector %s: %v", existingHTTP.ID, err)
+		} else {
+			log.Printf("✓ Removed leftover http-email discard connector (id=%s)", existingHTTP.ID)
+		}
+	}
 	return nil
+}
+
+// defaultEmailTemplates returns the canonical Logto email templates
+// the SMTP connector requires. Each template is plain HTML with a
+// {{code}} placeholder Logto interpolates with the verification code.
+func defaultEmailTemplates() []map[string]interface{} {
+	tmpl := func(usageType, subject, intro string) map[string]interface{} {
+		body := fmt.Sprintf(`<!DOCTYPE html>
+<html><body style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+<h2 style="color: #111;">Court Command</h2>
+<p>%s</p>
+<p style="font-size: 28px; letter-spacing: 4px; font-weight: 700; padding: 16px 24px; background: #f3f4f6; border-radius: 8px; text-align: center; font-family: ui-monospace, monospace;">{{code}}</p>
+<p style="color: #6b7280; font-size: 13px;">If you didn't request this code, you can safely ignore this email.</p>
+</body></html>`, intro)
+		return map[string]interface{}{
+			"usageType":   usageType,
+			"type":        "EmailTemplateType.Generic", // Logto wants this string literal
+			"subject":     subject,
+			"content":     body,
+			"contentType": "text/html",
+		}
+	}
+	return []map[string]interface{}{
+		tmpl("Register", "Welcome to Court Command — verify your email", "Welcome! Your verification code is:"),
+		tmpl("SignIn", "Court Command sign-in code", "Your sign-in code is:"),
+		tmpl("ForgotPassword", "Reset your Court Command password", "Your password reset code is:"),
+		tmpl("Generic", "Court Command verification code", "Your verification code is:"),
+	}
 }
 
 // seedSignInExperience configures the tenant to accept email-based
@@ -733,14 +891,21 @@ func seedEmailConnector(ctx context.Context, c *logto.Client) error {
 //
 // Requires seedEmailConnector to run first; Logto rejects email
 // methods without a configured email connector.
-func seedSignInExperience(ctx context.Context, c *logto.Client) error {
+//
+// SignUp.Verify is true when SMTP is configured (email codes can
+// actually deliver) and forced false when SMTP isn't configured
+// (otherwise sign-up would fail on every code-send because Logto
+// can't deliver via the http-email discard endpoint). Local dev
+// thus runs verify=false and skips email validation entirely.
+func seedSignInExperience(ctx context.Context, c *logto.Client, cfg *config) error {
+	verify := cfg.EmailVerifyOnSignUp && cfg.smtpConfigured()
 	params := logto.UpdateSignInExperienceParams{
 		SignIn: &logto.SignInConfig{
 			Methods: []logto.SignInMethod{
 				{
 					Identifier:        logto.SignInIdentifierEmail,
 					Password:          true,
-					VerificationCode:  false,
+					VerificationCode:  cfg.smtpConfigured(), // enable magic-link sign-in when email works
 					IsPasswordPrimary: true,
 				},
 				{
@@ -751,24 +916,17 @@ func seedSignInExperience(ctx context.Context, c *logto.Client) error {
 				},
 			},
 		},
-		// Logto requires verify=true when the sign-up identifier is
-		// email or phone. Our http-email connector points at a
-		// discard URL, so verification emails go nowhere -- this is
-		// fine for E2E and local dev because we DON'T exercise the
-		// sign-up flow (the bootstrap admin is created by the seeder
-		// via the Mgmt API, bypassing sign-in-experience entirely).
-		// Production must replace the connector before relying on
-		// sign-up self-service.
 		SignUp: &logto.SignUpConfig{
 			Identifiers: []logto.SignInIdentifier{logto.SignInIdentifierEmail},
 			Password:    true,
-			Verify:      true,
+			Verify:      verify,
 		},
 	}
 	if err := c.UpdateSignInExperience(ctx, params); err != nil {
 		return fmt.Errorf("update sign-in experience: %w", err)
 	}
-	log.Printf("✓ Sign-in experience configured (email + username identifiers, email-only signup)")
+	log.Printf("✓ Sign-in experience configured (email + username; signup verify=%t, magic-link sign-in=%t)",
+		verify, cfg.smtpConfigured())
 	return nil
 }
 

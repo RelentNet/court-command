@@ -1,0 +1,87 @@
+# docker-compose.bootstrap.yaml
+#
+# One-shot Logto + database bootstrap for production.
+#
+# This compose file is meant to be invoked manually after the main
+# stack (docker-compose.yaml) is deployed and the api/db services are
+# healthy. It runs the logto-seed binary once -- which:
+#   - registers / patches the API resource and 12 scopes in Logto
+#   - registers / updates the SMTP email connector (when SMTP env vars
+#     are provided) so magic-link sign-in actually delivers emails
+#   - configures the sign-in experience (email + username identifiers,
+#     verify=true when SMTP is wired)
+#   - ensures the User-type role with all 12 API scopes exists and is
+#     granted to the bootstrap admin
+#   - registers the Logto webhook pointed at the api service
+#   - syncs sports.logto_org_id in the application database to match
+#     the Pickleball / Demo Sport organizations Logto issued
+#   - then exits 0 (a single execution; not a long-running service)
+#
+# Usage (Coolify host or any host that can reach the prod db internally):
+#
+#   1. Source the production env file:
+#         set -a && . ./.env.prod && set +a
+#   2. Build + run (joins the existing prod stack's network):
+#         docker compose \
+#           -f docker-compose.yaml \
+#           -f docker-compose.bootstrap.yaml \
+#           run --rm bootstrap
+#   3. The container exits 0 on success. Re-running is idempotent.
+#
+# When invoked this way, Compose merges this file's `bootstrap` service
+# on top of the main stack: the bootstrap container reaches `db:5432`
+# and `redis:6379` over the same internal network the api uses, so you
+# never need to expose the database to the public internet.
+#
+# Environment variables consumed (all required for production):
+#   LOGTO_ENDPOINT, LOGTO_MANAGEMENT_API_APP_ID,
+#   LOGTO_MANAGEMENT_API_APP_SECRET, LOGTO_MANAGEMENT_API_RESOURCE,
+#   LOGTO_API_RESOURCE, LOGTO_SPA_REDIRECT_URI, LOGTO_WEBHOOK_URL,
+#   LOGTO_BOOTSTRAP_EMAIL, LOGTO_BOOTSTRAP_PASSWORD, LOGTO_BOOTSTRAP_NAME,
+#   DATABASE_URL,
+#   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS,
+#   EMAIL_FROM, EMAIL_FROM_NAME,
+#   APP_ENV (set to "production" to skip Demo Sport).
+
+services:
+  bootstrap:
+    build:
+      context: ./api
+      args:
+        COMMIT: ${SOURCE_COMMIT:-${COOLIFY_GIT_COMMIT_SHA:-bootstrap}}
+    image: court-command-api  # reuse the same image the api service builds
+    entrypoint: ["./logto-seed"]
+    profiles:
+      - bootstrap   # excluded from default `docker compose up`
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Logto Mgmt API
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT}
+      LOGTO_MANAGEMENT_API_APP_ID: ${LOGTO_MANAGEMENT_API_APP_ID}
+      LOGTO_MANAGEMENT_API_APP_SECRET: ${LOGTO_MANAGEMENT_API_APP_SECRET}
+      LOGTO_MANAGEMENT_API_RESOURCE: ${LOGTO_MANAGEMENT_API_RESOURCE:-https://default.logto.app/api}
+      # API + SPA + webhook URLs
+      LOGTO_API_RESOURCE: ${LOGTO_API_RESOURCE}
+      LOGTO_SPA_REDIRECT_URI: ${LOGTO_SPA_REDIRECT_URI:-https://courtcommand.app/auth/callback}
+      LOGTO_WEBHOOK_URL: ${LOGTO_WEBHOOK_URL:-https://api.courtcommand.app/api/v1/webhooks/logto}
+      # Bootstrap admin
+      LOGTO_BOOTSTRAP_EMAIL: ${LOGTO_BOOTSTRAP_EMAIL:-daniel.f.velez@gmail.com}
+      LOGTO_BOOTSTRAP_PASSWORD: ${LOGTO_BOOTSTRAP_PASSWORD}
+      LOGTO_BOOTSTRAP_NAME: ${LOGTO_BOOTSTRAP_NAME:-Daniel Velez}
+      # Application database (for sports.logto_org_id sync)
+      DATABASE_URL: ${DATABASE_URL}
+      # Production launch mode: skip Demo Sport
+      APP_ENV: ${APP_ENV:-production}
+      # SMTP (optional but strongly recommended for production --
+      # required for magic-link sign-in and email verification)
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Court Command}
+      # Sign-up email verification (true requires SMTP to be configured)
+      EMAIL_VERIFY_ON_SIGNUP: ${EMAIL_VERIFY_ON_SIGNUP:-true}
+    restart: "no"  # one-shot, do NOT restart on exit

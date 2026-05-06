@@ -36,7 +36,13 @@ Coolify deploys `docker-compose.yaml`. The compose file forwards env vars from C
 | `LOGTO_MANAGEMENT_API_APP_ID` | (from Logto admin) | see Step 2 |
 | `LOGTO_MANAGEMENT_API_APP_SECRET` | (from Logto admin) | see Step 2 |
 | `LOGTO_MANAGEMENT_API_RESOURCE` | `https://default.logto.app/api` | Logto-internal fixed value |
-| `LOGTO_WEBHOOK_SIGNING_KEY` | (filled by Step 3) | output of `make prod-bootstrap` |
+| `LOGTO_WEBHOOK_SIGNING_KEY` | (filled by Step 3) | output of bootstrap container |
+| `SMTP_HOST` | `smtp.resend.com` | Resend SMTP |
+| `SMTP_PORT` | `465` | TLS |
+| `SMTP_USER` | `resend` | literal — Resend's username |
+| `SMTP_PASS` | `re_iCNtaEuU_...` | Resend API key |
+| `EMAIL_FROM` | `noreply@mail.courtcommand.app` | from your verified Resend domain |
+| `EMAIL_FROM_NAME` | `Court Command` | display name on emails |
 
 ### Frontend / web service (build args — must be set BEFORE the web build)
 
@@ -73,22 +79,53 @@ Once Logto is up at `https://logto-admin.courtcommand.app`:
 
 ---
 
+## Step 2.5 — Resend (production email delivery)
+
+Skipping this step is OK for a smoke deploy, but **without email configured, sign-up will be blocked** because Logto requires email verification when the sign-up identifier is email. The bootstrap admin is created by the seeder via the Mgmt API (bypassing the verification flow), so YOU can still sign in — but no second user can.
+
+1. Sign up at https://resend.com (free tier covers 3,000 emails/month, plenty for early launch)
+2. **Domains** → **Add Domain** → `mail.courtcommand.app` (subdomain keeps the apex pristine)
+3. Resend gives you 3-4 DNS records (SPF + DKIM + tracking). Add them to your DNS provider for `courtcommand.app`. Verification typically takes 5-30 min.
+4. **API Keys** → **Create API Key** → name `Court Command production`, permission `Sending access`. Copy the `re_...` value. **The key is shown only once.**
+5. Test the key with curl (the seeder will use SMTP, but a one-shot REST POST proves the key works):
+
+   ```bash
+   curl -s -X POST 'https://api.resend.com/emails' \
+     -H 'Authorization: Bearer re_YOUR_KEY' \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "from": "Court Command <noreply@mail.courtcommand.app>",
+       "to": "your-account-email@example.com",
+       "subject": "Resend test",
+       "html": "<p>It works.</p>"
+     }'
+   ```
+
+   200 with an `id` field = success. 403 with `validation_error` = domain not verified yet (wait for DNS).
+
+6. Paste the API key + `mail.courtcommand.app` into Coolify env vars (table in Step 1).
+
+> **Plain SMTP fallback.** If you'd rather use SendGrid, AWS SES, or Postmark, swap the SMTP host/port/user/pass in Coolify. The seeder treats them as opaque SMTP credentials — only the sender domain needs to match `EMAIL_FROM`.
+
+---
+
 ## Step 3 — Run prod-bootstrap (provisions Logto + syncs DB)
 
-This step is automated. Run it from your laptop pointing at production.
+The bootstrap is a one-shot Docker container that runs in the same network as the prod stack, so **the DB never has to be exposed to the public internet**. The compose file is at `docker-compose.bootstrap.yaml`.
 
-### Prepare `.env.prod`
+### Prepare `.env.prod` on the Coolify host
 
-Create `~/code/court-command-v2/court-command/.env.prod` (gitignored). Paste in:
+SSH to your Coolify VM, cd into the cloned repo (Coolify keeps a copy under `/data/coolify/applications/<resource_uuid>/source` or similar — see Coolify dashboard for the exact path).
+
+Create a `.env.prod` file there (gitignored, never committed):
 
 ```bash
+# Tells the seeder to skip Demo Sport
 APP_ENV=production
 
-# DB (must be reachable from your laptop -- ideally over SSH tunnel
-# or VPN; for one-shot launch you can temporarily expose 5432 via
-# Coolify's "Exposed via the proxy" toggle on the db service, then
-# turn it back off when this step finishes).
-DATABASE_URL=postgres://courtcommand:<DB_PASSWORD>@<COOLIFY_HOST>:5432/courtcommand?sslmode=disable
+# Application database -- internal hostname `db` works because the
+# bootstrap service runs on the same Compose network as the api/db services
+DATABASE_URL=postgres://courtcommand:<DB_PASSWORD>@db:5432/courtcommand?sslmode=disable
 
 # Logto
 LOGTO_ENDPOINT=https://logto.courtcommand.app
@@ -97,47 +134,57 @@ LOGTO_MANAGEMENT_API_APP_ID=<from Step 2>
 LOGTO_MANAGEMENT_API_APP_SECRET=<from Step 2>
 LOGTO_MANAGEMENT_API_RESOURCE=https://default.logto.app/api
 
-# SPA redirect (the URL Logto redirects users to after sign-in)
 LOGTO_SPA_REDIRECT_URI=https://courtcommand.app/auth/callback
-
-# Webhook target (api consumes these in production)
 LOGTO_WEBHOOK_URL=https://api.courtcommand.app/api/v1/webhooks/logto
 
-# Bootstrap admin (the FIRST account you'll use to sign in)
 LOGTO_BOOTSTRAP_EMAIL=daniel.f.velez@gmail.com
 LOGTO_BOOTSTRAP_PASSWORD=<strong-password-you-pick>
 LOGTO_BOOTSTRAP_NAME="Daniel Velez"
 
-# Demo Sport: false in prod (Pickleball-only launch)
-SEED_DEMO_SPORT=false
+# Resend SMTP (from Step 2.5)
+SMTP_HOST=smtp.resend.com
+SMTP_PORT=465
+SMTP_USER=resend
+SMTP_PASS=re_YOUR_KEY
+EMAIL_FROM=noreply@mail.courtcommand.app
+EMAIL_FROM_NAME=Court Command
+EMAIL_VERIFY_ON_SIGNUP=true
 ```
 
-### Run
+### Run the bootstrap container
 
 ```bash
-cd ~/code/court-command-v2/court-command
-make prod-bootstrap
+# On the Coolify host, in the repo directory:
+set -a && . ./.env.prod && set +a
+
+docker compose \
+  -f docker-compose.yaml \
+  -f docker-compose.bootstrap.yaml \
+  run --rm bootstrap
 ```
 
-The script provisions:
+The container builds the api image (sharing layer cache with the existing prod build), runs the seeder once, exits 0 on success.
+
+The seeder provisions:
 - 12 API resource scopes
 - SPA app `Court Command Web`
-- Bootstrap admin user with `platform_admin` role
 - Pickleball organization
 - 5 org scopes + 5 org roles + scope→role bindings
-- Webhook → `https://api.courtcommand.app/api/v1/webhooks/logto`
-- Sign-in experience: email identifier
+- Bootstrap admin user with `platform_admin` org role
 - User-level role `Court Command API (all scopes)` granting all 12 API scopes to the bootstrap admin
-- Updates `sports.logto_org_id` row in the prod app DB to match the new Pickleball org
+- SMTP email connector (Resend) with the four canonical email templates
+- Sign-in experience: email + username identifiers, magic-link sign-in enabled, sign-up email verification enabled
+- Webhook → `https://api.courtcommand.app/api/v1/webhooks/logto`
+- `sports.logto_org_id` row in the prod app DB synced to match the new Pickleball org
 
-The summary block at the end prints:
+The summary block at the end prints values for:
 - `LOGTO_PICKLEBALL_ORG_ID=...`
 - `LOGTO_WEBHOOK_SIGNING_KEY=...`
 - `VITE_LOGTO_APP_ID=...`
 
 ### Paste into Coolify
 
-Take the printed values and update:
+Take the printed values and update the Coolify env tab:
 - `LOGTO_WEBHOOK_SIGNING_KEY` (api service)
 - `VITE_LOGTO_APP_ID` (web service)
 
@@ -159,13 +206,15 @@ The api will run migrations on startup. `/api/v1/health` should return `{databas
 2. PublicLanding renders (hero + tournaments/leagues/venues directories — empty until you create some)
 3. Click **Sign In to Get Started**
 4. Logto sign-in form appears at `https://logto.courtcommand.app/sign-in`
-5. Sign in with `daniel.f.velez@gmail.com` and the bootstrap password
+5. Sign in with `daniel.f.velez@gmail.com` and the bootstrap password (or click **Sign in with email code** for the magic-link flow — Resend should deliver the code in a few seconds)
 6. Browser redirects to `https://courtcommand.app/auth/callback?code=...`
 7. After token exchange, lands on `https://courtcommand.app/` (PublicLanding inside authenticated shell)
 8. Click **Dashboard** in the sidebar → `/pickleball/dashboard` renders
 9. Click **Profile** → `/pickleball/profile` renders the form
 
 If anything 401s, check the api logs in Coolify and verify each Logto env var matches between Logto admin and Coolify.
+
+If magic-link emails don't arrive: check Resend dashboard's **Logs** tab for delivery failures (most common: domain not verified, sender mismatch, gmail spam folder).
 
 ---
 
