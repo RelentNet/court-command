@@ -61,10 +61,14 @@ services:
     restart: unless-stopped
 
   # Logto self-hosted OIDC provider. Backed by the dedicated db_logto
-  # service. Two HTTP endpoints:
+  # service. Two HTTP endpoints, each with its own public domain:
   #   :3001 -> OIDC core (issuer, JWKS, /oidc/token)  -> logto.courtcommand.app
   #   :3002 -> Logto admin UI                          -> logto-admin.courtcommand.app
-  # Coolify maps both via the resource's domain config.
+  #
+  # Coolify's magic SERVICE_FQDN_<NAME>_<PORT> vars route traffic to the
+  # right container:port. Set the actual FQDN values in the Coolify env tab:
+  #   SERVICE_FQDN_LOGTO_3001=https://logto.courtcommand.app
+  #   SERVICE_FQDN_LOGTOADMIN_3002=https://logto-admin.courtcommand.app
   logto:
     image: svhd/logto:1.22.0
     depends_on:
@@ -79,6 +83,11 @@ services:
       - "3001"
       - "3002"
     environment:
+      # Coolify proxy routing: tell the proxy to forward
+      # logto.courtcommand.app -> this container's :3001
+      # logto-admin.courtcommand.app -> this container's :3002
+      SERVICE_FQDN_LOGTO_3001: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
+      SERVICE_FQDN_LOGTOADMIN_3002: ${LOGTO_ADMIN_ENDPOINT:-https://logto-admin.courtcommand.app}
       TRUST_PROXY_HEADER: "1"
       DB_URL: postgres://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-logto}@db_logto:5432/${LOGTO_DB_NAME:-logto}
       ENDPOINT: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
@@ -112,6 +121,8 @@ services:
     expose:
       - "8080"
     environment:
+      # Coolify proxy: api.courtcommand.app -> this container's :8080
+      SERVICE_FQDN_API_8080: ${SERVICE_FQDN_API:-https://api.courtcommand.app}
       DATABASE_URL: ${DATABASE_URL:-postgres://courtcommand:courtcommand@db:5432/courtcommand?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       PORT: "8080"
@@ -165,6 +176,9 @@ services:
         VITE_WS_URL: ${VITE_WS_URL:-}
     expose:
       - "80"
+    environment:
+      # Coolify proxy: courtcommand.app -> this container's :80
+      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB:-https://courtcommand.app}
     depends_on:
       api:
         condition: service_healthy
@@ -175,6 +189,8 @@ services:
     expose:
       - "2368"
     environment:
+      # Coolify proxy: news.courtcommand.app -> this container's :2368
+      SERVICE_FQDN_GHOST_2368: ${SERVICE_FQDN_GHOST:-https://news.courtcommand.app}
       url: ${GHOST_URL:-https://news.courtcommand.app}
       database__client: sqlite3
       database__connection__filename: /var/lib/ghost/content/data/ghost.db
