@@ -38,11 +38,14 @@ Coolify deploys `docker-compose.yaml`. The compose file forwards env vars from C
 | Variable | Production value | Source |
 |---|---|---|
 | `APP_ENV` | `production` | literal |
-| `DATABASE_URL` | `postgres://courtcommand:<DB_PASSWORD>@db:5432/courtcommand?sslmode=disable` | Coolify provisions |
+| `DATABASE_URL` | `postgres://courtcommand:<DB_PASSWORD>@db:5432/courtcommand?sslmode=disable` | uses `db` service |
 | `REDIS_URL` | `redis://redis:6379/0` | Coolify default |
 | `POSTGRES_USER` | `courtcommand` | literal |
 | `POSTGRES_PASSWORD` | (generate strong password) | random — write down |
 | `POSTGRES_DB` | `courtcommand` | literal |
+| `LOGTO_DB_USER` | `logto` | literal |
+| `LOGTO_DB_PASSWORD` | (generate strong password) | random — write down |
+| `LOGTO_DB_NAME` | `logto` | literal |
 | `CORS_ALLOWED_ORIGINS` | `https://courtcommand.app` | literal (add news/staging if needed) |
 | `LOGTO_ENDPOINT` | `https://logto.courtcommand.app` | from `_local-secrets/logto-prod-creds.env` |
 | `LOGTO_API_RESOURCE` | `https://api.courtcommand.app/api` | from `_local-secrets/logto-prod-creds.env` |

@@ -12,22 +12,40 @@
 # For local dev, override with: docker compose -f docker-compose.yaml -f docker-compose.local.yaml up
 
 services:
+  # Application database (Court Command). Isolated from Logto's data
+  # so a compromise of the api can't touch identity tables, and either
+  # database can be restored independently.
   db:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-courtcommand}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-courtcommand}
       POSTGRES_DB: ${POSTGRES_DB:-courtcommand}
-      # Logto needs its own database alongside the app's. The init
-      # script in scripts/postgres-init/ runs on first volume creation
-      # and creates each database listed here (comma-separated).
-      # Re-running is a no-op once the volume exists.
-      POSTGRES_MULTIPLE_DATABASES: logto
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-courtcommand}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Identity database (Logto). Separate Postgres process + separate
+  # volume + separate role/password from the application db. The api
+  # service has no credentials that reach this instance; Logto has
+  # no credentials that reach the application db. Different security
+  # blast radii, independent backup/restore lifecycle, independent
+  # version pinning if Logto ever needs to lag Postgres major upgrades.
+  db_logto:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${LOGTO_DB_USER:-logto}
+      POSTGRES_PASSWORD: ${LOGTO_DB_PASSWORD:-logto}
+      POSTGRES_DB: ${LOGTO_DB_NAME:-logto}
+    volumes:
+      - pgdata_logto:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOGTO_DB_USER:-logto}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,16 +60,15 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Logto self-hosted OIDC provider. Backed by the `logto` database on
-  # the shared Postgres instance (created by scripts/postgres-init/).
-  # Two HTTP endpoints:
+  # Logto self-hosted OIDC provider. Backed by the dedicated db_logto
+  # service. Two HTTP endpoints:
   #   :3001 -> OIDC core (issuer, JWKS, /oidc/token)  -> logto.courtcommand.app
   #   :3002 -> Logto admin UI                          -> logto-admin.courtcommand.app
   # Coolify maps both via the resource's domain config.
   logto:
     image: svhd/logto:1.22.0
     depends_on:
-      db:
+      db_logto:
         condition: service_healthy
     # `npm run cli db seed -- --swe` creates Logto's tables on first run
     # (schema migration + seed of built-in roles, OIDC keys, default
@@ -63,7 +80,7 @@ services:
       - "3002"
     environment:
       TRUST_PROXY_HEADER: "1"
-      DB_URL: postgres://${POSTGRES_USER:-courtcommand}:${POSTGRES_PASSWORD:-courtcommand}@db:5432/logto
+      DB_URL: postgres://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-logto}@db_logto:5432/${LOGTO_DB_NAME:-logto}
       ENDPOINT: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
       ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:-https://logto-admin.courtcommand.app}
       # Logto's default DATABASE_CONNECTION_TIMEOUT (5000ms) is too tight
@@ -183,6 +200,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  pgdata:           # courtcommand application data
+  pgdata_logto:     # Logto identity data (separate volume = independent backup/restore)
   uploads:
   ghost_content:
