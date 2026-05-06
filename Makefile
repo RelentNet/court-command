@@ -159,12 +159,20 @@ backup:
 	docker compose exec -T db pg_dump -U courtcommand courtcommand > backups/db-$$TIMESTAMP.sql && \
 	echo "Database backup: backups/db-$$TIMESTAMP.sql ($$(wc -c < backups/db-$$TIMESTAMP.sql | tr -d ' ') bytes)"
 
-# Full backup: database + uploaded files (for before deploys or major changes)
+# Full backup: app database + Logto identity database + uploaded files
+# (for before deploys or major changes). Run as 'make backup-full' on
+# the production host where the compose stack is running.
 backup-full:
 	@mkdir -p backups
 	@TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	docker compose exec -T db pg_dump -U courtcommand courtcommand > backups/db-$$TIMESTAMP.sql && \
-	echo "Database backup: backups/db-$$TIMESTAMP.sql"; \
+	echo "App db backup: backups/db-$$TIMESTAMP.sql"; \
+	if docker compose ps -q db_logto >/dev/null 2>&1 && [ -n "$$(docker compose ps -q db_logto)" ]; then \
+		docker compose exec -T db_logto pg_dump -U $${LOGTO_DB_USER:-logto} $${LOGTO_DB_NAME:-logto} > backups/db_logto-$$TIMESTAMP.sql && \
+		echo "Logto db backup: backups/db_logto-$$TIMESTAMP.sql"; \
+	else \
+		echo "(db_logto service not running; skipped identity backup)"; \
+	fi; \
 	if [ -d api/uploads ] && [ "$$(ls -A api/uploads 2>/dev/null)" ]; then \
 		tar czf backups/uploads-$$TIMESTAMP.tar.gz -C api uploads && \
 		echo "Uploads backup: backups/uploads-$$TIMESTAMP.tar.gz"; \
@@ -209,10 +217,13 @@ restore-uploads:
 
 # List all available backups
 backup-list:
-	@echo "=== Database Backups ==="
+	@echo "=== App database backups ==="
 	@ls -lh backups/db-*.sql 2>/dev/null || echo "  None"
 	@echo ""
-	@echo "=== Upload Backups ==="
+	@echo "=== Logto identity database backups ==="
+	@ls -lh backups/db_logto-*.sql 2>/dev/null || echo "  None"
+	@echo ""
+	@echo "=== Upload backups ==="
 	@ls -lh backups/uploads-*.tar.gz 2>/dev/null || echo "  None"
 
 # Package the Court Command Ghost theme into a zip ready for upload
