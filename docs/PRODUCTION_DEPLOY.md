@@ -193,10 +193,32 @@ Take the printed values and update the Coolify env tab:
 ## Step 4 — Trigger Coolify rebuild
 
 In Coolify:
-1. Click **Redeploy** on the api service
-2. After api is healthy, click **Redeploy** on the web service (it needs the new VITE_LOGTO_APP_ID baked in)
+1. Click **Redeploy** on the Docker Compose resource
 
-The api will run migrations on startup. `/api/v1/health` should return `{database:ok, redis:ok, status:ok}` once it's up.
+This rebuild bakes in the bootstrap-output values (`VITE_LOGTO_APP_ID`, `LOGTO_WEBHOOK_SIGNING_KEY`) — without them, the api fail-fasts in production mode and the web bundle has placeholder values that throw on AuthProvider init.
+
+The api runs migrations on startup. `/api/v1/health` should return `{database:ok, redis:ok, status:ok}` once it's up.
+
+---
+
+## Step 4.5 — Upload Court Command theme to Ghost
+
+Ghost ships with a default Casper theme on first install. To get the Court Command branding (sidebar, header, category tabs):
+
+1. On your laptop:
+   ```bash
+   cd ~/code/court-command-v2/court-command
+   make ghost-theme
+   ```
+   This packages `ghost-theme/` into `ghost-theme/cc-ghost-theme.zip` (gitignored).
+
+2. Visit `https://news.courtcommand.app/ghost` and complete Ghost's first-run setup (create owner account, name the site, etc.). Use Resend SMTP for the owner email since the SMTP env vars are already in the compose stack.
+
+3. **Settings → Design → Change theme → Upload theme** → select `cc-ghost-theme.zip` → **Activate**.
+
+The theme persists in the `ghost_content` Docker volume across container restarts. Re-uploading is idempotent.
+
+> If Ghost's first-run setup emails (owner password reset, member welcome) don't arrive, check Resend's **Logs** tab. Ghost SMTP is configured via the same env vars Logto uses (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`, `EMAIL_FROM_NAME`).
 
 ---
 

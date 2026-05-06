@@ -112,6 +112,23 @@ services:
       database__client: sqlite3
       database__connection__filename: /var/lib/ghost/content/data/ghost.db
       NODE_ENV: production
+      # SMTP for Ghost member magic-link emails. Shares the same Resend
+      # account / verified domain as the Logto sign-in emails so both
+      # authenticate from the same sender reputation. Required for Ghost
+      # member sign-up to work; without it Ghost falls back to a console
+      # log and members never receive their login link.
+      #
+      # Ghost uses nodemailer's Direct/SMTP transport. We use generic
+      # SMTP (host/port/secure/auth.user/auth.pass) rather than the
+      # `service` preset so any SMTP-compatible provider works (Resend,
+      # Postmark, AWS SES, SendGrid, etc.) with the same env vars.
+      mail__transport: SMTP
+      mail__options__host: ${SMTP_HOST:-smtp.resend.com}
+      mail__options__port: ${SMTP_PORT:-465}
+      mail__options__secureConnection: "true"
+      mail__options__auth__user: ${SMTP_USER:-resend}
+      mail__options__auth__pass: ${SMTP_PASS:-}
+      mail__from: ${EMAIL_FROM_NAME:-Court Command} <${EMAIL_FROM:-noreply@mail.courtcommand.app}>
     volumes:
       - ghost_content:/var/lib/ghost/content
     restart: unless-stopped

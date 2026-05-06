@@ -215,6 +215,15 @@ backup-list:
 	@echo "=== Upload Backups ==="
 	@ls -lh backups/uploads-*.tar.gz 2>/dev/null || echo "  None"
 
+# Package the Court Command Ghost theme into a zip ready for upload
+# at https://news.courtcommand.app/ghost (Admin -> Design -> Change theme).
+# Output: ghost-theme/cc-ghost-theme.zip (gitignored).
+ghost-theme:
+	@cd ghost-theme && rm -f cc-ghost-theme.zip && \
+		zip -r cc-ghost-theme.zip . -x '*.zip' -x '.*' && \
+		echo "Created ghost-theme/cc-ghost-theme.zip ($$(du -h cc-ghost-theme.zip | cut -f1))"
+	@echo "Upload via Ghost admin: Settings -> Design -> Change theme -> Upload."
+
 # Include .env if it exists
 -include .env
 export
