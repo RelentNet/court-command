@@ -102,12 +102,13 @@ services:
       context: ./api
       dockerfile: Dockerfile
       args:
-        # Coolify (this version) does not expose SOURCE_COMMIT at build
-        # time; this arg arrives empty and the Dockerfile falls back to
-        # commit='unknown'. The build_at timestamp in /api/v1/health
-        # remains a reliable deploy fingerprint. If a future Coolify
-        # version surfaces the SHA, this arg picks it up automatically.
-        COMMIT: ${SOURCE_COMMIT:-${COOLIFY_GIT_COMMIT_SHA:-}}
+        # Coolify (this version) does not expose SOURCE_COMMIT or
+        # COOLIFY_GIT_COMMIT_SHA at docker build time; this arg arrives
+        # as the literal "unknown" and the Dockerfile uses it directly.
+        # The build_at timestamp in /api/v1/health remains a reliable
+        # deploy fingerprint. If a future Coolify version surfaces the
+        # SHA via either env var, swap this to ${COOLIFY_GIT_COMMIT_SHA:-unknown}.
+        COMMIT: unknown
     expose:
       - "8080"
     environment:
