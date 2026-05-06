@@ -1,18 +1,31 @@
 # Production Deployment Runbook
 
-> One-shot launch guide for deploying `feature/logto-integration` to Coolify.
+> One-shot launch guide for deploying `feature/logto-integration` to Coolify as a single Docker Compose stack (db + redis + logto + api + web + ghost).
 > Run through this top-to-bottom on launch day.
 
 ## Pre-flight
 
 - [ ] Coolify is up and you can reach its admin UI
-- [ ] DNS records exist:
+- [ ] DNS records exist (all pointing at the Coolify host):
   - `courtcommand.app` → web service
   - `api.courtcommand.app` → api service
-  - `logto.courtcommand.app` → Logto Core (already deployed)
-  - `logto-admin.courtcommand.app` → Logto Admin (already deployed)
+  - `logto.courtcommand.app` → logto service (port 3001, OIDC core)
+  - `logto-admin.courtcommand.app` → logto service (port 3002, admin UI)
   - `news.courtcommand.app` → ghost service
-- [ ] You have access to `~/code/court-command-v2/_local-secrets/logto-prod-creds.env` on your laptop (or the values themselves)
+- [ ] You have access to `~/code/court-command-v2/_local-secrets/coolify-env.txt` on your laptop (the paste-ready Coolify env block)
+- [ ] Resend domain `mail.courtcommand.app` is verified (DNS propagated)
+
+## Deploy sequence at a glance
+
+The deploy is a 3-step dance because the bootstrap container needs Logto running, but Logto needs first-run setup before bootstrap can connect:
+
+| Step | What you do | What you get |
+|---|---|---|
+| **1** | Paste Coolify env, deploy | db + redis + logto come up. api fail-fasts (Logto Mgmt vars empty). web builds with placeholder values. |
+| **2** | Visit Logto admin UI, complete first-run wizard, create M2M app | App ID + Secret to paste into Coolify |
+| **3** | Paste Mgmt API creds, redeploy | api now starts cleanly |
+| **4** | SSH to Coolify host, run bootstrap container | Webhook signing key + SPA App ID + Pickleball org ID |
+| **5** | Paste those into Coolify, redeploy | web bundle rebuilds with real Logto config; everything works |
 
 ---
 
@@ -66,16 +79,20 @@ Coolify deploys `docker-compose.yaml`. The compose file forwards env vars from C
 
 ---
 
-## Step 2 — Logto Management API client
+## Step 2 — Logto first-run setup + Management API client
 
-Once Logto is up at `https://logto-admin.courtcommand.app`:
+Logto runs as a service in the same Docker Compose stack as the api/web/db/redis. After your first Coolify deploy, the `logto` service comes up with empty data — no admin user, no apps. You complete first-run setup via the admin UI, then create the M2M app the bootstrap container will use.
 
-1. Sign in to the admin UI
-2. **Applications** → **Create application** → **Machine-to-machine**
-3. Name: `Court Command Backend Seeder`
-4. Open the new app → **Roles** tab → assign `Logto Management API access` (built-in role)
-5. **Settings** tab → copy **App ID** and **App Secret**
-6. Paste into Coolify as `LOGTO_MANAGEMENT_API_APP_ID` and `LOGTO_MANAGEMENT_API_APP_SECRET`
+1. Visit `https://logto-admin.courtcommand.app`
+2. Logto's **first-run wizard** prompts you to create the operator account (the human who manages Logto itself — not your app users). Use a strong password; this is the gateway to all your tenant config.
+3. Skip any introductory tour / survey
+4. **Applications** → **Create application** → **Machine-to-machine** → name: `Court Command Backend Seeder`
+5. Open the new app → **Roles** tab → click **Assign roles** → check `Logto Management API access` (built-in role) → save
+6. **Settings** tab → copy **App ID** (looks like `rvvigkkmz5r009l9pm0ku`) and **App Secret** (the `re_...`-shaped one — clicking the eye icon reveals it once)
+7. Paste both into Coolify env vars:
+   - `LOGTO_MANAGEMENT_API_APP_ID`
+   - `LOGTO_MANAGEMENT_API_APP_SECRET`
+8. Coolify → redeploy the api service (it'll pick up the new vars and pass its production fail-fast)
 
 ---
 
