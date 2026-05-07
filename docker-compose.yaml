@@ -86,8 +86,8 @@ services:
       # Coolify proxy routing: tell the proxy to forward
       # logto.courtcommand.app -> this container's :3001
       # logto-admin.courtcommand.app -> this container's :3002
-      SERVICE_FQDN_LOGTO_3001: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
-      SERVICE_FQDN_LOGTOADMIN_3002: ${LOGTO_ADMIN_ENDPOINT:-https://logto-admin.courtcommand.app}
+      SERVICE_FQDN_LOGTO_3001: ${SERVICE_FQDN_LOGTO_3001:-https://logto.courtcommand.app}
+      SERVICE_FQDN_LOGTOADMIN_3002: ${SERVICE_FQDN_LOGTOADMIN_3002:-https://logto-admin.courtcommand.app}
       TRUST_PROXY_HEADER: "1"
       DB_URL: postgres://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-logto}@db_logto:5432/${LOGTO_DB_NAME:-logto}
       ENDPOINT: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
@@ -121,8 +121,11 @@ services:
     expose:
       - "8080"
     environment:
-      # Coolify proxy: api.courtcommand.app -> this container's :8080
-      SERVICE_FQDN_API_8080: ${SERVICE_FQDN_API:-https://api.courtcommand.app}
+      # Coolify proxy: api.courtcommand.app -> this container's :8080.
+      # The :- default fires only when the env var is unset; Coolify
+      # auto-creates SERVICE_FQDN_API_8080 as an empty string when the
+      # compose mentions it, so we have to set it in the Coolify env tab.
+      SERVICE_FQDN_API_8080: ${SERVICE_FQDN_API_8080:-https://api.courtcommand.app}
       DATABASE_URL: ${DATABASE_URL:-postgres://courtcommand:courtcommand@db:5432/courtcommand?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       PORT: "8080"
@@ -178,7 +181,7 @@ services:
       - "80"
     environment:
       # Coolify proxy: courtcommand.app -> this container's :80
-      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB:-https://courtcommand.app}
+      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-https://courtcommand.app}
     depends_on:
       api:
         condition: service_healthy
@@ -190,7 +193,7 @@ services:
       - "2368"
     environment:
       # Coolify proxy: news.courtcommand.app -> this container's :2368
-      SERVICE_FQDN_GHOST_2368: ${SERVICE_FQDN_GHOST:-https://news.courtcommand.app}
+      SERVICE_FQDN_GHOST_2368: ${SERVICE_FQDN_GHOST_2368:-https://news.courtcommand.app}
       url: ${GHOST_URL:-https://news.courtcommand.app}
       database__client: sqlite3
       database__connection__filename: /var/lib/ghost/content/data/ghost.db
