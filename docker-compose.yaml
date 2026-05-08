@@ -163,8 +163,8 @@ services:
 
   # One-shot Logto bootstrap.
   #
-  # Runs the logto-seed binary (baked into the api image) on every deploy.
-  # Idempotent: each step is find-or-create; safe to run multiple times.
+  # Runs the logto-seed binary (baked into the api image). Idempotent:
+  # each step is find-or-create; safe to run multiple times.
   #
   # The seeder:
   #   - registers the API resource + 12 scopes in Logto
@@ -176,18 +176,21 @@ services:
   #   - syncs sports.logto_org_id in the application db
   #   - exits 0
   #
-  # After the first successful run:
-  #   1. Copy the printed VITE_LOGTO_APP_ID + LOGTO_WEBHOOK_SIGNING_KEY
-  #      from the deploy log into Coolify's env tab.
-  #   2. Trigger a redeploy so the web bundle bakes in VITE_LOGTO_APP_ID
-  #      and the api receives LOGTO_WEBHOOK_SIGNING_KEY for HMAC verify.
+  # Gated behind the `seed` profile so it does NOT run on every deploy.
+  # First-launch and re-seed flow:
+  #   docker compose --profile seed up seed --abort-on-container-exit
   #
-  # The service is intentionally kept in-tree (rather than pulled out
-  # into docker-compose.bootstrap.yaml) because Coolify's compose
-  # deploys don't support multi-file overlays cleanly. Running on every
-  # deploy is fine because the seeder is fully idempotent and finishes
-  # in <10s when there's nothing to do.
+  # In Coolify (where compose profiles are awkward), invoke via the
+  # Terminal UI on the api container:
+  #   ./logto-seed
+  # The binary is baked alongside court-command in the api image.
+  #
+  # After a fresh seed, copy the printed VITE_LOGTO_APP_ID +
+  # LOGTO_WEBHOOK_SIGNING_KEY into Coolify's env tab and redeploy so
+  # the web bundle bakes in VITE_LOGTO_APP_ID and the api receives
+  # LOGTO_WEBHOOK_SIGNING_KEY for HMAC verify.
   seed:
+    profiles: ["seed"]
     build:
       context: ./api
       dockerfile: Dockerfile
