@@ -45,7 +45,12 @@ export const logtoConfig: LogtoConfig = {
     UserScope.Email,
     UserScope.Profile,
     UserScope.Identities,
-    UserScope.Organizations,    // CRITICAL: required to get organization-scoped tokens
+    UserScope.Organizations,      // CRITICAL: required to get organization-scoped tokens
+    UserScope.OrganizationRoles,  // CRITICAL: required for organization_roles claim in token.
+                                  // Without this Logto issues org-scoped tokens but strips
+                                  // the role names, so api's claims.ElevatedRole() never
+                                  // sees platform_admin and the admin sidebar link is hidden
+                                  // even when the user has the role assigned in Logto Console.
   ],
 }
 
