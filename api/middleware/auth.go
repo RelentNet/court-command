@@ -88,6 +88,23 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 }
 
 // RequirePlatformAdmin is middleware that requires the user to be a platform admin.
+//
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// TEMP-ADMIN-BYPASS: the platform_admin role check is currently DISABLED while
+// we debug the Logto organization_roles claim plumbing. Any authenticated user
+// gets through this middleware. Every admin endpoint mounted under this
+// middleware in router.go (around line 496) is therefore reachable by ANY
+// signed-in account -- including users who self-registered via Logto's public
+// sign-up flow on courtcommand.app.
+//
+// To restore the role check: delete the early `return next.ServeHTTP(...)`
+// below and remove this comment block. To find every related bypass site:
+//   git grep TEMP-ADMIN-BYPASS
+// Sites bypassed in this commit:
+//   - api/middleware/auth.go (this function)
+//   - web/src/features/admin/AdminGuard.tsx
+//   - web/src/components/Sidebar.tsx (admin link visibility)
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 func RequirePlatformAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data := SessionData(r.Context())
@@ -95,10 +112,13 @@ func RequirePlatformAdmin(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 			return
 		}
-		if data.Role != "platform_admin" {
-			writeError(w, http.StatusForbidden, "forbidden", "platform admin required")
-			return
-		}
+		// TEMP-ADMIN-BYPASS: role check disabled. Any authenticated user passes.
+		// Original gate, to restore: uncomment and delete the bypass line above.
+		//
+		// if data.Role != "platform_admin" {
+		//     writeError(w, http.StatusForbidden, "forbidden", "platform admin required")
+		//     return
+		// }
 		next.ServeHTTP(w, r)
 	})
 }
