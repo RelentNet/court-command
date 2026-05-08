@@ -161,6 +161,67 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # One-shot Logto bootstrap.
+  #
+  # Runs the logto-seed binary (baked into the api image) on every deploy.
+  # Idempotent: each step is find-or-create; safe to run multiple times.
+  #
+  # The seeder:
+  #   - registers the API resource + 12 scopes in Logto
+  #   - creates the SPA application (prints VITE_LOGTO_APP_ID)
+  #   - configures the email connector + sign-in experience
+  #   - creates the bootstrap admin (LOGTO_BOOTSTRAP_EMAIL)
+  #   - registers the User-type role with all 12 API scopes
+  #   - creates the Logto webhook (prints LOGTO_WEBHOOK_SIGNING_KEY)
+  #   - syncs sports.logto_org_id in the application db
+  #   - exits 0
+  #
+  # After the first successful run:
+  #   1. Copy the printed VITE_LOGTO_APP_ID + LOGTO_WEBHOOK_SIGNING_KEY
+  #      from the deploy log into Coolify's env tab.
+  #   2. Trigger a redeploy so the web bundle bakes in VITE_LOGTO_APP_ID
+  #      and the api receives LOGTO_WEBHOOK_SIGNING_KEY for HMAC verify.
+  #
+  # The service is intentionally kept in-tree (rather than pulled out
+  # into docker-compose.bootstrap.yaml) because Coolify's compose
+  # deploys don't support multi-file overlays cleanly. Running on every
+  # deploy is fine because the seeder is fully idempotent and finishes
+  # in <10s when there's nothing to do.
+  seed:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      args:
+        COMMIT: unknown
+    entrypoint: ["./logto-seed"]
+    environment:
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
+      LOGTO_API_RESOURCE: ${LOGTO_API_RESOURCE:-}
+      LOGTO_MANAGEMENT_API_APP_ID: ${LOGTO_MANAGEMENT_API_APP_ID:-}
+      LOGTO_MANAGEMENT_API_APP_SECRET: ${LOGTO_MANAGEMENT_API_APP_SECRET:-}
+      LOGTO_MANAGEMENT_API_RESOURCE: ${LOGTO_MANAGEMENT_API_RESOURCE:-https://default.logto.app/api}
+      LOGTO_SPA_REDIRECT_URI: ${LOGTO_SPA_REDIRECT_URI:-https://courtcommand.app/auth/callback}
+      LOGTO_WEBHOOK_URL: ${LOGTO_WEBHOOK_URL:-https://api.courtcommand.app/api/v1/webhooks/logto}
+      LOGTO_BOOTSTRAP_EMAIL: ${LOGTO_BOOTSTRAP_EMAIL:-daniel.f.velez@gmail.com}
+      LOGTO_BOOTSTRAP_PASSWORD: ${LOGTO_BOOTSTRAP_PASSWORD:-}
+      LOGTO_BOOTSTRAP_NAME: ${LOGTO_BOOTSTRAP_NAME:-Daniel Velez}
+      DATABASE_URL: ${DATABASE_URL:-postgres://courtcommand:courtcommand@db:5432/courtcommand?sslmode=disable}
+      APP_ENV: ${APP_ENV:-production}
+      SEED_DEMO_SPORT: ${SEED_DEMO_SPORT:-false}
+      EMAIL_VERIFY_ON_SIGNUP: ${EMAIL_VERIFY_ON_SIGNUP:-true}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Court Command}
+    depends_on:
+      db:
+        condition: service_healthy
+      logto:
+        condition: service_healthy
+    restart: "no"
+
   web:
     build:
       context: ./web
