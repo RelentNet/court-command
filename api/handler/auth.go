@@ -167,6 +167,17 @@ func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
 		InternalError(w, "failed to fetch user")
 		return
 	}
+	// Mirror the JWTSession bridge's role-elevation rule: the local DB
+	// row holds the default 'player' role from CreateUserFromLogto, but
+	// Logto's org-scoped token is the source of truth for platform_admin.
+	// Without this, the SPA sees user.role='player' even though
+	// handler-level checks (RequirePlatformAdmin) work fine -- and the
+	// SPA hides admin nav, scoring/broadcast tools, etc. Phase 4+ webhook
+	// will sync this back into the local DB on org-role changes; until
+	// then we apply the in-flight elevation on every /auth/me read.
+	if elevated := claims.ElevatedRole(); elevated != "" && elevated != user.Role {
+		user.Role = elevated
+	}
 	Success(w, &MeResponse{UserResponse: user})
 }
 

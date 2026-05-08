@@ -141,7 +141,7 @@ func OptionalJWT(
 			// the local users.role column which defaults to 'player' for
 			// freshly-mirrored users; we override here when claims show an
 			// elevated org role.
-			if elevated := elevatedRoleFromClaims(claims); elevated != "" && elevated != data.Role {
+			if elevated := claims.ElevatedRole(); elevated != "" && elevated != data.Role {
 				data.Role = elevated
 			}
 			ctx := session.SetSessionData(r.Context(), data)

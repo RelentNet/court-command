@@ -107,7 +107,7 @@ func JWTSession(client LogtoUserFetcher, queries JWTSessionQueries, userSync Use
 			// column is the 'player' default from CreateUserFromLogto.
 			// Logto is the source of truth for org roles; the local DB
 			// catches up later (Phase 6 or via webhook).
-			if elevated := elevatedRoleFromClaims(claims); elevated != "" && elevated != data.Role {
+			if elevated := claims.ElevatedRole(); elevated != "" && elevated != data.Role {
 				data.Role = elevated
 			}
 			ctx := session.SetSessionData(r.Context(), data)
@@ -134,33 +134,6 @@ func userToSessionData(u *generated.User) *session.Data {
 	return d
 }
 
-// elevatedRoleFromClaims maps Logto org-roles to the local users.role
-// strings that RequirePlatformAdmin and other handler-level checks
-// expect. Returns empty string if no elevation is warranted (caller
-// keeps the local DB role).
-//
-// Mapping today is one-way and minimal: any user who holds the
-// platform_admin role in ANY org is treated as platform_admin globally.
-// Other org roles (tournament_director, referee, scorekeeper) don't
-// elevate the global users.role -- they're handled per-tournament by
-// tournament_staff. This matches Phase 1's spec.
-//
-// IMPORTANT: this helper relies on `claims.OrganizationRoles`, which
-// Logto only populates when the token is org-scoped (i.e. issued for
-// audience urn:logto:organization:<orgID>). The Court Command SPA
-// always requests org-scoped tokens via getAccessToken(resource,
-// orgID), so this works in practice. If a future caller starts using
-// a globally-scoped token, OrganizationRoles will be empty and the
-// bootstrap admin will fall back to whatever users.role contains
-// locally -- usually 'player' for freshly-mirrored users, which
-// breaks RequirePlatformAdmin until Phase 6's webhook role-mapping
-// lands. Document any new global-token caller and add a fallback
-// here (e.g. read a global Logto user role) before doing so.
-func elevatedRoleFromClaims(c auth.Claims) string {
-	for _, role := range c.OrganizationRoles {
-		if role == "platform_admin" {
-			return "platform_admin"
-		}
-	}
-	return ""
-}
+// (Role-elevation logic moved to auth.Claims.ElevatedRole() so handlers
+// like AuthHandler.MeJWT can apply the same mapping when returning the
+// /api/v1/auth/me payload to the SPA.)

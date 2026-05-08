@@ -43,6 +43,35 @@ func (c Claims) HasOrgRole(role string) bool {
 	return false
 }
 
+// ElevatedRole maps Logto org-roles in the token to the local users.role
+// strings that handler-level authz checks (RequirePlatformAdmin, sidebar
+// nav visibility, etc.) expect. Returns "" when no elevation applies and
+// the caller should keep the local DB role.
+//
+// Mapping today is one-way and minimal: anyone holding the platform_admin
+// org-role in ANY org is treated as platform_admin globally. Other org
+// roles (tournament_director, referee, scorekeeper) DO NOT elevate the
+// global users.role -- those are handled per-tournament by the
+// tournament_staff table. Matches the spec from Phase 1.
+//
+// IMPORTANT: relies on c.OrganizationRoles, which Logto only populates
+// when the token is org-scoped (i.e. issued for audience
+// urn:logto:organization:<orgID>). The Court Command SPA always
+// requests org-scoped tokens via getAccessToken(resource, orgID) so this
+// works in practice. A future caller using a globally-scoped token will
+// see an empty OrganizationRoles and no elevation will happen -- the
+// user falls back to their local users.role until Phase 6's webhook
+// role-mapping lands. Document any new global-token caller and add a
+// fallback (e.g. read a global Logto user role) before doing so.
+func (c Claims) ElevatedRole() string {
+	for _, role := range c.OrganizationRoles {
+		if role == "platform_admin" {
+			return "platform_admin"
+		}
+	}
+	return ""
+}
+
 // ExtractClaims pulls Logto-shaped claims off a parsed jwx token. It is
 // tolerant of the two ways jwx may surface the organization_roles array:
 // when set programmatically in tests it arrives as []string; when parsed
