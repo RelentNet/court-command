@@ -22,6 +22,7 @@ import (
 	"github.com/court-command/court-command/router"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
+	"github.com/court-command/court-command/startup"
 	"github.com/court-command/court-command/ws"
 )
 
@@ -258,6 +259,21 @@ func main() {
 		})
 	} else {
 		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
+	}
+
+	// Verify every active sports.logto_org_id resolves to a real Logto
+	// organization on the configured tenant. Catches the silent failure
+	// mode where stale hardcoded IDs from migration 00041 (or a Logto
+	// re-seed after a backup restore) cause the SPA to receive
+	// resource-only tokens with no organization_roles claim, which in
+	// turn means platform_admin elevation never fires and the admin
+	// sidebar link silently disappears. In production this fails the
+	// boot; in development it logs a warning. No-op when logtoClient
+	// is nil (dev without Mgmt API creds). See
+	// api/startup/verify_sports.go for the full rationale.
+	if err := startup.VerifySportsOrgIDsFromDB(ctx, pool, logtoClient, cfg.IsProduction()); err != nil {
+		slog.Error("sports.logto_org_id verification failed", "error", err)
+		os.Exit(1)
 	}
 
 	// Phase 4C: WebSocket handler

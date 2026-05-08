@@ -34,10 +34,18 @@ CREATE TABLE sports (
 
 CREATE INDEX idx_sports_active ON sports(sort_order) WHERE is_active = true;
 
--- Seed both sports. logto_org_id values match the Logto orgs created
--- per Step 5 of docs/LOGTO_SETUP.md. If those values change in Logto
--- admin (e.g. the orgs are recreated after a Logto re-seed), update
--- them via UPDATE rather than re-running this migration.
+-- Seed both sports. The logto_org_id values below are placeholders from
+-- the original development tenant; they are stale on every other Logto
+-- tenant because Logto generates random org IDs at creation time.
+--
+-- Migration 00042 rewrites these specific values to 'pending-seed' so
+-- the api's startup verification (api/startup/verify_sports.go) refuses
+-- to boot in production until the bootstrap seeder
+-- (api/cmd/logto-seed/main.go -> syncSportsOrgIDs) has replaced them
+-- with the real org IDs from this tenant.
+--
+-- DO NOT add new sports here with hardcoded org IDs -- the seeder is
+-- the single source of truth.
 INSERT INTO sports (slug, name, logto_org_id, sort_order) VALUES
     ('pickleball', 'Pickleball', 'ekup1zyrrxj4', 1),
     ('demo_sport', 'Demo Sport',  '7866ex96uk6b', 99);
