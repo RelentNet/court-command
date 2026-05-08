@@ -8,6 +8,7 @@
 import { useLogto } from '@logto/react'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
+import { useSport } from './SportContext'
 
 const POST_REDIRECT_KEY = 'logto_post_redirect'
 
@@ -41,8 +42,26 @@ export function consumePostAuthTarget(): string {
 export function useAuth() {
   const { isAuthenticated, isLoading: logtoLoading, signIn: logtoSignIn, signOut: logtoSignOut, getIdTokenClaims } = useLogto()
 
+  // Sport context determines which Logto organization the access token
+  // is scoped to. apiFetch reads currentOrgID synchronously when it
+  // builds the Authorization header; if /me fires BEFORE SportProvider
+  // has resolved listSports() and called setCurrentSport(), the SDK
+  // gets called with no orgID and Logto silently issues a resource-only
+  // token (no organization_roles claim). The api then can't elevate
+  // platform_admin and the admin sidebar link disappears.
+  //
+  // Gating enabled on !sportLoading ensures /me waits one tick for
+  // sport context to settle. Including sport.slug in the queryKey
+  // forces a refetch when the user navigates between sports so the
+  // /me cache doesn't carry the wrong org's elevation. sport.slug is
+  // empty ('') on reserved routes like / and /public/* -- React Query
+  // accepts that as a stable key, and the api elevates from
+  // organization_roles regardless of the slug, so platform_admin
+  // shows up the moment ANY org-scoped token is minted.
+  const { sport, isLoading: sportLoading } = useSport()
+
   const me = useQuery<User | null>({
-    queryKey: ['auth', 'me'],
+    queryKey: ['auth', 'me', sport?.slug ?? ''],
     queryFn: async () => {
       const { apiGet } = await import('../lib/api')
       try {
@@ -58,7 +77,7 @@ export function useAuth() {
         throw err
       }
     },
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !sportLoading,
     staleTime: 5 * 60 * 1000,
     retry: false,
   })
