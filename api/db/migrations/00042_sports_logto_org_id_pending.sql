@@ -25,9 +25,16 @@
 -- and replaced the placeholders with real Logto org IDs.
 -- ============================================================================
 
-UPDATE sports
-SET    logto_org_id = 'pending-seed'
-WHERE  logto_org_id IN ('ekup1zyrrxj4', '7866ex96uk6b');
+-- Per-slug placeholder values keep the UNIQUE(logto_org_id) constraint
+-- happy. The api's startup verifier (api/startup/verify_sports.go) and
+-- the auto-bootstrap seeder (api/logtoseed.Run) both treat any value
+-- with the 'pending-seed:' prefix as "needs replacement"; the seeder
+-- overwrites these with the real Logto org IDs on the next boot.
+UPDATE sports SET logto_org_id = 'pending-seed:pickleball'
+WHERE  slug = 'pickleball' AND logto_org_id = 'ekup1zyrrxj4';
+
+UPDATE sports SET logto_org_id = 'pending-seed:demo_sport'
+WHERE  slug = 'demo_sport' AND logto_org_id = '7866ex96uk6b';
 
 -- +goose Down
 

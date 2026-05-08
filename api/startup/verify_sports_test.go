@@ -44,10 +44,10 @@ func TestVerifySportsOrgIDs_AllValid_PassesSilently(t *testing.T) {
 	}
 }
 
-func TestVerifySportsOrgIDs_PendingSeedSentinel_FailsInProd_WarnsInDev(t *testing.T) {
+func TestVerifySportsOrgIDs_PendingSeedPlaceholder_FailsInProd_WarnsInDev(t *testing.T) {
 	t.Parallel()
 	sports := []SportRow{
-		{Slug: "pickleball", OrgID: PendingSeedSentinel},
+		{Slug: "pickleball", OrgID: "pending-seed:pickleball"},
 	}
 	lister := &fakeOrgLister{orgs: []logto.Organization{
 		{ID: "vcx906e38a2v", Name: "Pickleball"},
@@ -56,22 +56,44 @@ func TestVerifySportsOrgIDs_PendingSeedSentinel_FailsInProd_WarnsInDev(t *testin
 	// production: must fail with an actionable message.
 	err := VerifySportsOrgIDs(context.Background(), sports, lister, true)
 	if err == nil {
-		t.Fatal("isProduction=true with pending-seed: expected error, got nil")
+		t.Fatal("isProduction=true with pending-seed:pickleball: expected error, got nil")
 	}
 	msg := err.Error()
 	if !strings.Contains(msg, "pickleball") {
 		t.Errorf("error should name the sport, got: %s", msg)
 	}
-	if !strings.Contains(msg, PendingSeedSentinel) {
+	if !strings.Contains(msg, "pending-seed") {
 		t.Errorf("error should include the placeholder value, got: %s", msg)
 	}
-	if !strings.Contains(msg, "logto-seed") {
-		t.Errorf("error should tell the operator to run the seeder, got: %s", msg)
+	if !strings.Contains(msg, "auto-bootstrap") {
+		t.Errorf("error should reference the auto-bootstrap, got: %s", msg)
 	}
 
 	// development: must NOT fail.
 	if err := VerifySportsOrgIDs(context.Background(), sports, lister, false); err != nil {
 		t.Fatalf("isProduction=false with pending-seed: expected nil, got %v", err)
+	}
+}
+
+func TestIsPendingSeedPlaceholder(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		v    string
+		want bool
+	}{
+		{"pending-seed", true},
+		{"pending-seed:pickleball", true},
+		{"pending-seed:demo_sport", true},
+		{"pending-seed:anything", true},
+		{"vcx906e38a2v", false},
+		{"", false}, // empty handled separately by the verifier
+		{"pending", false},
+		{"pending-seedX", false}, // no colon -> not a placeholder
+	}
+	for _, c := range cases {
+		if got := IsPendingSeedPlaceholder(c.v); got != c.want {
+			t.Errorf("IsPendingSeedPlaceholder(%q) = %v, want %v", c.v, got, c.want)
+		}
 	}
 }
 
@@ -119,7 +141,7 @@ func TestVerifySportsOrgIDs_StaleID_NotInLogto_FailsInProd(t *testing.T) {
 func TestVerifySportsOrgIDs_MultipleProblems_AllReportedInOneError(t *testing.T) {
 	t.Parallel()
 	sports := []SportRow{
-		{Slug: "pickleball", OrgID: PendingSeedSentinel},
+		{Slug: "pickleball", OrgID: "pending-seed:pickleball"},
 		{Slug: "padel", OrgID: "stale-id-xyz"},
 		{Slug: "tennis", OrgID: "real-org-id"}, // good
 	}
@@ -144,7 +166,7 @@ func TestVerifySportsOrgIDs_NilLogtoClient_NoOp(t *testing.T) {
 	t.Parallel()
 	// Even with bad data, nil client means we can't verify -- match
 	// main.go's existing dev-mode "Logto disabled" pattern.
-	sports := []SportRow{{Slug: "pickleball", OrgID: PendingSeedSentinel}}
+	sports := []SportRow{{Slug: "pickleball", OrgID: "pending-seed:pickleball"}}
 	if err := VerifySportsOrgIDs(context.Background(), sports, nil, true); err != nil {
 		t.Fatalf("nil client should be a no-op even in production, got %v", err)
 	}

@@ -15,13 +15,21 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PendingSeedSentinel is the placeholder value migration 00042 writes
-// into sports.logto_org_id whenever it sees a row still holding the
-// stale hardcoded values from migration 00041. The bootstrap seeder
-// (api/cmd/logto-seed -> syncSportsOrgIDs) replaces it with the real
-// Logto org ID for the tenant. Exported so tests and the seeder can
-// reference the same constant.
-const PendingSeedSentinel = "pending-seed"
+// PendingSeedPrefix is the prefix migration 00042 writes into
+// sports.logto_org_id whenever it sees a row still holding the stale
+// hardcoded values from migration 00041 (e.g. 'pending-seed:pickleball').
+// The per-slug suffix is required because of the UNIQUE constraint on
+// the column. The api's auto-bootstrap (logtoseed.Run, called from
+// api/main.go) replaces these with the real Logto org IDs on the next
+// boot.
+const PendingSeedPrefix = "pending-seed"
+
+// IsPendingSeedPlaceholder reports whether v is the placeholder value
+// (or any 'pending-seed:*' variant) that means "this row hasn't been
+// seeded against the real Logto tenant yet."
+func IsPendingSeedPlaceholder(v string) bool {
+	return v == PendingSeedPrefix || strings.HasPrefix(v, PendingSeedPrefix+":")
+}
 
 // orgLister is the narrow subset of *logto.Client that
 // VerifySportsOrgIDs depends on. Defining it here keeps the verifier
@@ -130,14 +138,14 @@ func VerifySportsOrgIDs(
 	var problems []string
 	for _, s := range sports {
 		switch {
-		case s.OrgID == "" || s.OrgID == PendingSeedSentinel:
+		case s.OrgID == "" || IsPendingSeedPlaceholder(s.OrgID):
 			problems = append(problems, fmt.Sprintf(
-				"sport %q has placeholder logto_org_id=%q -- run the bootstrap seeder (api/cmd/logto-seed) to populate real Logto org IDs",
+				"sport %q has placeholder logto_org_id=%q -- the api auto-bootstrap (logtoseed.Run) should have replaced this; check earlier boot logs for a logto seed failure",
 				s.Slug, s.OrgID))
 		default:
 			if _, ok := known[s.OrgID]; !ok {
 				problems = append(problems, fmt.Sprintf(
-					"sport %q references logto_org_id=%q which does not exist on the Logto tenant -- the org may have been recreated; run the bootstrap seeder to re-sync, or update the row to match Logto Console",
+					"sport %q references logto_org_id=%q which does not exist on the Logto tenant -- the org may have been recreated; the api auto-bootstrap should re-sync on the next clean boot, or update the row to match Logto Console",
 					s.Slug, s.OrgID))
 			}
 		}

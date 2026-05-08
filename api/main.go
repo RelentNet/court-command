@@ -17,6 +17,7 @@ import (
 	"github.com/court-command/court-command/handler"
 	"github.com/court-command/court-command/jobs"
 	"github.com/court-command/court-command/logto"
+	"github.com/court-command/court-command/logtoseed"
 	"github.com/court-command/court-command/overlay"
 	"github.com/court-command/court-command/pubsub"
 	"github.com/court-command/court-command/router"
@@ -261,16 +262,54 @@ func main() {
 		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
 	}
 
-	// Verify every active sports.logto_org_id resolves to a real Logto
-	// organization on the configured tenant. Catches the silent failure
-	// mode where stale hardcoded IDs from migration 00041 (or a Logto
-	// re-seed after a backup restore) cause the SPA to receive
-	// resource-only tokens with no organization_roles claim, which in
-	// turn means platform_admin elevation never fires and the admin
-	// sidebar link silently disappears. In production this fails the
-	// boot; in development it logs a warning. No-op when logtoClient
-	// is nil (dev without Mgmt API creds). See
-	// api/startup/verify_sports.go for the full rationale.
+	// Auto-bootstrap the Logto tenant on every boot. This calls the
+	// same idempotent provisioning logic as the api/cmd/logto-seed CLI:
+	//   - registers the API resource + 12 scopes
+	//   - finds-or-creates the SPA app, refusing to silently regenerate
+	//     when LOGTO_SPA_APP_ID is set (drift protection for the
+	//     baked-in VITE_LOGTO_APP_ID)
+	//   - finds-or-creates the Pickleball + (optionally) Demo Sport orgs
+	//   - ensures LOGTO_BOOTSTRAP_EMAIL exists in Logto and holds
+	//     platform_admin in every sport org
+	//   - registers the email connector + sign-in experience
+	//   - finds-or-creates the webhook, refusing to silently regenerate
+	//     when LOGTO_WEBHOOK_SIGNING_KEY is set
+	//   - syncs sports.logto_org_id in the application DB to match the
+	//     real Logto org IDs (under a Postgres advisory lock)
+	//
+	// The end result: a fresh deploy comes up fully configured without
+	// any manual SQL or seeder runs. Re-running on every boot is cheap
+	// (~10 idempotent Mgmt API calls; <2 seconds when nothing changes)
+	// and self-healing for cases like a Logto restore that changes org IDs.
+	//
+	// In production a failure here exits the process so the operator
+	// learns immediately. In development we warn and continue so local
+	// stacks without M2M creds still come up. No-op when logtoClient
+	// is nil (Mgmt API creds absent).
+	if logtoClient != nil {
+		seedCfg, err := logtoseed.LoadConfigFromEnv()
+		if err != nil {
+			if cfg.IsProduction() {
+				slog.Error("logto seed config", "error", err)
+				os.Exit(1)
+			}
+			slog.Warn("logto seed config (dev mode -- skipping auto-bootstrap)", "error", err)
+		} else {
+			if _, err := logtoseed.Run(ctx, seedCfg, logtoClient, pool); err != nil {
+				if cfg.IsProduction() {
+					slog.Error("logto auto-bootstrap failed", "error", err)
+					os.Exit(1)
+				}
+				slog.Warn("logto auto-bootstrap failed (dev mode -- continuing)", "error", err)
+			}
+		}
+	}
+
+	// Belt-and-suspenders verification: even after Run succeeds, confirm
+	// every active sports.logto_org_id resolves to a real Logto org.
+	// Catches scenarios the seeder couldn't fix (e.g. a manually-added
+	// sport row pointing at a deleted org, or a partially-applied Run
+	// that bailed before syncSportsOrgIDs).
 	if err := startup.VerifySportsOrgIDsFromDB(ctx, pool, logtoClient, cfg.IsProduction()); err != nil {
 		slog.Error("sports.logto_org_id verification failed", "error", err)
 		os.Exit(1)
