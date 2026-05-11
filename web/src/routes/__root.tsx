@@ -5,6 +5,10 @@ import { PublicTopBar } from '../components/PublicTopBar'
 import { PublicBottomTabs } from '../components/PublicBottomTabs'
 import { ImpersonationBanner } from '../components/ImpersonationBanner'
 import { AuthGuard } from '../features/auth/AuthGuard'
+// TEMP-ADMIN-BYPASS: banner is mounted in both authenticated layouts
+// (AuthenticatedLayout below, and PublicLayout's authenticated branch).
+// Tied to the ADMIN_BYPASS_ACTIVE constant in features/admin/bypass.ts.
+import { AdminBypassBanner } from '../features/admin/AdminBypassBanner'
 import { useAuth } from '../auth/useAuth'
 import { SportProvider } from '../auth/SportContext'
 import { SearchModalMount } from '../features/search/SearchContext'
@@ -110,6 +114,11 @@ function AuthenticatedLayout() {
 
   return (
     <>
+      {/* TEMP-ADMIN-BYPASS: banner mounts above all other chrome so it's
+          visible the moment the authenticated shell renders. The banner
+          self-hides when ADMIN_BYPASS_ACTIVE in features/admin/bypass.ts
+          is false. */}
+      <AdminBypassBanner visible />
       <ImpersonationBanner />
       <a href="#main-content" className="skip-to-content">Skip to content</a>
       <Sidebar user={user} onLogout={() => signOut('/')} />
@@ -159,6 +168,10 @@ function PublicLayout() {
   if (!isLoading && user) {
     return (
       <>
+        {/* TEMP-ADMIN-BYPASS: same as AuthenticatedLayout -- show the
+            banner on every authenticated page so signed-in visitors on
+            public routes see the warning too. */}
+        <AdminBypassBanner visible />
         <ImpersonationBanner />
         <a href="#main-content" className="skip-to-content">Skip to content</a>
         <Sidebar
