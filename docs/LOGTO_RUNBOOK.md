@@ -139,18 +139,38 @@ which issues a **resource-only token** (no `organization_id`, no
 and `sport?.slug` is part of the queryKey so navigating between sports
 forces a refetch with the new org's elevation.
 
-### 3.2 `UserScope.OrganizationRoles` requirement (fixed in commit edfeee2)
+### 3.2 `organization_roles` claim never appears in API-resource access tokens
 
-`UserScope.Organizations` puts `organization_id` in the token but NOT
-the role names. To get `organization_roles: ["platform_admin"]` in the
-JWT, the SDK must also request `UserScope.OrganizationRoles`. Without
-it, the api receives an org-scoped token but `claims.ElevatedRole()`
-finds an empty `OrganizationRoles` slice and never elevates.
+**This is by design in Logto and is documented behavior.**
 
-**Known open issue (Phase 3 of the ongoing fix)**: even after this
-scope is requested, the `organization_roles` claim is still absent in
-production tokens. The TEMP-ADMIN-BYPASS exists to keep admin work
-moving while this is debugged. See section 6.
+> The `urn:logto:scope:organization_roles` scope provides the user's
+> roles within organizations [...] and is included in the **ID token**
+> by default. These organization-related claims can also be accessed
+> via the userinfo endpoint using an opaque token, but opaque tokens
+> are not suitable for accessing organization-specific resources.
+>
+> — docs.logto.io
+
+Logto's API-resource access tokens (`aud: <api resource>` with an
+`organization_id` context) carry ONLY API resource scopes in the
+`scope` claim. The `organization_roles` claim is NEVER emitted on
+these tokens regardless of which scopes were requested at sign-in.
+
+The api originally read `organization_roles` directly from the JWT
+(`api/auth/context.go:ElevatedRole`) expecting Logto to populate it.
+That assumption was wrong; elevation never fired.
+
+**Fix (commit 7d8b... or thereabouts)**: api/middleware/jwt_session
+now has a Path-2 elevation step. When the JWT has `organization_id`
+but no `organization_roles`, it asks the Logto Management API for the
+user's roles in that org via a new `OrgRoleResolver` (see
+`api/middleware/org_role_resolver.go`). Results are cached in Redis
+with a configurable TTL (`LOGTO_ORG_ROLES_CACHE_TTL_SECONDS`, default
+60s), so warm caches absorb the bulk of authenticated traffic.
+
+The original JWT fast path stays in place — if Logto ever does emit
+the claim (or a JWT customizer is configured to inject it), we skip
+the Mgmt API call automatically.
 
 ### 3.3 Org-ID drift across Logto tenants (fixed in commit fb81fae + b68e940)
 
@@ -331,24 +351,13 @@ A red banner is mounted on every authenticated page
 `ADMIN_BYPASS_ACTIVE` in `bypass.ts`. Flipping that constant to
 `false` hides the banner but does NOT restore the gates.
 
-### 6.1 Open question
+### 6.1 Status
 
-After requesting `UserScope.OrganizationRoles` (commit edfeee2), the
-SPA's access token still arrives with `organization_id` but no
-`organization_roles` claim. Hypotheses to investigate:
-
-- **Logto SDK not actually adding the scope to the authorize URL.**
-  Verify with 4.3.
-- **Logto Console doesn't have OrganizationRoles in the SPA app's
-  permission list.** Logto only lets an app request scopes that are
-  in its assigned permission list.
-- **Logto 1.22.0 may not support the `urn:logto:scope:organization_roles`
-  scope.** Try a newer Logto version. (As of this writing the
-  compose file pins `svhd/logto:1.22.0`.)
-- **Consent grants are cached.** Even after adding a scope to the
-  authorize URL, Logto may keep returning tokens shaped by the
-  previous consent. Try revoking user consent / refresh tokens from
-  the Logto admin UI.
+**Resolved (see section 3.2).** The api's `JWTSession` middleware now
+performs a Logto Management API lookup when the JWT lacks the
+`organization_roles` claim. The bypass should be reverted as soon as
+end-to-end verification confirms the new elevation works in
+production (section 6.2).
 
 ### 6.2 How to revert the bypass (when ready)
 

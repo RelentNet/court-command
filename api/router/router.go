@@ -115,6 +115,14 @@ type Config struct {
 	LogtoClient         *logto.Client
 	UserSyncService     *service.UserSyncService
 	Queries             *generated.Queries
+
+	// OrgRoles supplies the org-role lookup the JWTSession middleware
+	// uses to elevate users to platform_admin when their JWT lacks
+	// the organization_roles claim (which is Logto's default --
+	// see api/middleware/org_role_resolver.go for the full story).
+	// When nil (testutil / dev-without-Logto) the elevation falls
+	// back to the JWT fast path only.
+	OrgRoles middleware.OrgRoleResolver
 }
 
 // authMiddlewares returns the middleware chain that should gate
@@ -133,7 +141,7 @@ func authMiddlewares(cfg *Config) []func(http.Handler) http.Handler {
 	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
 		return []func(http.Handler) http.Handler{
 			middleware.RequireJWT(cfg.JWTValidator, true),
-			middleware.JWTSession(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService),
+			middleware.JWTSession(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService, cfg.OrgRoles),
 		}
 	}
 	return []func(http.Handler) http.Handler{

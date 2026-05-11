@@ -18,6 +18,7 @@ import (
 	"github.com/court-command/court-command/jobs"
 	"github.com/court-command/court-command/logto"
 	"github.com/court-command/court-command/logtoseed"
+	"github.com/court-command/court-command/middleware"
 	"github.com/court-command/court-command/overlay"
 	"github.com/court-command/court-command/pubsub"
 	"github.com/court-command/court-command/router"
@@ -262,6 +263,24 @@ func main() {
 		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
 	}
 
+	// OrgRoleResolver bridges the gap between Logto's published token
+	// behavior and what the api expected. Logto does NOT include the
+	// organization_roles claim in API-resource access tokens (only in
+	// ID tokens and userinfo). Without this resolver,
+	// claims.ElevatedRole() always returns "" and no user ever gets
+	// elevated to platform_admin -- even though they hold the role in
+	// Logto Console. The resolver fills that gap by asking the
+	// Management API for the user's roles on each authenticated
+	// request, caching in Redis (TTL configurable via
+	// LOGTO_ORG_ROLES_CACHE_TTL_SECONDS, default 60s) so warm caches
+	// absorb the bulk of traffic. See
+	// api/middleware/org_role_resolver.go for the rationale and code.
+	var orgRoleResolver middleware.OrgRoleResolver
+	if logtoClient != nil {
+		orgRoleResolver = middleware.NewLogtoMgmtAPIResolver(
+			logtoClient, sessionStore.Client(), middleware.OrgRolesCacheTTLFromEnv())
+	}
+
 	// Auto-bootstrap the Logto tenant on every boot. This calls the
 	// same idempotent provisioning logic as the api/cmd/logto-seed CLI:
 	//   - registers the API resource + 12 scopes
@@ -394,6 +413,9 @@ func main() {
 		LogtoClient:         logtoClient,
 		UserSyncService:     userSyncService,
 		Queries:             queries,
+
+		// Mgmt-API-backed elevation: see api/middleware/org_role_resolver.go
+		OrgRoles: orgRoleResolver,
 	})
 
 	srv := &http.Server{

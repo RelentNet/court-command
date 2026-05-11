@@ -2,6 +2,7 @@ package logto
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -72,6 +73,50 @@ func (c *Client) AssignOrganizationRolesToUser(ctx context.Context, orgID, userI
 	body := map[string]interface{}{"organizationRoleIds": roleIDs}
 	path := fmt.Sprintf("/api/organizations/%s/users/%s/roles", orgID, userID)
 	return c.doJSON(ctx, http.MethodPost, path, body, nil)
+}
+
+// GetUserOrganizationRoles returns the organization role names a user
+// currently holds within a specific organization. Wraps
+// GET /api/organizations/{orgId}/users/{userId}/roles.
+//
+// Why this exists: Logto does not include the organization_roles claim
+// in API-resource access tokens (it only goes into the ID token and
+// userinfo endpoint per Logto's design). The api/middleware/jwt_session
+// elevation path calls this on every authenticated request that has an
+// organization_id claim but no platform_admin role in the local DB --
+// with Redis caching so the hit rate is at most once per (user, org)
+// per cache-TTL window. Without this, claims.ElevatedRole() can never
+// see platform_admin and admin sidebar / RequirePlatformAdmin gates
+// stay closed even for users who legitimately hold the role in Logto.
+//
+// Returns role names (not IDs), matching the strings the api compares
+// against ("platform_admin", "tournament_director", etc.) directly.
+// Order is whatever Logto returns; callers should not assume sorting.
+//
+// A 404 from Logto (org doesn't exist, or user not a member) returns
+// (nil, nil) -- the caller treats "no roles" as a valid answer and
+// skips elevation. Any other error is returned as-is.
+func (c *Client) GetUserOrganizationRoles(ctx context.Context, orgID, userID string) ([]string, error) {
+	var raw []OrganizationRole
+	path := fmt.Sprintf("/api/organizations/%s/users/%s/roles", orgID, userID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &raw); err != nil {
+		// 404 means org-or-user-or-membership doesn't exist. Treat as
+		// "user has no roles in this org" rather than propagating --
+		// the elevation path falls through to the local DB role, which
+		// is the correct behavior.
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	names := make([]string, 0, len(raw))
+	for _, r := range raw {
+		if r.Name != "" {
+			names = append(names, r.Name)
+		}
+	}
+	return names, nil
 }
 
 // OrganizationRole is a role on the organization template (e.g.

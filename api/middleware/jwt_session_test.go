@@ -64,7 +64,9 @@ func jwtSessionRunner(
 	claims *auth.Claims,
 ) (*captured, bool, int) {
 	t.Helper()
-	mw := middleware.JWTSession(fetcher, queries, syncer)
+	// Pass nil for OrgRoleResolver in existing tests -- the Mgmt-API
+	// elevation path is exercised in TestJWTSession_OrgRoleResolver_*.
+	mw := middleware.JWTSession(fetcher, queries, syncer, nil)
 	cap := &captured{}
 	reached := false
 	var status int
@@ -198,6 +200,195 @@ func TestJWTSession_LogtoFails_Returns503(t *testing.T) {
 
 	require.False(t, reached, "downstream must not be reached if Logto fetch fails")
 	require.Equal(t, http.StatusServiceUnavailable, status)
+}
+
+// --- OrgRoleResolver elevation tests ------------------------------
+//
+// These tests exercise the Path-2 (Mgmt API) elevation introduced to
+// work around Logto's behavior of NOT emitting organization_roles on
+// API-resource access tokens.
+
+// fakeOrgRoleResolver is an in-memory stub for the OrgRoleResolver
+// interface. roles is keyed by orgID+":"+userID just like the real
+// LogtoMgmtAPIResolver's internal cache.
+type fakeOrgRoleResolver struct {
+	roles map[string][]string
+	err   error
+	calls int
+}
+
+func (f *fakeOrgRoleResolver) GetUserOrganizationRoles(_ context.Context, orgID, userID string) ([]string, error) {
+	f.calls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.roles[orgID+":"+userID], nil
+}
+
+// jwtSessionWithResolver mirrors jwtSessionRunner but passes a
+// resolver into the middleware constructor.
+func jwtSessionWithResolver(
+	t *testing.T,
+	queries middleware.JWTSessionQueries,
+	fetcher middleware.LogtoUserFetcher,
+	syncer middleware.UserSyncer,
+	resolver middleware.OrgRoleResolver,
+	claims *auth.Claims,
+) (*captured, bool) {
+	t.Helper()
+	mw := middleware.JWTSession(fetcher, queries, syncer, resolver)
+	cap := &captured{}
+	reached := false
+	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = true
+		cap.data = session.SessionData(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	runMWHelper(h, claims)
+	return cap, reached
+}
+
+// TestJWTSession_OrgRoleResolver_ElevatesToPlatformAdmin: the local
+// DB has the user as 'player' (default), the JWT has organization_id
+// but no organization_roles claim, and the resolver reports
+// platform_admin for that user/org. Expected: data.Role flips to
+// platform_admin so downstream RequirePlatformAdmin lets the request
+// through.
+func TestJWTSession_OrgRoleResolver_ElevatesToPlatformAdmin(t *testing.T) {
+	u := makeUser()
+	u.Role = "player" // default-after-JIT-provision
+	queries := &fakeQueries{user: u}
+	fetcher := &fakeFetcher{}
+	syncer := &fakeSyncer{}
+	resolver := &fakeOrgRoleResolver{
+		roles: map[string][]string{
+			"vcx906e38a2v:logto-user-id-abc": {"platform_admin"},
+		},
+	}
+	claims := &auth.Claims{
+		Subject:        "logto-user-id-abc",
+		OrganizationID: "vcx906e38a2v",
+		// Note: NO OrganizationRoles -- this is Logto's actual behavior.
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, fetcher, syncer, resolver, claims)
+
+	require.True(t, reached)
+	require.Equal(t, "platform_admin", cap.data.Role, "Mgmt API path should elevate")
+	require.Equal(t, 1, resolver.calls, "resolver should be called once")
+}
+
+// TestJWTSession_OrgRoleResolver_NoElevationWhenUserHasNoOrgRoles:
+// resolver returns empty slice (user is a member but has no roles).
+// Expected: data.Role stays as the local DB value ('player').
+func TestJWTSession_OrgRoleResolver_NoElevationWhenUserHasNoOrgRoles(t *testing.T) {
+	u := makeUser()
+	u.Role = "player"
+	queries := &fakeQueries{user: u}
+	resolver := &fakeOrgRoleResolver{
+		roles: map[string][]string{},
+	}
+	claims := &auth.Claims{
+		Subject:        "logto-user-id-abc",
+		OrganizationID: "vcx906e38a2v",
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, &fakeFetcher{}, &fakeSyncer{}, resolver, claims)
+
+	require.True(t, reached)
+	require.Equal(t, "player", cap.data.Role, "no roles -> no elevation")
+}
+
+// TestJWTSession_OrgRoleResolver_SkippedWhenNoOrgInJWT: the JWT has no
+// organization_id claim (e.g. resource-only token from the bare-root
+// path). Expected: resolver is NOT called and role stays as DB.
+func TestJWTSession_OrgRoleResolver_SkippedWhenNoOrgInJWT(t *testing.T) {
+	u := makeUser()
+	u.Role = "player"
+	queries := &fakeQueries{user: u}
+	resolver := &fakeOrgRoleResolver{
+		// Even if the resolver WOULD say platform_admin, it shouldn't
+		// be called because we have no org context.
+		roles: map[string][]string{"any:logto-user-id-abc": {"platform_admin"}},
+	}
+	claims := &auth.Claims{
+		Subject: "logto-user-id-abc",
+		// OrganizationID is empty
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, &fakeFetcher{}, &fakeSyncer{}, resolver, claims)
+
+	require.True(t, reached)
+	require.Equal(t, "player", cap.data.Role)
+	require.Equal(t, 0, resolver.calls, "resolver must not be called without org context")
+}
+
+// TestJWTSession_OrgRoleResolver_SkippedWhenAlreadyPlatformAdmin: the
+// local DB already has the user as platform_admin (perhaps from a
+// manual admin promote). Expected: resolver is NOT called -- we don't
+// downgrade or even re-check.
+func TestJWTSession_OrgRoleResolver_SkippedWhenAlreadyPlatformAdmin(t *testing.T) {
+	u := makeUser() // role = "platform_admin"
+	queries := &fakeQueries{user: u}
+	resolver := &fakeOrgRoleResolver{
+		// Resolver could say "no roles" but we shouldn't call it -- the
+		// DB authority wins for users who are already at the top.
+		roles: map[string][]string{},
+	}
+	claims := &auth.Claims{
+		Subject:        "logto-user-id-abc",
+		OrganizationID: "vcx906e38a2v",
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, &fakeFetcher{}, &fakeSyncer{}, resolver, claims)
+
+	require.True(t, reached)
+	require.Equal(t, "platform_admin", cap.data.Role)
+	require.Equal(t, 0, resolver.calls, "resolver must not be called for already-admin users")
+}
+
+// TestJWTSession_OrgRoleResolver_ContinuesOnResolverError: Logto Mgmt
+// API is down. We should NOT 503 -- just fall through to the local
+// DB role. A logged warning is fine; the test asserts behavior, not
+// log output.
+func TestJWTSession_OrgRoleResolver_ContinuesOnResolverError(t *testing.T) {
+	u := makeUser()
+	u.Role = "player"
+	queries := &fakeQueries{user: u}
+	resolver := &fakeOrgRoleResolver{err: errors.New("logto mgmt api down")}
+	claims := &auth.Claims{
+		Subject:        "logto-user-id-abc",
+		OrganizationID: "vcx906e38a2v",
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, &fakeFetcher{}, &fakeSyncer{}, resolver, claims)
+
+	require.True(t, reached, "request must not fail when resolver errors")
+	require.Equal(t, "player", cap.data.Role)
+}
+
+// TestJWTSession_JWTFastPath_StillWorks: if Logto ever DOES start
+// emitting organization_roles in access tokens (or a customizer is
+// configured), the fast path should keep working without consulting
+// the resolver.
+func TestJWTSession_JWTFastPath_StillWorks(t *testing.T) {
+	u := makeUser()
+	u.Role = "player"
+	queries := &fakeQueries{user: u}
+	resolver := &fakeOrgRoleResolver{
+		roles: map[string][]string{"vcx906e38a2v:logto-user-id-abc": {"platform_admin"}},
+	}
+	claims := &auth.Claims{
+		Subject:           "logto-user-id-abc",
+		OrganizationID:    "vcx906e38a2v",
+		OrganizationRoles: []string{"platform_admin"}, // JWT carried the claim
+	}
+
+	cap, reached := jwtSessionWithResolver(t, queries, &fakeFetcher{}, &fakeSyncer{}, resolver, claims)
+
+	require.True(t, reached)
+	require.Equal(t, "platform_admin", cap.data.Role, "JWT fast path should elevate")
+	require.Equal(t, 0, resolver.calls, "resolver must NOT be called when JWT already elevated")
 }
 
 // --- helpers ------------------------------------------------------
