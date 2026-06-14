@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiGet, apiGetPaginated, apiPatch, apiPost } from '../../lib/api'
 import type {
   CourtSummary,
+  EventType,
   Match,
   MatchEvent,
   MatchSeriesSummary,
@@ -51,6 +52,40 @@ export function useMatchEvents(publicId: string | undefined) {
     // Events can legitimately be empty for a fresh match; don't
     // thrash the network retrying a non-transient 404.
     retry: false,
+  })
+}
+
+/**
+ * Records an arbitrary match event (e.g. a referee's verbal call) against a
+ * match by its NUMERIC id.
+ *
+ * The write endpoint `POST /api/v1/matches/{matchID}/events` is keyed by the
+ * numeric `match.id`, not the public id — the scoring-engine routes use the
+ * public id but the generic event writer predates them. Callers therefore pass
+ * both: `matchId` for the request URL and `publicId` so the cached event list
+ * (keyed on public id) can be invalidated. Only valid against an in-progress
+ * match; the backend rejects events on other statuses with a 422.
+ */
+export function useRecordMatchEvent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      matchId,
+      eventType,
+      payload,
+    }: {
+      matchId: number
+      publicId: string
+      eventType: EventType
+      payload?: Record<string, unknown>
+    }) =>
+      apiPost<MatchEvent>(`/api/v1/matches/${matchId}/events`, {
+        event_type: eventType,
+        payload: payload ?? {},
+      }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['match-events', vars.publicId] })
+    },
   })
 }
 

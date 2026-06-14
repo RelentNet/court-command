@@ -47,6 +47,11 @@ export type EventType =
   | 'substitution'
   | 'score_override'
   | 'forfeit_declared'
+  // Officiating / verbal calls (recorded from the referee console).
+  | 'let'
+  | 're_do'
+  | 'fault'
+  | 'line_call'
 
 export interface MatchTeam {
   id: number
