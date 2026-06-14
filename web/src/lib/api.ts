@@ -4,6 +4,8 @@
 // Token is org-scoped + API-resource-scoped. Slug + orgID + token
 // fetcher are pushed into module state by SportProvider / AuthProvider.
 
+import { getImpersonationToken } from '../auth/impersonation'
+
 const API_BASE = import.meta.env.VITE_API_URL || ''
 const API_RESOURCE = import.meta.env.VITE_LOGTO_API_RESOURCE
 
@@ -34,7 +36,17 @@ export class ApiRequestError extends Error {
 
 async function buildHeaders(extra?: HeadersInit): Promise<Headers> {
   const h = new Headers(extra)
-  if (getAccessTokenFn) {
+
+  // Admin impersonation (Logto OAuth 2.0 Token Exchange): when an
+  // impersonation access token is present, it takes precedence over the
+  // admin's own SDK-managed token. The backend validates it normally; its
+  // sub=<target> drives every downstream lookup and its act.sub=<admin> is
+  // the audit signal. Discarding the impersonation token (Stop Impersonating)
+  // automatically reverts to the admin's token on the next request.
+  const impersonationToken = getImpersonationToken()
+  if (impersonationToken) {
+    h.set('Authorization', `Bearer ${impersonationToken}`)
+  } else if (getAccessTokenFn) {
     // If we're inside a sport scope, request the org-bound token; if not
     // (sport picker, public routes), request a plain API token. Logto
     // returns null pre-authentication; in that case we send no auth header.

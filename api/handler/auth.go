@@ -147,10 +147,12 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 // the local users mirror row by Logto user ID, returns the same
 // MeResponse shape as the legacy Me handler.
 //
-// Impersonation is not supported on the JWT path -- impersonation is a
-// session-cookie mechanic. Phase 6 (which deletes the cookie path
-// entirely) will need a Logto-native impersonation story or drop
-// the feature.
+// Impersonation under JWT is detected from the token's `act` claim (RFC
+// 8693): when an admin impersonates via OAuth 2.0 Token Exchange, the
+// exchanged access token has sub=<target> and act.sub=<admin>. We surface
+// that as MeResponse.Impersonation so the SPA renders the banner. The
+// returned user IS the impersonated (target) user -- that's the whole point
+// of impersonation; the impersonator's identity rides in the act claim.
 func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
 	claims, ok := auth.ClaimsFromContext(r.Context())
 	if !ok {
@@ -178,7 +180,22 @@ func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
 	if elevated := claims.ElevatedRole(); elevated != "" && elevated != user.Role {
 		user.Role = elevated
 	}
-	Success(w, &MeResponse{UserResponse: user})
+
+	resp := &MeResponse{UserResponse: user}
+
+	// Impersonation signal: the act claim carries the impersonating admin's
+	// Logto user ID. We expose it as ImpersonatorID so the SPA banner can
+	// render. (We surface the raw Logto subject rather than a local public_id
+	// to avoid an extra DB lookup on every /me; the SPA only needs a boolean
+	// to render the banner today.)
+	if claims.IsImpersonated() {
+		resp.Impersonation = &ImpersonationInfo{
+			Active:         true,
+			ImpersonatorID: claims.ActorSubject,
+		}
+	}
+
+	Success(w, resp)
 }
 
 // MyTournamentStaff handles GET /api/v1/auth/me/tournament-staff.

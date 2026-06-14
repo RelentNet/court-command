@@ -8,6 +8,7 @@ import { LogtoProvider, useLogto } from '@logto/react'
 import { useEffect, type ReactNode } from 'react'
 import { logtoConfig } from './LogtoConfig'
 import { setGetAccessTokenFn } from '../lib/api'
+import { clearImpersonationToken } from './impersonation'
 
 function TokenWiring({ children }: { children: ReactNode }) {
   const { getAccessToken, signOut, isAuthenticated } = useLogto()
@@ -34,6 +35,10 @@ function TokenWiring({ children }: { children: ReactNode }) {
   useEffect(() => {
     function onExpired() {
       if (!isAuthenticated) return
+      // A 401 may mean the impersonation token expired (Logto impersonation
+      // tokens are short-lived). Clear it so the admin's own token is used on
+      // the redirect/sign-out path rather than re-sending a dead token.
+      clearImpersonationToken()
       // Smoke 16.10: post-logout redirect must EXACTLY match a registered
       // postLogoutRedirectUri. The seeder registers the bare origin with no
       // trailing slash, so send window.location.origin (NOT origin + "/")

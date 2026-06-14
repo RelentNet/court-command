@@ -12,15 +12,15 @@ import (
 // application (SPA, M2M, native, traditional). Field set is intentionally
 // narrow: just the fields the seed script and Phase 4 M2M flow read or write.
 type Application struct {
-	ID                       string                 `json:"id"`
-	Name                     string                 `json:"name"`
-	Description              string                 `json:"description,omitempty"`
-	Type                     string                 `json:"type"`
-	Secret                   string                 `json:"secret,omitempty"`
-	OIDCClientMetadata       map[string]interface{} `json:"oidcClientMetadata,omitempty"`
-	CustomClientMetadata     map[string]interface{} `json:"customClientMetadata,omitempty"`
-	IsAdmin                  bool                   `json:"isAdmin,omitempty"`
-	CreatedAt                int64                  `json:"createdAt,omitempty"`
+	ID                   string                 `json:"id"`
+	Name                 string                 `json:"name"`
+	Description          string                 `json:"description,omitempty"`
+	Type                 string                 `json:"type"`
+	Secret               string                 `json:"secret,omitempty"`
+	OIDCClientMetadata   map[string]interface{} `json:"oidcClientMetadata,omitempty"`
+	CustomClientMetadata map[string]interface{} `json:"customClientMetadata,omitempty"`
+	IsAdmin              bool                   `json:"isAdmin,omitempty"`
+	CreatedAt            int64                  `json:"createdAt,omitempty"`
 }
 
 // ApplicationType values accepted by the Logto Management API.
@@ -93,6 +93,27 @@ func (c *Client) FindApplicationByName(ctx context.Context, name string) (*Appli
 		}
 	}
 	return nil, fmt.Errorf("more than 10k applications; FindApplicationByName paging budget exhausted")
+}
+
+// PatchApplicationParams is the body for PATCH /api/applications/:id. All
+// fields are optional; only non-nil fields are sent so a partial update never
+// clobbers metadata the caller didn't intend to touch. CustomClientMetadata
+// is a full replacement of that object on Logto's side, so callers that want
+// to preserve existing keys must merge first (see seedSPAApp).
+type PatchApplicationParams struct {
+	CustomClientMetadata map[string]interface{} `json:"customClientMetadata,omitempty"`
+}
+
+// PatchApplication updates an existing application and returns the updated
+// row. Used by the seeder to flip customClientMetadata.allowTokenExchange on
+// the SPA app so the OAuth 2.0 Token Exchange impersonation flow is permitted
+// for that client.
+func (c *Client) PatchApplication(ctx context.Context, appID string, p PatchApplicationParams) (*Application, error) {
+	var a Application
+	if err := c.doJSON(ctx, http.MethodPatch, "/api/applications/"+appID, p, &a); err != nil {
+		return nil, err
+	}
+	return &a, nil
 }
 
 // AssignApplicationRoles attaches Logto-platform roles (e.g. the built-in

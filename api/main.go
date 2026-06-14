@@ -162,7 +162,8 @@ func main() {
 	apiKeyService := service.NewApiKeyService(queries)
 	uploadService := service.NewUploadService(queries, "uploads")
 	adService := service.NewAdService(queries)
-	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, sessionStore, uploadService)
+	// adminHandler is constructed below, after logtoClient is built, because
+	// the Logto-native impersonation endpoint needs the Management API client.
 	uploadHandler := handler.NewUploadHandler(uploadService)
 	adHandler := handler.NewAdHandler(adService)
 
@@ -262,6 +263,11 @@ func main() {
 	} else {
 		slog.Warn("Logto Management API env vars missing; on-demand user mirror disabled (dev only)")
 	}
+
+	// Admin handler depends on logtoClient for Logto-native impersonation
+	// (subject-token minting). logtoClient may be nil in dev without Mgmt API
+	// creds; the impersonate endpoint 503s in that case.
+	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, sessionStore, uploadService, logtoClient)
 
 	// OrgRoleResolver bridges the gap between Logto's published token
 	// behavior and what the api expected. Logto does NOT include the
