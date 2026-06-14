@@ -88,7 +88,16 @@ export function useAuth() {
   }, [logtoSignIn])
 
   const signOut = useCallback((returnTo: string = '/') => {
-    void logtoSignOut(`${window.location.origin}${returnTo}`)
+    // Smoke 16.10: the post-logout redirect URI we hand Logto must EXACTLY
+    // match a postLogoutRedirectUri registered on the SPA app, or Logto
+    // refuses to redirect and parks the browser on its raw /oidc/session/end
+    // page. The seeder registers the bare app origin with NO trailing slash
+    // (api/logtoseed/seeder.go trimAuthCallback -> "http://localhost:5173").
+    // Sending "http://localhost:5173/" (origin + "/") is a different string
+    // to the OIDC spec and gets rejected. So for the common root case we
+    // send the bare origin; only a non-root returnTo appends a path.
+    const target = returnTo === '/' ? window.location.origin : `${window.location.origin}${returnTo}`
+    void logtoSignOut(target)
   }, [logtoSignOut])
 
   return {
