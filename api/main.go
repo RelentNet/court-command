@@ -156,6 +156,7 @@ func main() {
 	publicHandler.SetVenueService(venueService)
 	publicHandler.SetSeasonService(seasonService)
 	publicHandler.SetTournamentService(tournamentService)
+	publicHandler.SetStandingsService(standingsService)
 
 	// Phase 8: Admin & Platform Management
 	activityLogService := service.NewActivityLogService(queries)
