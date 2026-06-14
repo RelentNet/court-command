@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/court-command/court-command/db/generated"
 	"github.com/court-command/court-command/service"
@@ -99,12 +100,13 @@ func toPublicVenues(vs []generated.Venue) []publicVenue {
 
 // PublicHandler handles unauthenticated public directory endpoints.
 type PublicHandler struct {
-	queries     *generated.Queries
-	matchSvc    *service.MatchService
-	divisionSvc *service.DivisionService
-	venueSvc    *service.VenueService
-	seasonSvc   *service.SeasonService
-	tournSvc    *service.TournamentService
+	queries      *generated.Queries
+	matchSvc     *service.MatchService
+	divisionSvc  *service.DivisionService
+	venueSvc     *service.VenueService
+	seasonSvc    *service.SeasonService
+	tournSvc     *service.TournamentService
+	standingsSvc *service.StandingsService
 }
 
 // NewPublicHandler creates a new PublicHandler.
@@ -137,6 +139,11 @@ func (h *PublicHandler) SetTournamentService(svc *service.TournamentService) {
 	h.tournSvc = svc
 }
 
+// SetStandingsService injects the StandingsService for division standings endpoints.
+func (h *PublicHandler) SetStandingsService(svc *service.StandingsService) {
+	h.standingsSvc = svc
+}
+
 // Routes returns the Chi routes for public endpoints.
 func (h *PublicHandler) Routes() chi.Router {
 	r := chi.NewRouter()
@@ -147,6 +154,12 @@ func (h *PublicHandler) Routes() chi.Router {
 	r.Get("/tournaments/{slug}/divisions", h.ListTournamentDivisions)
 	r.Get("/tournaments/{slug}/matches", h.ListTournamentMatches)
 	r.Get("/tournaments/{slug}/courts", h.ListTournamentCourts)
+
+	// Division detail (spectator bracket/standings/matches views)
+	r.Get("/divisions/{divisionID}", h.GetDivision)
+	r.Get("/divisions/{divisionID}/bracket", h.GetDivisionBracket)
+	r.Get("/divisions/{divisionID}/standings", h.GetDivisionStandings)
+	r.Get("/divisions/{divisionID}/matches", h.ListDivisionMatches)
 
 	// League directory
 	r.Get("/leagues", h.ListLeagues)
@@ -441,6 +454,188 @@ func (h *PublicHandler) ListTournamentCourts(w http.ResponseWriter, r *http.Requ
 	}
 
 	Success(w, courts)
+}
+
+// --- Division detail sub-resources ---
+
+// resolveDivisionByID loads a division by its numeric ID and its parent
+// tournament, enforcing the same public-visibility posture as the rest of the
+// public API (draft tournaments are hidden). On any failure it writes a 404
+// with the standard error envelope and returns ok=false.
+func (h *PublicHandler) resolveDivisionByID(w http.ResponseWriter, r *http.Request) (generated.Division, generated.Tournament, bool) {
+	divisionID, err := strconv.ParseInt(chi.URLParam(r, "divisionID"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "NOT_FOUND", "Division not found")
+		return generated.Division{}, generated.Tournament{}, false
+	}
+
+	division, err := h.queries.GetDivisionByID(r.Context(), divisionID)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "NOT_FOUND", "Division not found")
+		return generated.Division{}, generated.Tournament{}, false
+	}
+
+	tournament, err := h.queries.GetTournamentByID(r.Context(), division.TournamentID)
+	if err != nil || tournament.Status == "draft" {
+		WriteError(w, http.StatusNotFound, "NOT_FOUND", "Division not found")
+		return generated.Division{}, generated.Tournament{}, false
+	}
+
+	return division, tournament, true
+}
+
+// publicDivisionDetail is the response shape for a single public division.
+// It embeds the standard division fields plus parent tournament context and
+// counts so a logged-out spectator landing on a division can render a header.
+type publicDivisionDetail struct {
+	ID            int64   `json:"id"`
+	TournamentID  int64   `json:"tournament_id"`
+	Name          string  `json:"name"`
+	Slug          string  `json:"slug"`
+	Format        string  `json:"format"`
+	BracketFormat string  `json:"bracket_format"`
+	ScoringFormat *string `json:"scoring_format,omitempty"`
+	Status        string  `json:"status"`
+	CurrentPhase  *string `json:"current_phase,omitempty"`
+
+	Tournament publicDivisionTournament `json:"tournament"`
+	Counts     publicDivisionCounts     `json:"counts"`
+}
+
+// publicDivisionTournament is the parent tournament context on a division detail.
+type publicDivisionTournament struct {
+	ID   int64  `json:"id"`
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+// publicDivisionCounts holds entity counts for a division.
+type publicDivisionCounts struct {
+	Registrations int64 `json:"registrations"`
+	Matches       int64 `json:"matches"`
+}
+
+// GetDivision handles GET /api/v1/public/divisions/{divisionID}
+// Returns division detail (name, format, bracket_format, status, phase) plus
+// parent tournament slug+name and registration/match counts.
+func (h *PublicHandler) GetDivision(w http.ResponseWriter, r *http.Request) {
+	division, tournament, ok := h.resolveDivisionByID(w, r)
+	if !ok {
+		return
+	}
+
+	// Counts are best-effort: a count failure should not fail the detail view.
+	regCount, _ := h.queries.CountRegistrationsByDivision(r.Context(), division.ID)
+	matchCount, _ := h.queries.CountMatchesByDivision(r.Context(), pgtype.Int8{Int64: division.ID, Valid: true})
+
+	Success(w, publicDivisionDetail{
+		ID:            division.ID,
+		TournamentID:  division.TournamentID,
+		Name:          division.Name,
+		Slug:          division.Slug,
+		Format:        division.Format,
+		BracketFormat: division.BracketFormat,
+		ScoringFormat: division.ScoringFormat,
+		Status:        division.Status,
+		CurrentPhase:  division.CurrentPhase,
+		Tournament: publicDivisionTournament{
+			ID:   tournament.ID,
+			Slug: tournament.Slug,
+			Name: tournament.Name,
+		},
+		Counts: publicDivisionCounts{
+			Registrations: regCount,
+			Matches:       matchCount,
+		},
+	})
+}
+
+// GetDivisionBracket handles GET /api/v1/public/divisions/{divisionID}/bracket
+// Returns the division's matches with their bracket wiring (next_match_id,
+// next_match_slot, round, seeds, etc.), which is the exact shape the
+// authenticated frontend bracket renderer consumes via
+// GET /api/v1/divisions/{divisionID}/matches. Returned as a paginated envelope
+// so the bracket renderer can reuse its existing match-list parsing.
+func (h *PublicHandler) GetDivisionBracket(w http.ResponseWriter, r *http.Request) {
+	if h.matchSvc == nil {
+		WriteError(w, http.StatusInternalServerError, "NOT_CONFIGURED", "Bracket not available")
+		return
+	}
+
+	division, _, ok := h.resolveDivisionByID(w, r)
+	if !ok {
+		return
+	}
+
+	// Brackets can be large; fetch a generous page so the whole tree comes back.
+	limit, offset := parseLimitOffset(r, 200, 500)
+
+	matches, total, err := h.matchSvc.ListByDivision(r.Context(), division.ID, limit, offset)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to load bracket")
+		return
+	}
+
+	Paginated(w, matches, total, int(limit), int(offset))
+}
+
+// GetDivisionStandings handles GET /api/v1/public/divisions/{divisionID}/standings
+// Returns the division's standings entries in the same shape as the
+// authenticated GET /api/v1/standings/seasons/{seasonID}/divisions/{divisionID}.
+// Standings are season-scoped; the parent tournament's season is resolved
+// automatically. A tournament with no season (or no entries) yields an empty
+// paginated list rather than an error.
+func (h *PublicHandler) GetDivisionStandings(w http.ResponseWriter, r *http.Request) {
+	if h.standingsSvc == nil {
+		WriteError(w, http.StatusInternalServerError, "NOT_CONFIGURED", "Standings not available")
+		return
+	}
+
+	division, tournament, ok := h.resolveDivisionByID(w, r)
+	if !ok {
+		return
+	}
+
+	limit, offset := parseLimitOffset(r, 100, 500)
+
+	// Standings only exist for divisions whose tournament belongs to a season.
+	if !tournament.SeasonID.Valid {
+		Paginated(w, []service.StandingsEntryResponse{}, 0, int(limit), int(offset))
+		return
+	}
+
+	entries, total, err := h.standingsSvc.ListByDivision(r.Context(), tournament.SeasonID.Int64, division.ID, limit, offset)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to load standings")
+		return
+	}
+
+	Paginated(w, entries, total, int(limit), int(offset))
+}
+
+// ListDivisionMatches handles GET /api/v1/public/divisions/{divisionID}/matches
+// Returns the matches in a division (same listing as the authenticated
+// GET /api/v1/divisions/{divisionID}/matches).
+func (h *PublicHandler) ListDivisionMatches(w http.ResponseWriter, r *http.Request) {
+	if h.matchSvc == nil {
+		WriteError(w, http.StatusInternalServerError, "NOT_CONFIGURED", "Matches not available")
+		return
+	}
+
+	division, _, ok := h.resolveDivisionByID(w, r)
+	if !ok {
+		return
+	}
+
+	limit, offset := parseLimitOffset(r, 50, 200)
+
+	matches, total, err := h.matchSvc.ListByDivision(r.Context(), division.ID, limit, offset)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "LIST_FAILED", "Failed to list matches")
+		return
+	}
+
+	Paginated(w, matches, total, int(limit), int(offset))
 }
 
 // --- League sub-resources ---
