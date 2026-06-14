@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLogto } from '@logto/react'
 import {
   apiGet,
   apiPost,
@@ -8,6 +9,13 @@ import {
   type PaginatedData,
 } from '../../lib/api'
 import { buildQueryString } from '../../lib/formatters'
+import { useSport } from '../../auth/SportContext'
+import { API_RESOURCE } from '../../auth/LogtoConfig'
+import {
+  exchangeSubjectToken,
+  setImpersonationToken,
+  clearImpersonationToken,
+} from '../../auth/impersonation'
 import type {
   AdminStats,
   AdminUser,
@@ -184,17 +192,48 @@ export function useDeleteUpload() {
   })
 }
 
-// ── Impersonation ──────────────────────────────────────────────────────
+// ── Impersonation (Logto OAuth 2.0 Token Exchange, RFC 8693) ─────────────
+//
+// Start: POST the backend impersonate endpoint (platform_admin only; it mints
+// a Logto subject token + writes the audit log), then exchange that subject
+// token at Logto's /oidc/token using the ADMIN's own access token as the actor
+// token. The resulting impersonation access token (sub=target, act.sub=admin)
+// is stored separately; api.ts buildHeaders prefers it on every request.
+//
+// Stop: discard the impersonation token (reverts to the admin's token) and
+// fire the backend audit endpoint so the stop is recorded. The audit call uses
+// the impersonation token (still present until we clear it) so the backend can
+// read the act claim — we clear AFTER the request resolves.
+
+interface ImpersonateResponse {
+  subject_token: string
+  target: { public_id: string; first_name: string; last_name: string; role: string }
+}
 
 export function useStartImpersonation() {
   const queryClient = useQueryClient()
+  const { getAccessToken } = useLogto()
+  const { sport } = useSport()
   return useMutation({
-    mutationFn: (userId: number) =>
-      apiPost<{ impersonating: { user_id: number; public_id: string; name: string; role: string } }>(
-        `/api/v1/admin/impersonate/${userId}`,
-      ),
+    // userId is the target's public_id (e.g. "CC-10295") OR numeric id; the
+    // backend resolveUserParam accepts both.
+    mutationFn: async (userId: number | string) => {
+      const orgID = sport?.logto_org_id || undefined
+      // 1. Ask the backend to mint a subject token (also writes activity log).
+      const resp = await apiPost<ImpersonateResponse>(
+        `/api/v1/admin/users/${userId}/impersonate`,
+      )
+      // 2. Grab the admin's own access token (the actor token for the exchange).
+      const actorToken = await getAccessToken(API_RESOURCE, orgID)
+      if (!actorToken) throw new Error('Could not obtain admin access token')
+      // 3. Exchange the subject token for an impersonation access token.
+      const impToken = await exchangeSubjectToken(resp.subject_token, actorToken, orgID)
+      // 4. Store it; api.ts now prefers it for all subsequent requests.
+      setImpersonationToken(impToken)
+      return resp
+    },
     onSuccess: () => {
-      // Refetch /auth/me to get the impersonated user's data
+      // Refetch /auth/me so it reflects the impersonated user + act claim.
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
     },
   })
@@ -203,10 +242,20 @@ export function useStartImpersonation() {
 export function useStopImpersonation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: () =>
-      apiPost<{ restored: boolean }>('/api/v1/admin/stop-impersonation'),
+    mutationFn: async () => {
+      // Audit first (while the impersonation token is still attached so the
+      // backend can read act.sub), then discard. Tolerate audit failure — the
+      // user must always be able to escape impersonation.
+      try {
+        await apiPost<{ restored: boolean }>('/api/v1/admin/stop-impersonation')
+      } catch {
+        /* best-effort audit; clearing the token below is what actually stops it */
+      }
+      clearImpersonationToken()
+      return { restored: true }
+    },
     onSuccess: () => {
-      // Refetch /auth/me to get the admin's own data back
+      // Refetch /auth/me to get the admin's own data back.
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] })
     },
   })

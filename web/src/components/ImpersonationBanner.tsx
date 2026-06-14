@@ -18,8 +18,10 @@ export function ImpersonationBanner() {
     stopImpersonation.mutate(undefined, {
       onSuccess: () => {
         toast('success', 'Returned to your admin account.')
-        // Force a full page reload to reset all cached state
-        window.location.href = '/admin/users'
+        // Force a full page reload to reset all cached state. Land on the app
+        // root so the sport context re-resolves from scratch under the admin's
+        // own token (the SPA then redirects to the admin's default sport).
+        window.location.href = '/'
       },
       onError: (err) => {
         toast('error', err.message || 'Failed to stop impersonation.')

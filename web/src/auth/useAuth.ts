@@ -9,6 +9,7 @@ import { useLogto } from '@logto/react'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useSport } from './SportContext'
+import { clearImpersonationToken } from './impersonation'
 
 const POST_REDIRECT_KEY = 'logto_post_redirect'
 
@@ -88,6 +89,9 @@ export function useAuth() {
   }, [logtoSignIn])
 
   const signOut = useCallback((returnTo: string = '/') => {
+    // Always drop any active impersonation token on sign-out so it can never
+    // outlive the admin's own session.
+    clearImpersonationToken()
     // Smoke 16.10: the post-logout redirect URI we hand Logto must EXACTLY
     // match a postLogoutRedirectUri registered on the SPA app, or Logto
     // refuses to redirect and parks the browser on its raw /oidc/session/end

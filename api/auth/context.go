@@ -20,7 +20,18 @@ type Claims struct {
 	OrganizationRoles []string // organization_roles claim
 	Scopes            []string // parsed scope claim (space-separated string -> slice)
 	Audience          []string // aud claim
+
+	// ActorSubject is the `act.sub` claim (RFC 8693). It is populated only on
+	// impersonation access tokens issued via OAuth 2.0 Token Exchange and
+	// carries the Logto user ID of the admin who is impersonating. Empty on
+	// all normal tokens. This is the backend's audit signal that a request is
+	// running under impersonation (see AdminHandler.StopImpersonation).
+	ActorSubject string
 }
+
+// IsImpersonated reports whether this token was issued via token exchange and
+// therefore carries an actor (impersonator) identity.
+func (c Claims) IsImpersonated() bool { return c.ActorSubject != "" }
 
 // HasScope reports whether the token has the given OAuth scope.
 func (c Claims) HasScope(scope string) bool {
@@ -140,7 +151,30 @@ func ExtractClaims(token jwt.Token) Claims {
 		c.Scopes = strings.Fields(scopeStr)
 	}
 
+	// act claim (RFC 8693). On impersonation tokens it is a nested object
+	// {"sub": "<impersonator logto user id>"}. Surfaced as ActorSubject for
+	// audit. Tolerant of both map[string]interface{} (parsed JSON) and
+	// map[string]string shapes.
+	var actAny interface{}
+	if err := token.Get("act", &actAny); err == nil {
+		c.ActorSubject = actorSubject(actAny)
+	}
+
 	return c
+}
+
+// actorSubject extracts the `sub` field from a parsed `act` claim, returning
+// "" when the claim is absent or malformed.
+func actorSubject(v interface{}) string {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		if s, ok := m["sub"].(string); ok {
+			return s
+		}
+	case map[string]string:
+		return m["sub"]
+	}
+	return ""
 }
 
 // toStringSlice coerces []string or []interface{} values into []string,

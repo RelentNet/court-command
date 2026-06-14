@@ -118,8 +118,8 @@ type Result struct {
 	// api uses them to log a loud warning in production because a newly
 	// created SPA app or webhook means the baked-in VITE_LOGTO_APP_ID /
 	// LOGTO_WEBHOOK_SIGNING_KEY env values are now stale.
-	SPAAppCreated   bool
-	WebhookCreated  bool
+	SPAAppCreated  bool
+	WebhookCreated bool
 }
 
 // Run idempotently provisions the Logto tenant and syncs sports.logto_org_id
@@ -330,7 +330,9 @@ func seedSPAApp(ctx context.Context, c *logto.Client, cfg *Config, r *Result) er
 		}
 		slog.Info("spa app exists", "name", SPAAppName, "id", existing.ID)
 		r.SPAAppID = existing.ID
-		return nil
+		// Idempotently ensure token exchange is enabled on the existing app
+		// (required for admin impersonation via OAuth 2.0 Token Exchange).
+		return ensureTokenExchange(ctx, c, existing)
 	}
 
 	// No existing app. If the operator pinned an expected ID this is a
@@ -359,6 +361,38 @@ func seedSPAApp(ctx context.Context, c *logto.Client, cfg *Config, r *Result) er
 	slog.Info("created spa app", "name", SPAAppName, "id", created.ID)
 	r.SPAAppID = created.ID
 	r.SPAAppCreated = true
+	return ensureTokenExchange(ctx, c, created)
+}
+
+// ensureTokenExchange flips customClientMetadata.allowTokenExchange to true on
+// the SPA app when it isn't already set. This is the one-time toggle Logto
+// requires before a client may use grant_type=token-exchange, which the admin
+// impersonation flow depends on (subject-token exchange at /oidc/token, see
+// docs/FEATURES.md §20). Idempotent: a no-op when the flag is already true.
+//
+// CustomClientMetadata is replaced wholesale by Logto on PATCH, so we start
+// from the existing map (if any) and only add our key, preserving any other
+// metadata an operator may have set in the Logto Console.
+func ensureTokenExchange(ctx context.Context, c *logto.Client, app *logto.Application) error {
+	if app.CustomClientMetadata != nil {
+		if v, ok := app.CustomClientMetadata["allowTokenExchange"].(bool); ok && v {
+			slog.Info("spa app token exchange already enabled", "id", app.ID)
+			return nil
+		}
+	}
+
+	merged := map[string]interface{}{}
+	for k, v := range app.CustomClientMetadata {
+		merged[k] = v
+	}
+	merged["allowTokenExchange"] = true
+
+	if _, err := c.PatchApplication(ctx, app.ID, logto.PatchApplicationParams{
+		CustomClientMetadata: merged,
+	}); err != nil {
+		return fmt.Errorf("enable token exchange on SPA app: %w", err)
+	}
+	slog.Info("enabled token exchange on spa app", "id", app.ID)
 	return nil
 }
 

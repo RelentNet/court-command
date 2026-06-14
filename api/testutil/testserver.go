@@ -173,7 +173,9 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	activityLogService := service.NewActivityLogService(queries)
 	apiKeyService := service.NewApiKeyService(queries)
 	uploadService := service.NewUploadService(queries, t.TempDir())
-	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, store, uploadService)
+	// nil logtoClient: testutil runs the cookie-only path with no Logto Mgmt
+	// API; the JWT impersonation endpoint 503s here, which tests don't exercise.
+	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, store, uploadService, nil)
 	uploadHandler := handler.NewUploadHandler(uploadService)
 
 	// CMS Settings
