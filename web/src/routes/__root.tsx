@@ -204,7 +204,7 @@ function PublicLayout() {
           <Outlet />
         </div>
       </main>
-      <PublicBottomTabs />
+      {isMobile && <PublicBottomTabs />}
     </>
   )
 }
