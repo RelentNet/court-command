@@ -341,39 +341,45 @@ function DivisionCard({
     s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
   return (
-    <Card className="group hover:border-(--color-accent)/30 transition-colors">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-(--color-text-primary) truncate">
-              {division.name}
-            </h3>
-            <StatusBadge status={division.status} type="division" />
+    <Link
+      to={'/public/divisions/$divisionId' as string}
+      params={{ divisionId: String(division.id) } as Record<string, string>}
+      className="block"
+    >
+      <Card className="group hover:border-(--color-accent)/30 transition-colors">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-(--color-text-primary) truncate">
+                {division.name}
+              </h3>
+              <StatusBadge status={division.status} type="division" />
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--color-text-muted)">
+              <span>{formatLabel(division.format)}</span>
+              <span>{formatLabel(division.bracket_format)}</span>
+              {division.max_teams && (
+                <span>Max {division.max_teams} teams</span>
+              )}
+              {division.gender_restriction && (
+                <span>{formatLabel(division.gender_restriction)}</span>
+              )}
+              {division.skill_min != null && division.skill_max != null && (
+                <span>
+                  Skill {division.skill_min}–{division.skill_max}
+                </span>
+              )}
+              {division.current_phase && (
+                <span className="text-(--color-accent)">
+                  {formatLabel(division.current_phase)}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--color-text-muted)">
-            <span>{formatLabel(division.format)}</span>
-            <span>{formatLabel(division.bracket_format)}</span>
-            {division.max_teams && (
-              <span>Max {division.max_teams} teams</span>
-            )}
-            {division.gender_restriction && (
-              <span>{formatLabel(division.gender_restriction)}</span>
-            )}
-            {division.skill_min != null && division.skill_max != null && (
-              <span>
-                Skill {division.skill_min}–{division.skill_max}
-              </span>
-            )}
-            {division.current_phase && (
-              <span className="text-(--color-accent)">
-                {formatLabel(division.current_phase)}
-              </span>
-            )}
-          </div>
+          <ChevronRight className="h-4 w-4 text-(--color-text-muted) group-hover:text-(--color-accent) transition-colors flex-shrink-0" />
         </div>
-        <ChevronRight className="h-4 w-4 text-(--color-text-muted) group-hover:text-(--color-accent) transition-colors flex-shrink-0" />
-      </div>
-    </Card>
+      </Card>
+    </Link>
   )
 }
 
