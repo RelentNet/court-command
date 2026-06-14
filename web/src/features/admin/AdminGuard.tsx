@@ -1,6 +1,5 @@
 import { type ReactNode } from 'react'
-// TEMP-ADMIN-BYPASS: Navigate is unused while the role check is disabled.
-// Re-import it when restoring: import { Navigate } from '@tanstack/react-router'
+import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '../../auth/useAuth'
 import { Skeleton } from '../../components/Skeleton'
 
@@ -10,14 +9,8 @@ interface AdminGuardProps {
 }
 
 export function AdminGuard({ children }: AdminGuardProps) {
-  // TEMP-ADMIN-BYPASS: platform_admin check disabled while debugging the
-  // Logto organization_roles plumbing. Any authenticated user can reach
-  // every admin route. To restore: uncomment the role gate below and
-  // remove this comment block. See api/middleware/auth.go for the
-  // matching backend bypass; both must be reverted together.
-  // git grep TEMP-ADMIN-BYPASS to find every site.
-  const { sport: _sport } = useSport()
-  // const sportSlug = _sport?.slug ?? ''
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
 
   const { user, isLoading } = useAuth()
 
@@ -33,14 +26,8 @@ export function AdminGuard({ children }: AdminGuardProps) {
     )
   }
 
-  // TEMP-ADMIN-BYPASS: still require an authenticated user (don't expose
-  // admin to anonymous visitors) but accept any role. Original check:
-  //
-  // if (user?.role !== 'platform_admin') {
-  //   return <Navigate to="/$sport/dashboard" params={{ sport: sportSlug }} />
-  // }
-  if (!user) {
-    return null
+  if (user?.role !== 'platform_admin') {
+    return <Navigate to="/$sport/dashboard" params={{ sport: sportSlug }} />
   }
 
   return <>{children}</>

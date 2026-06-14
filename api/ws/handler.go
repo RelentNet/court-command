@@ -18,24 +18,51 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// TODO: restrict to allowed origins in production
-		return true
-	},
-}
-
 // Handler manages WebSocket connections for real-time updates.
 type Handler struct {
-	ps     *pubsub.PubSub
-	logger *slog.Logger
+	ps       *pubsub.PubSub
+	logger   *slog.Logger
+	upgrader websocket.Upgrader
 }
 
-// NewHandler creates a new WebSocket handler.
-func NewHandler(ps *pubsub.PubSub, logger *slog.Logger) *Handler {
-	return &Handler{ps: ps, logger: logger}
+// NewHandler creates a new WebSocket handler. allowedOrigins is the set of
+// browser Origins permitted to open a WebSocket (the same list parsed from
+// CORS_ALLOWED_ORIGINS, see api/config/config.go). The configured web
+// origin MUST be present so OBS / browser-source overlay clients, which
+// load the overlay page from that origin, can connect. Requests with an
+// empty Origin header (non-browser clients such as native apps and the Go
+// test client) are always allowed, since the Origin check only defends
+// against cross-site WebSocket hijacking from a browser.
+func NewHandler(ps *pubsub.PubSub, logger *slog.Logger, allowedOrigins []string) *Handler {
+	allowed := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		if o != "" {
+			allowed[o] = true
+		}
+	}
+
+	return &Handler{
+		ps:     ps,
+		logger: logger,
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				// Non-browser clients (native apps, server-to-server, the
+				// Go websocket test client) send no Origin; nothing to
+				// hijack, so allow them.
+				if origin == "" {
+					return true
+				}
+				if allowed[origin] {
+					return true
+				}
+				logger.Warn("websocket origin rejected", "origin", origin, "remote", r.RemoteAddr)
+				return false
+			},
+		},
+	}
 }
 
 // Routes returns a chi.Router with all WebSocket endpoints mounted.
@@ -115,7 +142,7 @@ func (h *Handler) HandleOverlay(w http.ResponseWriter, r *http.Request) {
 // handleSubscription upgrades the HTTP connection to WebSocket,
 // subscribes to the given Redis channel, and relays messages to the client.
 func (h *Handler) handleSubscription(w http.ResponseWriter, r *http.Request, channel string) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		h.logger.Error("websocket upgrade failed", "channel", channel, "error", err)
 		return

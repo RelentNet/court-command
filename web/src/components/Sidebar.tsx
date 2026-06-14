@@ -120,17 +120,9 @@ function getAuthNavGroups(role: string | undefined, sportSlug: string): NavGroup
     groups.push(baseAuthNavGroups[5])
   }
 
-  // TEMP-ADMIN-BYPASS: admin link is shown to every authenticated user
-  // while debugging the Logto organization_roles plumbing. The matching
-  // backend bypass lives in api/middleware/auth.go (RequirePlatformAdmin)
-  // and the frontend route guard in web/src/features/admin/AdminGuard.tsx.
-  // To restore: replace the unconditional push below with the original
-  // role check that's preserved in the comment.
-  // git grep TEMP-ADMIN-BYPASS to find every site.
-  //
-  // Original: if (role === 'platform_admin') { groups.push(getAdminNavGroup(sportSlug)) }
-  void role // mark used so TS doesn't complain about the unread parameter
-  groups.push(getAdminNavGroup(sportSlug))
+  if (role === 'platform_admin') {
+    groups.push(getAdminNavGroup(sportSlug))
+  }
 
   return groups
 }

@@ -334,8 +334,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Phase 4C: WebSocket handler
-	wsHandler := ws.NewHandler(ps, logger)
+	// Build the slug -> Logto-org-ID resolver that backs
+	// RequireSportMatchesJWT on sport-scoped protected routes. It reads
+	// the same sports.logto_org_id column the verifier above checks, so
+	// by this point the IDs are real (the seeder + verifier ran first).
+	// Placeholder rows (pending-seed:*) are skipped; an unknown slug in
+	// the resolver yields a 400 from the middleware rather than a silent
+	// cross-sport bypass. When logtoClient is nil (dev without Mgmt API)
+	// the JWT path is also disabled, so a nil/empty resolver simply means
+	// the sport check is never chained -- see router.useAuth.
+	var sportResolver *middleware.SportResolver
+	{
+		activeSports, err := startup.LoadActiveSportsFromDB(ctx, pool)
+		if err != nil {
+			slog.Error("load active sports for sport resolver", "error", err)
+			os.Exit(1)
+		}
+		slugToOrgID := make(map[string]string, len(activeSports))
+		for _, s := range activeSports {
+			if s.OrgID == "" || startup.IsPendingSeedPlaceholder(s.OrgID) {
+				continue
+			}
+			slugToOrgID[s.Slug] = s.OrgID
+		}
+		sportResolver = middleware.NewSportResolver(slugToOrgID)
+		slog.Info("sport resolver built", "sports", len(slugToOrgID))
+	}
+
+	// Phase 4C: WebSocket handler. CheckOrigin is restricted to the
+	// configured CORS origins (plus empty-Origin non-browser clients);
+	// the web origin must be in CORS_ALLOWED_ORIGINS so OBS / browser-
+	// source overlays can connect.
+	wsHandler := ws.NewHandler(ps, logger, cfg.CORSAllowedOrigins)
 
 	// Start background jobs
 	jobs.StartQuickMatchCleanup(ctx, matchService, logger)
@@ -416,6 +446,10 @@ func main() {
 
 		// Mgmt-API-backed elevation: see api/middleware/org_role_resolver.go
 		OrgRoles: orgRoleResolver,
+
+		// Sport-scoped authz: RequireSportMatchesJWT confirms the JWT's
+		// organization_id matches the X-Sport the request targets.
+		SportResolver: sportResolver,
 	})
 
 	srv := &http.Server{

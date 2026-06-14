@@ -123,6 +123,15 @@ type Config struct {
 	// When nil (testutil / dev-without-Logto) the elevation falls
 	// back to the JWT fast path only.
 	OrgRoles middleware.OrgRoleResolver
+
+	// SportResolver maps a sport slug (the X-Sport header) to its Logto
+	// organization ID. When set AND the JWT auth path is active, useAuth
+	// chains middleware.RequireSportMatchesJWT after JWT auth on every
+	// sport-scoped protected group, so a token minted for one sport's
+	// org cannot act on another sport's resources. Nil in
+	// testutil/cookie-only environments (no claims in context), where
+	// the sport check is skipped entirely.
+	SportResolver *middleware.SportResolver
 }
 
 // authMiddlewares returns the middleware chain that should gate
@@ -149,12 +158,42 @@ func authMiddlewares(cfg *Config) []func(http.Handler) http.Handler {
 	}
 }
 
-// useAuth applies the chain returned by authMiddlewares to a chi
-// router. Equivalent to r.Use(authMiddlewares(cfg)...) but a function
-// so the call sites read more obviously.
+// jwtAuthActive reports whether the production JWT auth path is wired
+// (vs. the legacy cookie-only path used by testutil.TestServer). The
+// sport-scoped check only makes sense on the JWT path, since it reads
+// auth.Claims (the organization_id) off the request context, which only
+// the JWT chain populates.
+func jwtAuthActive(cfg *Config) bool {
+	return cfg.JWTValidator != nil && cfg.LogtoClient != nil &&
+		cfg.UserSyncService != nil && cfg.Queries != nil
+}
+
+// useAuthNoSport applies only the base auth chain (JWT validation +
+// session bridge, or the legacy cookie path). Use for authenticated
+// route groups that are NOT sport-scoped -- e.g. identity endpoints
+// reached before a sport is selected, where the SPA sends no X-Sport
+// header and a non-org token.
+func useAuthNoSport(r chi.Router, cfg *Config) {
+	for _, mw := range authMiddlewares(cfg) {
+		r.Use(mw)
+	}
+}
+
+// useAuth applies the base auth chain and, on the JWT path with a
+// configured SportResolver, additionally chains RequireSportMatchesJWT
+// so a token minted for one sport's Logto org cannot act on another
+// sport's resources. Used for every sport-scoped protected group.
+//
+// The sport check is appended AFTER the base chain so auth.Claims is on
+// the request context when it runs (RequireSportMatchesJWT depends on
+// it). It is skipped when the JWT path is inactive (cookie-only tests,
+// where there are no claims) or when no resolver is configured.
 func useAuth(r chi.Router, cfg *Config) {
 	for _, mw := range authMiddlewares(cfg) {
 		r.Use(mw)
+	}
+	if cfg.SportResolver != nil && jwtAuthActive(cfg) {
+		r.Use(middleware.RequireSportMatchesJWT(cfg.SportResolver))
 	}
 }
 
@@ -251,7 +290,10 @@ func New(cfg *Config) chi.Router {
 			// nil (testutil mode), authMiddlewares falls back to the
 			// cookie path and we mount the legacy /me here too.
 			r.Group(func(r chi.Router) {
-				useAuth(r, cfg)
+				// Identity endpoints: reached before a sport is selected,
+				// so the SPA may send no X-Sport header. Use the base auth
+				// chain WITHOUT the sport-scoped check.
+				useAuthNoSport(r, cfg)
 				if cfg.JWTValidator == nil {
 					// Legacy fallback for testutil/cookie-only environments.
 					// Phase 6 cutover deletes this branch entirely.
@@ -492,9 +534,12 @@ func New(cfg *Config) chi.Router {
 		// --- Phase 8 routes ---
 
 		// Stop impersonation — must be OUTSIDE admin group because
-		// the impersonated session has the target user's role (not platform_admin)
+		// the impersonated session has the target user's role (not
+		// platform_admin). Use the base auth chain WITHOUT the sport
+		// check: escaping impersonation must always succeed regardless of
+		// which sport scope the request carries.
 		r.Route("/admin/stop-impersonation", func(r chi.Router) {
-			useAuth(r, cfg)
+			useAuthNoSport(r, cfg)
 			r.Post("/", cfg.AdminHandler.StopImpersonation)
 		})
 

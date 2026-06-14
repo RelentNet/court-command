@@ -43,33 +43,70 @@ func (c Claims) HasOrgRole(role string) bool {
 	return false
 }
 
-// ElevatedRole maps Logto org-roles in the token to the local users.role
-// strings that handler-level authz checks (RequirePlatformAdmin, sidebar
-// nav visibility, etc.) expect. Returns "" when no elevation applies and
-// the caller should keep the local DB role.
+// orgRoleToLocalRole maps a Logto organization-role name to the local
+// users.role string the rest of the app authorizes against. The Logto
+// org-roles are defined by the seeder (api/logtoseed/seeder.go:orgRoles)
+// and the local users.role values by the CHECK constraint in
+// api/db/migrations/00030_expand_user_roles.sql. The five Logto org-roles
+// happen to share names with their local counterparts, but we map
+// explicitly rather than passing the string through so an unrecognized
+// org-role never silently becomes a users.role value (which would violate
+// the DB constraint and skip the intended authz surface).
 //
-// Mapping today is one-way and minimal: anyone holding the platform_admin
-// org-role in ANY org is treated as platform_admin globally. Other org
-// roles (tournament_director, referee, scorekeeper) DO NOT elevate the
-// global users.role -- those are handled per-tournament by the
-// tournament_staff table. Matches the spec from Phase 1.
+// orgRolePriority orders the local roles from most to least privileged so
+// ElevatedRole can pick the single highest role when a user holds several
+// org-roles in the same org. platform_admin must always win.
+var orgRoleToLocalRole = map[string]string{
+	"platform_admin":      "platform_admin",
+	"tournament_director": "tournament_director",
+	"referee":             "referee",
+	"scorekeeper":         "scorekeeper",
+	"player":              "player",
+}
+
+var orgRolePriority = map[string]int{
+	"platform_admin":      5,
+	"tournament_director": 4,
+	"referee":             3,
+	"scorekeeper":         2,
+	"player":              1,
+}
+
+// ElevatedRole maps the Logto org-roles in the token to the single local
+// users.role string that handler-level authz checks (RequirePlatformAdmin,
+// sidebar nav visibility, scoring/broadcast gating, etc.) expect. Returns
+// "" when no recognized org-role is present and the caller should keep the
+// local DB role.
+//
+// When the token carries multiple org-roles, the highest-privilege role
+// wins (see orgRolePriority); platform_admin always takes precedence.
+// Unrecognized org-role names are ignored so they can never map to a
+// users.role value the DB constraint doesn't allow.
 //
 // IMPORTANT: relies on c.OrganizationRoles, which Logto only populates
 // when the token is org-scoped (i.e. issued for audience
 // urn:logto:organization:<orgID>). The Court Command SPA always
 // requests org-scoped tokens via getAccessToken(resource, orgID) so this
-// works in practice. A future caller using a globally-scoped token will
-// see an empty OrganizationRoles and no elevation will happen -- the
-// user falls back to their local users.role until Phase 6's webhook
-// role-mapping lands. Document any new global-token caller and add a
-// fallback (e.g. read a global Logto user role) before doing so.
+// works in practice. Logto also frequently omits the organization_roles
+// claim from API-resource access tokens entirely; the JWTSession
+// middleware falls back to the Logto Management API resolver in that case
+// (see api/middleware/jwt_session.go). A future caller using a
+// globally-scoped token will see an empty OrganizationRoles and no
+// elevation will happen -- the user falls back to their local users.role.
 func (c Claims) ElevatedRole() string {
+	best := ""
+	bestPriority := 0
 	for _, role := range c.OrganizationRoles {
-		if role == "platform_admin" {
-			return "platform_admin"
+		local, ok := orgRoleToLocalRole[role]
+		if !ok {
+			continue
+		}
+		if p := orgRolePriority[role]; p > bestPriority {
+			best = local
+			bestPriority = p
 		}
 	}
-	return ""
+	return best
 }
 
 // ExtractClaims pulls Logto-shaped claims off a parsed jwx token. It is

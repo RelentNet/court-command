@@ -22,4 +22,4 @@
 // every authenticated page guarantees future-you (or anyone else)
 // sees the warning immediately on every sign-in.
 
-export const ADMIN_BYPASS_ACTIVE = true as const
+export const ADMIN_BYPASS_ACTIVE = false as const
