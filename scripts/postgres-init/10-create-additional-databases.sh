@@ -1,5 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # scripts/postgres-init/10-create-additional-databases.sh
+#
+# NOTE: postgres:17-alpine has no bash, so this MUST stay POSIX sh.
+# The body below is sh-compatible (no arrays, [[ ]], or other bashisms).
 #
 # Creates additional Postgres databases listed in the
 # POSTGRES_MULTIPLE_DATABASES env var (comma- or space-separated).
