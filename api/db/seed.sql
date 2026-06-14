@@ -640,7 +640,7 @@ INSERT INTO matches (
   'in_progress', 'quick', t3_id, t5_id,
   11, 2, 1, 1, false,
   3, 2, 1, 2, 1,
-  NOW() + INTERVAL '24 hours', p13_id
+  NOW() + INTERVAL '24 hours', admin_id
 ) RETURNING id INTO qm1_id;
 
 INSERT INTO matches (
@@ -653,7 +653,7 @@ INSERT INTO matches (
   'scheduled', 'quick', t7_id, t8_id,
   15, 2, 1, 1, true,
   0, 0, 1, 1, 1,
-  NOW() + INTERVAL '24 hours', p11_id
+  NOW() + INTERVAL '24 hours', td1_id
 ) RETURNING id INTO qm2_id;
 
 -- ============================================================
@@ -695,7 +695,7 @@ INSERT INTO api_keys (user_id, name, key_hash, key_prefix, scopes, expires_at)
 VALUES (admin_id, 'Admin Read-Only Key', encode(sha256('ccapi_demo_admin_key_001'::bytea), 'hex'), 'ccapi_demo_ad', ARRAY['read'], NOW() + INTERVAL '365 days');
 
 INSERT INTO api_keys (user_id, name, key_hash, key_prefix, scopes, expires_at)
-VALUES (broadcast_id, 'Broadcast API Key', encode(sha256('ccapi_demo_broadcast_key'::bytea), 'hex'), 'ccapi_demo_br', ARRAY['read'], NOW() + INTERVAL '90 days');
+VALUES (admin_id, 'Broadcast API Key', encode(sha256('ccapi_demo_broadcast_key'::bytea), 'hex'), 'ccapi_demo_br', ARRAY['read'], NOW() + INTERVAL '90 days');
 
 -- ============================================================
 -- 21. ACTIVITY LOGS (sample entries)
