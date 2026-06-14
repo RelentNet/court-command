@@ -278,18 +278,20 @@ function ProfileEdit() {
         {/* Pickleball Identity */}
         <fieldset className="space-y-3">
           <legend className="text-lg font-semibold">Pickleball identity</legend>
-          <FormField label="DUPR ID" htmlFor="dupr_id">
-            <Input
-              id="dupr_id"
-              value={draft.dupr_id ?? ''}
-              onChange={(e) => setField('dupr_id', e.target.value)}
-            />
-          </FormField>
+          {/* Smoke 8.1: VAIR is our preferred rating partner — show it
+              first/primary, DUPR second. Platform stays rating-agnostic. */}
           <FormField label="VAIR ID" htmlFor="vair_id">
             <Input
               id="vair_id"
               value={draft.vair_id ?? ''}
               onChange={(e) => setField('vair_id', e.target.value)}
+            />
+          </FormField>
+          <FormField label="DUPR ID" htmlFor="dupr_id">
+            <Input
+              id="dupr_id"
+              value={draft.dupr_id ?? ''}
+              onChange={(e) => setField('dupr_id', e.target.value)}
             />
           </FormField>
         </fieldset>

@@ -73,8 +73,10 @@ export function PlayerDetail({ playerId }: PlayerDetailProps) {
           <InfoRow label="Email" value={player.email} />
           <InfoRow label="Date of Birth" value={formatDate(player.date_of_birth)} />
           <InfoRow label="Handedness" value={player.handedness} />
-          <InfoRow label="DUPR ID" value={player.dupr_id} />
+          {/* Smoke 8.1: VAIR is our preferred rating partner — show it
+              first/primary, DUPR second. Platform stays rating-agnostic. */}
           <InfoRow label="VAIR ID" value={player.vair_id} />
+          <InfoRow label="DUPR ID" value={player.dupr_id} />
           <InfoRow label="Gender" value={player.gender} />
           <InfoRow
             label="Location"
