@@ -150,7 +150,13 @@ export function CourtEditForm({ court, onSuccess, onCancel }: CourtEditFormProps
               <Input
                 id="stream-url"
                 value={streamUrl}
-                onChange={(e) => setStreamUrl(e.target.value)}
+                onChange={(e) => {
+                  setStreamUrl(e.target.value)
+                  // smoke 8.15: a court can't be "live" with no stream URL — clearing
+                  // the URL must reset the live flag so no orphaned live-without-URL state
+                  // (which renders a "Live" badge but no video embed) can persist.
+                  if (!e.target.value.trim()) setStreamIsLive(false)
+                }}
                 placeholder={URL_PLACEHOLDERS[streamType] ?? 'Enter stream URL'}
               />
             </FormField>
@@ -166,16 +172,28 @@ export function CourtEditForm({ court, onSuccess, onCancel }: CourtEditFormProps
                 placeholder="Court 1 - Main Stage"
               />
             </FormField>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 text-sm text-(--color-text-primary) cursor-pointer">
+            <div className="flex flex-col justify-end pb-1">
+              {/* smoke 8.15: "live" requires a stream URL. Disable the toggle until a URL
+                  is entered so a court can't be flagged live with no embed to render. */}
+              <label
+                className={`flex items-center gap-2 text-sm text-(--color-text-primary) ${
+                  streamUrl.trim() ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                }`}
+              >
                 <input
                   type="checkbox"
                   checked={streamIsLive}
+                  disabled={!streamUrl.trim()}
                   onChange={(e) => setStreamIsLive(e.target.checked)}
-                  className="rounded"
+                  className="rounded disabled:cursor-not-allowed"
                 />
                 Stream is currently live
               </label>
+              {!streamUrl.trim() && (
+                <p className="text-xs text-(--color-text-secondary) mt-1">
+                  Enter a stream URL to mark this court as live.
+                </p>
+              )}
             </div>
           </div>
         )}
