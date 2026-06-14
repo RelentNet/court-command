@@ -141,7 +141,9 @@ type Result struct {
 //  10. Email connector + sign-in experience.
 //  11. Webhook (drift-protected: if cfg.ExpectedWebhookSigningKey is set, the
 //      existing hook's signing key must match; refuses to silently mint a new key).
-//  12. Sync sports.logto_org_id (when pool != nil).
+//  12. Access-token JWT customizer (emits the RFC 8693 act claim on
+//      impersonation token-exchange grants). PUT is an upsert; always installed.
+//  13. Sync sports.logto_org_id (when pool != nil).
 //
 // Caller is responsible for constructing the *logto.Client and *pgxpool.Pool.
 // Pass pool == nil when running without an application database (the CLI
@@ -259,6 +261,9 @@ func runStepsLocked(ctx context.Context, cfg *Config, c *logto.Client, tx pgx.Tx
 	}
 	if err := seedWebhook(ctx, c, cfg, r); err != nil {
 		return fmt.Errorf("webhook: %w", err)
+	}
+	if err := seedJWTCustomizer(ctx, c); err != nil {
+		return fmt.Errorf("jwt customizer: %w", err)
 	}
 	if tx != nil {
 		if err := syncSportsOrgIDs(ctx, tx, cfg, r); err != nil {
@@ -642,6 +647,20 @@ func seedWebhook(ctx context.Context, c *logto.Client, cfg *Config, r *Result) e
 	slog.Info("created webhook", "name", courtCommandHookName, "id", created.ID, "url", cfg.WebhookURL)
 	r.WebhookSigningKey = created.SigningKey
 	r.WebhookCreated = true
+	return nil
+}
+
+// seedJWTCustomizer installs the access-token JWT customizer that emits the
+// RFC 8693 `act` claim on token-exchange (impersonation) grants. Without it,
+// the exchanged access token has no `act` claim and neither the backend
+// (api/auth/context.go actorSubject) nor the SPA impersonation banner can
+// detect impersonation. PUT is an upsert, so we always install the current
+// script -- it's idempotent and brings drifted tenants back in line.
+func seedJWTCustomizer(ctx context.Context, c *logto.Client) error {
+	if err := c.UpsertAccessTokenJWTCustomizer(ctx); err != nil {
+		return fmt.Errorf("install access-token jwt customizer: %w", err)
+	}
+	slog.Info("access-token jwt customizer installed (emits act claim on impersonation grants)")
 	return nil
 }
 

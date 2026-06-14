@@ -765,10 +765,19 @@ func (h *AdminHandler) ImpersonateUser(w http.ResponseWriter, r *http.Request) {
 	// Embed the impersonator + a machine-readable reason in the subject-token
 	// context so the audit signal is visible in Logto's own logs and in the
 	// issued impersonation token, not just our activity_logs.
+	//
+	// impersonator_logto_id MUST be the calling admin's Logto user ID as a
+	// STRING: the JWT customizer maps it to act.sub, and both auth.actorSubject
+	// (api/auth/context.go) and the SPA's impersonation banner expect a string
+	// there. We read it from the admin's own validated token (claims.Subject)
+	// rather than the local user row so the value matches Logto's user IDs.
 	subjectCtx := map[string]interface{}{
 		"impersonator_public_id": sess.PublicID,
 		"impersonator_user_id":   sess.UserID,
 		"reason":                 "court_command_admin_impersonation",
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		subjectCtx["impersonator_logto_id"] = claims.Subject
 	}
 
 	tok, err := h.logtoClient.CreateSubjectToken(r.Context(), *target.LogtoUserID, subjectCtx)
