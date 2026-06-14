@@ -15,6 +15,10 @@ import {
   ArrowDownLeft,
   Edit3,
   PlayCircle,
+  Hand,
+  RefreshCw,
+  Flag,
+  Ruler,
 } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import type { EventType, MatchEvent } from './types'
@@ -25,7 +29,7 @@ export interface EventsTimelineProps {
   initialCompact?: boolean
 }
 
-interface IconSpec {
+export interface IconSpec {
   Icon: typeof Trophy
   color: string
 }
@@ -39,7 +43,7 @@ const BORDER_FROM_COLOR: Record<string, string> = {
   'text-(--color-text-secondary)': 'border-l-(--color-border)',
 }
 
-const EVENT_META: Record<EventType, { label: string; icon: IconSpec }> = {
+export const EVENT_META: Record<EventType, { label: string; icon: IconSpec }> = {
   match_started: {
     label: 'Match started',
     icon: { Icon: PlayCircle, color: 'text-(--color-accent)' },
@@ -120,9 +124,25 @@ const EVENT_META: Record<EventType, { label: string; icon: IconSpec }> = {
     label: 'Forfeit declared',
     icon: { Icon: AlertOctagon, color: 'text-(--color-error)' },
   },
+  let: {
+    label: 'Let',
+    icon: { Icon: Hand, color: 'text-(--color-warning)' },
+  },
+  re_do: {
+    label: 'Re-do',
+    icon: { Icon: RefreshCw, color: 'text-(--color-warning)' },
+  },
+  fault: {
+    label: 'Fault',
+    icon: { Icon: Flag, color: 'text-(--color-error)' },
+  },
+  line_call: {
+    label: 'Line call',
+    icon: { Icon: Ruler, color: 'text-(--color-accent)' },
+  },
 }
 
-function formatEventTime(ts: string): string {
+export function formatEventTime(ts: string): string {
   try {
     const d = new Date(ts)
     return d.toLocaleTimeString([], {
@@ -135,7 +155,7 @@ function formatEventTime(ts: string): string {
   }
 }
 
-function summarizeEvent(e: MatchEvent): string {
+export function summarizeEvent(e: MatchEvent): string {
   const p = e.payload
   switch (e.event_type) {
     case 'point_team1':
@@ -157,6 +177,17 @@ function summarizeEvent(e: MatchEvent): string {
     case 'forfeit_declared': {
       const team = (p as { forfeiting_team?: number }).forfeiting_team
       return team ? `Team ${team} forfeit` : 'Forfeit'
+    }
+    case 'let':
+    case 're_do':
+    case 'fault':
+    case 'line_call': {
+      const team = (p as { team?: number }).team
+      const note = (p as { note?: string }).note
+      const parts: string[] = []
+      if (team) parts.push(`Team ${team}`)
+      if (note) parts.push(note)
+      return parts.join(' — ')
     }
     default:
       return ''

@@ -50,6 +50,14 @@ const (
 	EventTypeMatchConfigured = "match_configured"
 	EventTypeScoreOverride   = "score_override"
 	EventTypeForfeitDeclared = "forfeit_declared"
+
+	// Officiating / verbal calls — referee-recorded rulings that annotate the
+	// timeline without mutating the score. Written via RecordEvent from the
+	// referee console's VerbalsPanel.
+	EventTypeLet      = "let"
+	EventTypeReDo     = "re_do"
+	EventTypeFault    = "fault"
+	EventTypeLineCall = "line_call"
 )
 
 // AllEventTypes lists every valid event_type value in canonical order.
@@ -75,4 +83,8 @@ var AllEventTypes = []string{
 	EventTypeMatchConfigured,
 	EventTypeScoreOverride,
 	EventTypeForfeitDeclared,
+	EventTypeLet,
+	EventTypeReDo,
+	EventTypeFault,
+	EventTypeLineCall,
 }

@@ -7,9 +7,11 @@ import { useAuth } from '../../auth/useAuth'
 import { DisconnectBanner } from '../scoring/DisconnectBanner'
 import { GameOverConfirmModal } from '../scoring/GameOverConfirmModal'
 import { MatchCompleteBanner } from '../scoring/MatchCompleteBanner'
+import { MatchEventLog } from '../scoring/MatchEventLog'
 import { MatchScoreboard } from '../scoring/MatchScoreboard'
 import { MatchSetup } from '../scoring/MatchSetup'
 import { ScoreOverrideModal } from '../scoring/ScoreOverrideModal'
+import { VerbalsPanel } from '../scoring/VerbalsPanel'
 import { playTick, vibrate } from '../scoring/feedback'
 import {
   useCallTimeout,
@@ -267,23 +269,33 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
           />
         </div>
       ) : (
-        <div className="p-3 md:p-4 flex-1">
-          <MatchScoreboard
-            match={match}
-            mode="ref"
-            disabled={disabled}
-            pending={
-              scorePoint.isPending ||
-              sideOut.isPending ||
-              undo.isPending ||
-              callTimeout.isPending
-            }
-            onPoint={handlePoint}
-            onSideOut={handleSideOut}
-            onUndo={handleUndo}
-            onTimeout={handleTimeout}
-            onMenu={() => setMenuOpen((v) => !v)}
-          />
+        // Ref-specific layout: scoring in the main column, with verbal-call
+        // controls and the live event log in a secondary panel. Stacks on
+        // phones/portrait tablets; splits side-by-side on wide/landscape so a
+        // ref watching the court keeps scoring + log in view at once.
+        <div className="p-3 md:p-4 flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-4 items-start">
+          <div className="min-w-0">
+            <MatchScoreboard
+              match={match}
+              mode="ref"
+              disabled={disabled}
+              pending={
+                scorePoint.isPending ||
+                sideOut.isPending ||
+                undo.isPending ||
+                callTimeout.isPending
+              }
+              onPoint={handlePoint}
+              onSideOut={handleSideOut}
+              onUndo={handleUndo}
+              onTimeout={handleTimeout}
+              onMenu={() => setMenuOpen((v) => !v)}
+            />
+          </div>
+          <aside className="flex flex-col gap-4 min-w-0 w-full">
+            <VerbalsPanel match={match} disabled={disabled} />
+            <MatchEventLog publicId={publicId} />
+          </aside>
         </div>
       )}
 
