@@ -791,6 +791,16 @@ func defaultEmailTemplates() []map[string]interface{} {
 
 func seedSignInExperience(ctx context.Context, c *logto.Client, cfg *Config) error {
 	verify := cfg.EmailVerifyOnSignUp && cfg.SMTPConfigured()
+	// Logto rejects an email/phone sign-up identifier unless verification
+	// is enabled (sign_in_experiences.passwordless_requires_verify). With
+	// no SMTP connector (local dev) we can't deliver a verification code,
+	// so fall back to a username sign-up identifier. The bootstrap admin
+	// still signs in via email+password (configured in SignIn.Methods
+	// below); only NEW self-registration uses username in this mode.
+	signUpIdentifier := logto.SignInIdentifierEmail
+	if !verify {
+		signUpIdentifier = logto.SignInIdentifierUsername
+	}
 	params := logto.UpdateSignInExperienceParams{
 		SignIn: &logto.SignInConfig{
 			Methods: []logto.SignInMethod{
@@ -809,7 +819,7 @@ func seedSignInExperience(ctx context.Context, c *logto.Client, cfg *Config) err
 			},
 		},
 		SignUp: &logto.SignUpConfig{
-			Identifiers: []logto.SignInIdentifier{logto.SignInIdentifierEmail},
+			Identifiers: []logto.SignInIdentifier{signUpIdentifier},
 			Password:    true,
 			Verify:      verify,
 		},
