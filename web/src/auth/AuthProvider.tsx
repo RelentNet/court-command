@@ -34,7 +34,11 @@ function TokenWiring({ children }: { children: ReactNode }) {
   useEffect(() => {
     function onExpired() {
       if (!isAuthenticated) return
-      void signOut(`${window.location.origin}/`)
+      // Smoke 16.10: post-logout redirect must EXACTLY match a registered
+      // postLogoutRedirectUri. The seeder registers the bare origin with no
+      // trailing slash, so send window.location.origin (NOT origin + "/")
+      // or Logto parks the browser on its raw end-session page.
+      void signOut(window.location.origin)
     }
     window.addEventListener('cc:auth-expired', onExpired)
     return () => window.removeEventListener('cc:auth-expired', onExpired)
