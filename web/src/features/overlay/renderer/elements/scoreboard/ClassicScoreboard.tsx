@@ -123,14 +123,17 @@ export function ClassicScoreboard({ data, config }: ScoreboardLayoutProps) {
 interface TeamRowProps {
   name: string
   color: string
-  players: { name: string }[]
+  // Backend may emit null when no live match is on the court (e.g. the
+  // overlay control panel previewing an empty court). Treat null/undefined
+  // as "no players" rather than blowing up the whole settings page.
+  players: { name: string }[] | null | undefined
   score: number
   serving: boolean
   winner: boolean
 }
 
 function TeamRow({ name, color, players, score, serving, winner }: TeamRowProps) {
-  const initials = players
+  const initials = (players ?? [])
     .slice(0, 2)
     .map((p) => initialsFromName(p.name))
     .filter(Boolean)

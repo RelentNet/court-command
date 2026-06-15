@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useOrg, useDeleteOrg, useBlockOrg, useUnblockOrg, useOrgBlockStatus, useMyOrgRole } from './hooks'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { MembersPanel } from './MembersPanel'
 import { OrgTeamsPanel } from './OrgTeamsPanel'
 import { InfoRow } from '../../../components/InfoRow'
@@ -14,11 +14,15 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { formatDate } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 interface OrgDetailProps {
   orgId: string
 }
 
 export function OrgDetail({ orgId }: OrgDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: org, isLoading, error } = useOrg(orgId)
   const { user } = useAuth()
   const { toast } = useToast()
@@ -53,7 +57,7 @@ export function OrgDetail({ orgId }: OrgDetailProps) {
         title="Organization not found"
         description="This organization may have been removed or you don't have access."
         action={
-          <Link to="/organizations">
+          <Link to="/$sport/organizations" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Organizations</Button>
           </Link>
         }
@@ -64,7 +68,7 @@ export function OrgDetail({ orgId }: OrgDetailProps) {
   return (
     <div>
       <Link
-        to="/organizations"
+        to="/$sport/organizations" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Organizations
@@ -77,7 +81,7 @@ export function OrgDetail({ orgId }: OrgDetailProps) {
         </div>
         <div className="flex items-center gap-2">
           {canManage && (
-            <Link to="/organizations/$orgId/edit" params={{ orgId: String(org.id) }}>
+            <Link to="/$sport/organizations/$orgId/edit" params={{ sport: sportSlug, orgId: String(org.id) }}>
               <Button variant="secondary" size="sm">
                 <Pencil className="h-4 w-4 mr-1" />
                 Edit
@@ -166,7 +170,7 @@ export function OrgDetail({ orgId }: OrgDetailProps) {
           deleteOrg.mutate(undefined, {
             onSuccess: () => {
               toast('success', 'Organization deleted')
-              navigate({ to: '/organizations' })
+              navigate({ to: '/$sport/organizations', params: { sport: sportSlug } })
             },
             onError: (err) => toast('error', (err as Error).message),
           })

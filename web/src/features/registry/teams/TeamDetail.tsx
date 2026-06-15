@@ -13,11 +13,15 @@ import { useToast } from '../../../components/Toast'
 import { formatDate } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 interface TeamDetailProps {
   teamId: string
 }
 
 export function TeamDetail({ teamId }: TeamDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: team, isLoading, error } = useTeam(teamId)
   const deleteTeam = useDeleteTeam(teamId)
   const navigate = useNavigate()
@@ -39,7 +43,7 @@ export function TeamDetail({ teamId }: TeamDetailProps) {
         title="Team not found"
         description="This team may have been removed or you don't have access."
         action={
-          <Link to="/teams">
+          <Link to="/$sport/teams" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Teams</Button>
           </Link>
         }
@@ -50,7 +54,7 @@ export function TeamDetail({ teamId }: TeamDetailProps) {
   return (
     <div>
       <Link
-        to="/teams"
+        to="/$sport/teams" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Teams
@@ -72,7 +76,7 @@ export function TeamDetail({ teamId }: TeamDetailProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/teams/$teamId/edit" params={{ teamId: String(team.id) }}>
+          <Link to="/$sport/teams/$teamId/edit" params={{ sport: sportSlug, teamId: String(team.id) }}>
             <Button variant="secondary" size="sm">
               <Pencil className="h-4 w-4 mr-1" />
               Edit
@@ -126,8 +130,8 @@ export function TeamDetail({ teamId }: TeamDetailProps) {
               value={
                 team.org_name && team.org_id ? (
                   <Link
-                    to="/organizations/$orgId"
-                    params={{ orgId: String(team.org_id) }}
+                    to="/$sport/organizations/$orgId"
+                    params={{ sport: sportSlug, orgId: String(team.org_id) }}
                     className="text-cyan-400 hover:underline"
                   >
                     {team.org_name}
@@ -157,7 +161,7 @@ export function TeamDetail({ teamId }: TeamDetailProps) {
           deleteTeam.mutate(undefined, {
             onSuccess: () => {
               toast('success', 'Team deleted')
-              navigate({ to: '/teams' })
+              navigate({ to: '/$sport/teams', params: { sport: sportSlug } })
             },
             onError: (err: unknown) => toast('error', (err as Error).message),
           })

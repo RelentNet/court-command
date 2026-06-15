@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useCourt } from './hooks'
 import { useCourtMatches } from '../../scoring/hooks'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { Badge } from '../../../components/Badge'
 import { InfoRow } from '../../../components/InfoRow'
 import { Skeleton } from '../../../components/Skeleton'
@@ -17,6 +17,7 @@ import { Link } from '@tanstack/react-router'
 import { formatDate } from '../../../lib/formatters'
 import type { Match } from '../../scoring/types'
 
+import { useSport } from '../../../auth/SportContext'
 interface CourtDetailProps {
   courtId: string
 }
@@ -29,6 +30,9 @@ const STREAM_VARIANTS: Record<string, 'error' | 'info' | 'success' | 'default'> 
 }
 
 export function CourtDetail({ courtId }: CourtDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: court, isLoading, error, refetch } = useCourt(courtId)
   const matches = useCourtMatches(court?.id)
   const { user } = useAuth()
@@ -52,7 +56,7 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
         title="Court not found"
         description="This court may have been removed or you don't have access."
         action={
-          <Link to="/courts">
+          <Link to="/$sport/courts" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Courts</Button>
           </Link>
         }
@@ -68,7 +72,7 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
   return (
     <div className="max-w-4xl mx-auto">
       <Link
-        to="/courts"
+        to="/$sport/courts" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Back
@@ -98,6 +102,19 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
           ) : (
             <Badge variant="default">Inactive</Badge>
           )}
+          {/* Smoke 14.1: TV/Kiosk display link. /tv/courts/<slug> is
+              fullscreen no-shell -- meant for venue displays. Opens in
+              a new tab so admins keep their detail page open. */}
+          <a
+            href={`/tv/courts/${court.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-(--color-border) text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary) transition-colors"
+            title="Open fullscreen TV display in new tab"
+          >
+            <Tv size={14} />
+            TV display
+          </a>
           {isAdmin && (
             <Button variant="secondary" size="sm" onClick={() => setShowEdit(true)}>
               <Pencil size={14} className="mr-1" /> Edit
@@ -126,8 +143,8 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
                 Now Playing
               </h2>
               <Link
-                to="/matches/$publicId"
-                params={{ publicId: activeMatch.public_id }}
+                to="/$sport/matches/$publicId"
+                params={{ sport: sportSlug, publicId: activeMatch.public_id }}
                 className="text-sm text-(--color-accent) hover:underline"
               >
                 View Match
@@ -156,8 +173,8 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
               {scheduledMatches.map((match) => (
                 <Link
                   key={match.id}
-                  to="/matches/$publicId"
-                  params={{ publicId: match.public_id }}
+                  to="/$sport/matches/$publicId"
+                  params={{ sport: sportSlug, publicId: match.public_id }}
                   className="block"
                 >
                   <Card className="p-4 hover:bg-(--color-bg-hover) transition-colors cursor-pointer">
@@ -180,8 +197,8 @@ export function CourtDetail({ courtId }: CourtDetailProps) {
               {completedMatches.map((match) => (
                 <Link
                   key={match.id}
-                  to="/matches/$publicId"
-                  params={{ publicId: match.public_id }}
+                  to="/$sport/matches/$publicId"
+                  params={{ sport: sportSlug, publicId: match.public_id }}
                   className="block"
                 >
                   <Card className="p-4 hover:bg-(--color-bg-hover) transition-colors cursor-pointer">

@@ -7,7 +7,11 @@ import { Skeleton } from '../../components/Skeleton'
 import { useMyQuickMatches } from './hooks'
 import { QuickMatchCard } from './QuickMatchCard'
 
+import { useSport } from '../../auth/SportContext'
 export function QuickMatchList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data, isLoading, isError } = useMyQuickMatches()
 
   return (
@@ -16,7 +20,7 @@ export function QuickMatchList() {
         <h1 className="text-2xl font-bold text-(--color-text-primary)">
           Quick Matches
         </h1>
-        <Link to="/quick-match/new">
+        <Link to="/$sport/quick-match/new" params={{ sport: sportSlug }}>
           <Button variant="primary">
             <Plus size={16} className="mr-1 inline-block" />
             New Quick Match
@@ -41,7 +45,7 @@ export function QuickMatchList() {
           title="No active quick matches"
           description="Start a casual match in seconds — no tournament needed."
           action={
-            <Link to="/quick-match/new">
+            <Link to="/$sport/quick-match/new" params={{ sport: sportSlug }}>
               <Button variant="primary">
                 <Plus size={16} className="mr-1 inline-block" />
                 New Quick Match

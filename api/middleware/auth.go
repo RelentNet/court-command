@@ -88,6 +88,8 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 }
 
 // RequirePlatformAdmin is middleware that requires the user to be a platform admin.
+// Returns 401 when unauthenticated and 403 when the authenticated user's role is
+// not platform_admin.
 func RequirePlatformAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data := SessionData(r.Context())

@@ -31,7 +31,8 @@ import { TabLayout } from '../../components/TabLayout'
 import { StreamEmbed } from '../../components/StreamEmbed'
 import { Button } from '../../components/Button'
 import { EmptyState } from '../../components/EmptyState'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
+import { useSport } from '../../auth/SportContext'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { formatDate } from '../../lib/formatters'
 import { cn } from '../../lib/cn'
@@ -42,7 +43,7 @@ interface PublicTournamentDetailProps {
 
 export function PublicTournamentDetail({ slug }: PublicTournamentDetailProps) {
   const { data: tournament, isLoading, isError } = usePublicTournamentBySlug(slug)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, signIn } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   usePageTitle(tournament?.name ?? 'Tournament')
 
@@ -183,15 +184,14 @@ export function PublicTournamentDetail({ slug }: PublicTournamentDetailProps) {
                 </Button>
               </Link>
             ) : (
-              <Link
-                to="/login"
-                search={{ redirect: `/public/tournaments/${tournament.slug}` }}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => signIn(`/public/tournaments/${tournament.slug}`)}
               >
-                <Button variant="primary" size="sm">
-                  <LogIn className="h-4 w-4 mr-1" />
-                  Sign In to Register
-                </Button>
-              </Link>
+                <LogIn className="h-4 w-4 mr-1" />
+                Sign In to Register
+              </Button>
             )}
           </div>
         </Card>
@@ -342,39 +342,45 @@ function DivisionCard({
     s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
   return (
-    <Card className="group hover:border-(--color-accent)/30 transition-colors">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-sm font-semibold text-(--color-text-primary) truncate">
-              {division.name}
-            </h3>
-            <StatusBadge status={division.status} type="division" />
+    <Link
+      to={'/public/divisions/$divisionId' as string}
+      params={{ divisionId: String(division.id) } as Record<string, string>}
+      className="block"
+    >
+      <Card className="group hover:border-(--color-accent)/30 transition-colors">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-(--color-text-primary) truncate">
+                {division.name}
+              </h3>
+              <StatusBadge status={division.status} type="division" />
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--color-text-muted)">
+              <span>{formatLabel(division.format)}</span>
+              <span>{formatLabel(division.bracket_format)}</span>
+              {division.max_teams && (
+                <span>Max {division.max_teams} teams</span>
+              )}
+              {division.gender_restriction && (
+                <span>{formatLabel(division.gender_restriction)}</span>
+              )}
+              {division.skill_min != null && division.skill_max != null && (
+                <span>
+                  Skill {division.skill_min}–{division.skill_max}
+                </span>
+              )}
+              {division.current_phase && (
+                <span className="text-(--color-accent)">
+                  {formatLabel(division.current_phase)}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-(--color-text-muted)">
-            <span>{formatLabel(division.format)}</span>
-            <span>{formatLabel(division.bracket_format)}</span>
-            {division.max_teams && (
-              <span>Max {division.max_teams} teams</span>
-            )}
-            {division.gender_restriction && (
-              <span>{formatLabel(division.gender_restriction)}</span>
-            )}
-            {division.skill_min != null && division.skill_max != null && (
-              <span>
-                Skill {division.skill_min}–{division.skill_max}
-              </span>
-            )}
-            {division.current_phase && (
-              <span className="text-(--color-accent)">
-                {formatLabel(division.current_phase)}
-              </span>
-            )}
-          </div>
+          <ChevronRight className="h-4 w-4 text-(--color-text-muted) group-hover:text-(--color-accent) transition-colors flex-shrink-0" />
         </div>
-        <ChevronRight className="h-4 w-4 text-(--color-text-muted) group-hover:text-(--color-accent) transition-colors flex-shrink-0" />
-      </div>
-    </Card>
+      </Card>
+    </Link>
   )
 }
 
@@ -476,9 +482,11 @@ function MatchRow({ match }: { match: LiveMatch }) {
   const isDone = ['completed', 'forfeited', 'cancelled'].includes(match.status)
 
   return (
+    // TODO(phase3-task10): public tournament/match navigation needs sport
+    // slug from data; defaulting to pickleball until backend exposes it.
     <Link
-      to="/matches/$publicId"
-      params={{ publicId: match.public_id }}
+      to="/$sport/matches/$publicId"
+      params={{ sport: 'pickleball', publicId: match.public_id }}
       className="block"
     >
       <Card className={cn(
@@ -613,99 +621,135 @@ function CourtsTab({
 }
 
 function CourtCard({ court }: { court: PublicCourt }) {
+  const { sport } = useSport()
+  // Public detail pages live under /public/* so there's no sport in context;
+  // default to pickleball (the only seeded sport today). Resolving from
+  // context first keeps this forward-compatible once these pages move under
+  // a sport-scoped route.
+  const sportSlug = sport?.slug ?? 'pickleball'
+
   const hasLive = court.active_match?.status === 'in_progress'
   const hasStream = court.stream_url && court.stream_is_live
+  // The card drills into whichever match the court is actually showing. An
+  // active match always wins; an on-deck match is the destination only when
+  // no match is live. A court with neither has no destination — see below.
+  const targetMatch = court.active_match ?? court.on_deck_match
 
-  return (
-    <Card className={cn(
-      'transition-colors',
-      hasLive && 'border-green-500/30',
-    )}>
-      <div className="space-y-3">
-        {/* Court header */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-(--color-text-primary)">
-            {court.name}
-          </h3>
-          <div className="flex items-center gap-1.5">
-            {court.is_show_court && (
-              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
-                Show Court
+  const body = (
+    <div className="space-y-3">
+      {/* Court header */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-(--color-text-primary)">
+          {court.name}
+        </h3>
+        <div className="flex items-center gap-1.5">
+          {court.is_show_court && (
+            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
+              Show Court
+            </span>
+          )}
+          {hasLive && (
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+            </span>
+          )}
+          {targetMatch && (
+            <ChevronRight className="h-4 w-4 text-(--color-text-muted) group-hover:text-(--color-accent) transition-colors flex-shrink-0" />
+          )}
+        </div>
+      </div>
+
+      {/* Active match */}
+      {court.active_match && (
+        <div className="bg-(--color-bg-hover) rounded-lg p-2.5">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className={cn(
+              'font-medium',
+              hasLive ? 'text-green-400' : 'text-(--color-text-muted)',
+            )}>
+              {hasLive ? 'LIVE' : court.active_match.status.replace(/_/g, ' ').toUpperCase()}
+            </span>
+            {court.active_match.round_name && (
+              <span className="text-(--color-text-muted)">
+                {court.active_match.round_name}
               </span>
             )}
-            {hasLive && (
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="truncate text-(--color-text-primary)">
+                {court.active_match.team_1?.name ?? 'TBD'}
               </span>
-            )}
+              <span className="font-mono tabular-nums font-semibold text-(--color-text-primary)">
+                {court.active_match.team_1_score}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="truncate text-(--color-text-primary)">
+                {court.active_match.team_2?.name ?? 'TBD'}
+              </span>
+              <span className="font-mono tabular-nums font-semibold text-(--color-text-primary)">
+                {court.active_match.team_2_score}
+              </span>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Active match */}
-        {court.active_match && (
-          <Link
-            to="/matches/$publicId"
-            params={{ publicId: court.active_match.public_id }}
-            className="block"
-          >
-            <div className="bg-(--color-bg-hover) rounded-lg p-2.5 hover:bg-(--color-bg-hover)/80 transition-colors">
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className={cn(
-                  'font-medium',
-                  hasLive ? 'text-green-400' : 'text-(--color-text-muted)',
-                )}>
-                  {hasLive ? 'LIVE' : court.active_match.status.replace(/_/g, ' ').toUpperCase()}
-                </span>
-                {court.active_match.round_name && (
-                  <span className="text-(--color-text-muted)">
-                    {court.active_match.round_name}
-                  </span>
-                )}
-              </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="truncate text-(--color-text-primary)">
-                    {court.active_match.team_1?.name ?? 'TBD'}
-                  </span>
-                  <span className="font-mono tabular-nums font-semibold text-(--color-text-primary)">
-                    {court.active_match.team_1_score}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="truncate text-(--color-text-primary)">
-                    {court.active_match.team_2?.name ?? 'TBD'}
-                  </span>
-                  <span className="font-mono tabular-nums font-semibold text-(--color-text-primary)">
-                    {court.active_match.team_2_score}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </Link>
-        )}
+      {/* On-deck match */}
+      {court.on_deck_match && !court.active_match && (
+        <div className="text-xs text-(--color-text-muted)">
+          <span className="font-medium">On deck:</span>{' '}
+          {court.on_deck_match.team_1?.name ?? 'TBD'} vs{' '}
+          {court.on_deck_match.team_2?.name ?? 'TBD'}
+        </div>
+      )}
 
-        {/* On-deck match */}
-        {court.on_deck_match && !court.active_match && (
-          <div className="text-xs text-(--color-text-muted)">
-            <span className="font-medium">On deck:</span>{' '}
-            {court.on_deck_match.team_1?.name ?? 'TBD'} vs{' '}
-            {court.on_deck_match.team_2?.name ?? 'TBD'}
-          </div>
-        )}
+      {/* Stream */}
+      {hasStream && court.stream_url && (
+        <StreamEmbed url={court.stream_url} type={court.stream_type ?? null} title={court.stream_title ?? court.name} />
+      )}
 
-        {/* Stream */}
-        {hasStream && court.stream_url && (
-          <StreamEmbed url={court.stream_url} type={court.stream_type ?? null} title={court.stream_title ?? court.name} />
-        )}
+      {/* Surface type */}
+      {court.surface_type && (
+        <span className="text-xs text-(--color-text-muted)">
+          {court.surface_type}
+        </span>
+      )}
+    </div>
+  )
 
-        {/* Surface type */}
-        {court.surface_type && (
-          <span className="text-xs text-(--color-text-muted)">
-            {court.surface_type}
-          </span>
-        )}
-      </div>
-    </Card>
+  // A court with no match is a static info card — no hover accent, no chevron,
+  // nothing that implies it navigates. A quiet court is allowed to be quiet.
+  if (!targetMatch) {
+    return (
+      <Card className={cn('transition-colors', hasLive && 'border-green-500/30')}>
+        {body}
+      </Card>
+    )
+  }
+
+  // A court with a match drills into that match's public page. The whole card
+  // is the click target so the affordance (hover accent + chevron) matches
+  // the destination.
+  return (
+    <Link
+      to={'/$sport/matches/$publicId' as string}
+      params={
+        { sport: sportSlug, publicId: targetMatch.public_id } as Record<
+          string,
+          string
+        >
+      }
+      className="block"
+    >
+      <Card className={cn(
+        'group transition-colors hover:border-(--color-accent)/30',
+        hasLive && 'border-green-500/30',
+      )}>
+        {body}
+      </Card>
+    </Link>
   )
 }

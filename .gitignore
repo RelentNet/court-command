@@ -1,5 +1,8 @@
 # .gitignore
 .env
+.env.prod
+.env.production
+.env.local
 *.exe
 *.dll
 *.so
@@ -21,3 +24,18 @@ web/src/routeTree.gen.ts
 *.tsbuildinfo
 backups/
 ghost-theme/cc-ghost-theme.zip
+
+# Playwright (Phase 3 Task 10)
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
+# Local-only build outputs of the seeder (the binary is built into the
+# api Docker image; never check in the local one)
+api/logto-seed
+api/court-command
+
+# Editor backups
+*.save
+*~
+*.swp

@@ -13,7 +13,11 @@ import { StatusBadge } from '../../components/StatusBadge'
 import { AdSlot } from '../../components/AdSlot'
 import { Calendar } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 export function LeagueList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
   const pagination = usePagination(20)
@@ -33,8 +37,8 @@ export function LeagueList() {
       header: 'Name',
       render: (l: (typeof leagues)[0]) => (
         <Link
-          to="/leagues/$leagueId"
-          params={{ leagueId: String(l.id) }}
+          to="/$sport/leagues/$leagueId"
+          params={{ sport: sportSlug, leagueId: String(l.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {l.name}
@@ -74,7 +78,7 @@ export function LeagueList() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-(--color-text-primary)">Leagues</h1>
-        <Link to="/leagues/create">
+        <Link to="/$sport/leagues/create" params={{ sport: sportSlug }}>
           <Button>Create League</Button>
         </Link>
       </div>
@@ -112,7 +116,7 @@ export function LeagueList() {
           }
           action={
             !search ? (
-              <Link to="/leagues/create">
+              <Link to="/$sport/leagues/create" params={{ sport: sportSlug }}>
                 <Button>Create Your First League</Button>
               </Link>
             ) : undefined

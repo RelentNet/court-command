@@ -44,7 +44,7 @@ export function PublicCourtDetail({ courtId }: PublicCourtDetailProps) {
         title="Court not found"
         description="This court may have been removed or you don't have access."
         action={
-          <Link to="/courts">
+          <Link to="/$sport/courts" params={{ sport: 'pickleball' }}>
             <Button variant="secondary">Back to Courts</Button>
           </Link>
         }
@@ -61,7 +61,8 @@ export function PublicCourtDetail({ courtId }: PublicCourtDetailProps) {
     <div className="max-w-4xl mx-auto">
       {/* Back nav */}
       <Link
-        to="/courts"
+        to="/$sport/courts"
+        params={{ sport: 'pickleball' }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Back
@@ -114,8 +115,8 @@ export function PublicCourtDetail({ courtId }: PublicCourtDetailProps) {
                 Now Playing
               </h2>
               <Link
-                to="/matches/$publicId"
-                params={{ publicId: activeMatch.public_id }}
+                to="/$sport/matches/$publicId"
+                params={{ sport: 'pickleball', publicId: activeMatch.public_id }}
                 className="text-sm text-(--color-accent) hover:underline"
               >
                 View Match
@@ -143,8 +144,8 @@ export function PublicCourtDetail({ courtId }: PublicCourtDetailProps) {
               {scheduledMatches.map((match) => (
                 <Link
                   key={match.id}
-                  to="/matches/$publicId"
-                  params={{ publicId: match.public_id }}
+                  to="/$sport/matches/$publicId"
+                  params={{ sport: 'pickleball', publicId: match.public_id }}
                   className="block"
                 >
                   <Card className="p-4 hover:bg-(--color-bg-hover) transition-colors cursor-pointer">
@@ -167,8 +168,8 @@ export function PublicCourtDetail({ courtId }: PublicCourtDetailProps) {
               {completedMatches.map((match) => (
                 <Link
                   key={match.id}
-                  to="/matches/$publicId"
-                  params={{ publicId: match.public_id }}
+                  to="/$sport/matches/$publicId"
+                  params={{ sport: 'pickleball', publicId: match.public_id }}
                   className="block"
                 >
                   <Card className="p-4 hover:bg-(--color-bg-hover) transition-colors cursor-pointer">

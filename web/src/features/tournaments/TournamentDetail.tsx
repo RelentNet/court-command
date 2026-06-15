@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { useGetTournament, useListDivisions } from './hooks'
 import { TabLayout } from '../../components/TabLayout'
 import { Skeleton } from '../../components/Skeleton'
@@ -16,11 +16,15 @@ import { TournamentCourts } from './TournamentCourts'
 import { TournamentStaff } from './TournamentStaff'
 import { ChevronLeft } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 interface TournamentDetailProps {
   tournamentId: string
 }
 
 export function TournamentDetail({ tournamentId }: TournamentDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [activeTab, setActiveTab] = useState('overview')
   const { user } = useAuth()
   // TODO: replace with scoped authorization (Batch I) once that lands.
@@ -45,7 +49,7 @@ export function TournamentDetail({ tournamentId }: TournamentDetailProps) {
         title="Failed to load tournament"
         description={(error as Error)?.message || 'Tournament not found.'}
         action={
-          <Link to="/tournaments">
+          <Link to="/$sport/tournaments" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Tournaments</Button>
           </Link>
         }
@@ -71,7 +75,7 @@ export function TournamentDetail({ tournamentId }: TournamentDetailProps) {
     <div>
       <div className="mb-6">
         <Link
-          to="/tournaments"
+          to="/$sport/tournaments" params={{ sport: sportSlug }}
           className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-3"
         >
           <ChevronLeft className="h-4 w-4" />

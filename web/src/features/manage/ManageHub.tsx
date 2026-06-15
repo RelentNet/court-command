@@ -7,6 +7,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { EmptyState } from '../../components/EmptyState'
 import { StatusBadge } from '../../components/StatusBadge'
 
+import { useSport } from '../../auth/SportContext'
 export function ManageHub() {
   return (
     <div className="space-y-8 p-6 max-w-6xl mx-auto">
@@ -28,6 +29,9 @@ export function ManageHub() {
 // ---- Venues ----
 
 function VenuesSection() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: venues, isLoading, isError } = useMyVenues()
 
   return (
@@ -37,7 +41,7 @@ function VenuesSection() {
           <MapPin size={20} />
           My Venues
         </h2>
-        <Link to="/venues" className="text-sm text-(--color-text-accent) hover:underline">
+        <Link to="/$sport/venues" params={{ sport: sportSlug }} className="text-sm text-(--color-text-accent) hover:underline">
           View All Venues
         </Link>
       </div>
@@ -53,7 +57,7 @@ function VenuesSection() {
       {venues && venues.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {venues.map((v) => (
-            <Link key={v.id} to="/venues/$venueId" params={{ venueId: String(v.id) }}>
+            <Link key={v.id} to="/$sport/venues/$venueId" params={{ sport: sportSlug, venueId: String(v.id) }}>
               <Card className="hover:border-(--color-text-accent) transition-colors cursor-pointer">
                 <div className="flex items-start justify-between">
                   <div>
@@ -78,6 +82,8 @@ function VenuesSection() {
 // ---- Tournaments ----
 
 function TournamentsSection() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
   const { data, isLoading, isError } = useMyTournaments()
   const tournaments = data?.items ?? []
 
@@ -88,7 +94,7 @@ function TournamentsSection() {
           <Trophy size={20} />
           My Tournaments
         </h2>
-        <Link to="/tournaments/create" className="inline-flex items-center gap-1 text-sm text-(--color-text-accent) hover:underline">
+        <Link to="/$sport/tournaments/create" params={{ sport: sportSlug }} className="inline-flex items-center gap-1 text-sm text-(--color-text-accent) hover:underline">
           <Plus size={14} /> Create Tournament
         </Link>
       </div>
@@ -104,7 +110,7 @@ function TournamentsSection() {
       {tournaments.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {tournaments.map((t) => (
-            <Link key={t.id} to="/tournaments/$tournamentId" params={{ tournamentId: String(t.id) }}>
+            <Link key={t.id} to="/$sport/tournaments/$tournamentId" params={{ sport: sportSlug, tournamentId: String(t.id) }}>
               <Card className="hover:border-(--color-text-accent) transition-colors cursor-pointer">
                 <div className="flex items-start justify-between">
                   <div>
@@ -130,6 +136,8 @@ function TournamentsSection() {
 // ---- Leagues ----
 
 function LeaguesSection() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
   const { data, isLoading, isError } = useMyLeagues()
   const leagues = data?.items ?? []
 
@@ -140,7 +148,7 @@ function LeaguesSection() {
           <Medal size={20} />
           My Leagues
         </h2>
-        <Link to="/leagues/create" className="inline-flex items-center gap-1 text-sm text-(--color-text-accent) hover:underline">
+        <Link to="/$sport/leagues/create" params={{ sport: sportSlug }} className="inline-flex items-center gap-1 text-sm text-(--color-text-accent) hover:underline">
           <Plus size={14} /> Create League
         </Link>
       </div>
@@ -156,7 +164,7 @@ function LeaguesSection() {
       {leagues.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {leagues.map((l) => (
-            <Link key={l.id} to="/leagues/$leagueId" params={{ leagueId: String(l.id) }}>
+            <Link key={l.id} to="/$sport/leagues/$leagueId" params={{ sport: sportSlug, leagueId: String(l.id) }}>
               <Card className="hover:border-(--color-text-accent) transition-colors cursor-pointer">
                 <div className="flex items-start justify-between">
                   <div>
@@ -181,6 +189,8 @@ function LeaguesSection() {
 // ---- Organizations ----
 
 function OrgsSection() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
   const { data: orgs, isLoading, isError } = useMyOrgs()
 
   return (
@@ -190,7 +200,7 @@ function OrgsSection() {
           <Building2 size={20} />
           My Organizations
         </h2>
-        <Link to="/organizations" className="text-sm text-(--color-text-accent) hover:underline">
+        <Link to="/$sport/organizations" params={{ sport: sportSlug }} className="text-sm text-(--color-text-accent) hover:underline">
           View All Orgs
         </Link>
       </div>
@@ -206,7 +216,7 @@ function OrgsSection() {
       {orgs && orgs.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {orgs.map((o) => (
-            <Link key={o.id} to="/organizations/$orgId" params={{ orgId: String(o.id) }}>
+            <Link key={o.id} to="/$sport/organizations/$orgId" params={{ sport: sportSlug, orgId: String(o.id) }}>
               <Card className="hover:border-(--color-text-accent) transition-colors cursor-pointer">
                 <div className="flex items-start justify-between">
                   <div>

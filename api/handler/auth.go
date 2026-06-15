@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/court-command/court-command/auth"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
 )
@@ -135,6 +136,62 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 		resp.Impersonation = &ImpersonationInfo{
 			Active:         true,
 			ImpersonatorID: sessionData.ImpersonatorPublicID,
+		}
+	}
+
+	Success(w, resp)
+}
+
+// MeJWT handles GET /api/v1/auth/me when the request is JWT-authenticated
+// (Phase 3+). Reads claims from context (set by RequireJWT), looks up
+// the local users mirror row by Logto user ID, returns the same
+// MeResponse shape as the legacy Me handler.
+//
+// Impersonation under JWT is detected from the token's `act` claim (RFC
+// 8693): when an admin impersonates via OAuth 2.0 Token Exchange, the
+// exchanged access token has sub=<target> and act.sub=<admin>. We surface
+// that as MeResponse.Impersonation so the SPA renders the banner. The
+// returned user IS the impersonated (target) user -- that's the whole point
+// of impersonation; the impersonator's identity rides in the act claim.
+func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok {
+		Unauthorized(w, "missing claims")
+		return
+	}
+	user, err := h.authService.GetCurrentUserByLogtoSubject(r.Context(), claims.Subject)
+	if err != nil {
+		var notFoundErr *service.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			NotFound(w, notFoundErr.Message)
+			return
+		}
+		InternalError(w, "failed to fetch user")
+		return
+	}
+	// Mirror the JWTSession bridge's role-elevation rule: the local DB
+	// row holds the default 'player' role from CreateUserFromLogto, but
+	// Logto's org-scoped token is the source of truth for platform_admin.
+	// Without this, the SPA sees user.role='player' even though
+	// handler-level checks (RequirePlatformAdmin) work fine -- and the
+	// SPA hides admin nav, scoring/broadcast tools, etc. Phase 4+ webhook
+	// will sync this back into the local DB on org-role changes; until
+	// then we apply the in-flight elevation on every /auth/me read.
+	if elevated := claims.ElevatedRole(); elevated != "" && elevated != user.Role {
+		user.Role = elevated
+	}
+
+	resp := &MeResponse{UserResponse: user}
+
+	// Impersonation signal: the act claim carries the impersonating admin's
+	// Logto user ID. We expose it as ImpersonatorID so the SPA banner can
+	// render. (We surface the raw Logto subject rather than a local public_id
+	// to avoid an extra DB lookup on every /me; the SPA only needs a boolean
+	// to render the banner today.)
+	if claims.IsImpersonated() {
+		resp.Impersonation = &ImpersonationInfo{
+			Active:         true,
+			ImpersonatorID: claims.ActorSubject,
 		}
 	}
 

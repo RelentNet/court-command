@@ -39,6 +39,16 @@ export interface OverlayTeamData {
   /** Hex color, e.g. "#3b82f6" */
   color: string
   logo_url: string
+  /**
+   * Backend may emit `null` instead of `[]` when no live match is on
+   * the court (e.g. the overlay control panel previewing an empty
+   * court). The `useOverlayData` hook normalizes this to `[]` via a
+   * `select` so consumers downstream of the hook can safely call
+   * `.slice` / `.map` / `.length` without null guards.
+   *
+   * If you're consuming overlay data from somewhere that bypasses
+   * useOverlayData, treat this as `PlayerBrief[] | null`.
+   */
   players: PlayerBrief[]
   game_wins: number
 }

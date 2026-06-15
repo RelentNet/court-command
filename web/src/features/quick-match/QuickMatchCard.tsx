@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Card } from '../../components/Card'
 import type { Match } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface QuickMatchCardProps {
   match: Match
 }
@@ -21,12 +22,15 @@ function formatExpiresAt(iso: string | null | undefined): string {
 }
 
 export function QuickMatchCard({ match }: QuickMatchCardProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const expiresLabel = formatExpiresAt(match.expires_at)
 
   return (
     <Link
-      to="/ref/matches/$publicId"
-      params={{ publicId: match.public_id }}
+      to="/$sport/ref/matches/$publicId"
+      params={{ sport: sportSlug, publicId: match.public_id }}
       className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-lg"
     >
       <Card className="p-3 hover:bg-(--color-bg-hover) transition-colors">

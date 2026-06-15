@@ -3,13 +3,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../components/Toast'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { DisconnectBanner } from '../scoring/DisconnectBanner'
 import { GameOverConfirmModal } from '../scoring/GameOverConfirmModal'
 import { MatchCompleteBanner } from '../scoring/MatchCompleteBanner'
+import { MatchEventLog } from '../scoring/MatchEventLog'
 import { MatchScoreboard } from '../scoring/MatchScoreboard'
 import { MatchSetup } from '../scoring/MatchSetup'
 import { ScoreOverrideModal } from '../scoring/ScoreOverrideModal'
+import { VerbalsPanel } from '../scoring/VerbalsPanel'
 import { playTick, vibrate } from '../scoring/feedback'
 import {
   useCallTimeout,
@@ -28,6 +30,7 @@ import { useMatchWebSocket } from '../scoring/useMatchWebSocket'
 import { useScoringPrefs } from '../scoring/useScoringPrefs'
 import type { ScoringActionResult } from '../scoring/types'
 
+import { useSport } from '../../auth/SportContext'
 export interface RefMatchConsoleProps {
   publicId: string
 }
@@ -44,6 +47,9 @@ const PRIVILEGED_ROLES = new Set([
 ])
 
 export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const navigate = useNavigate()
   const auth = useAuth()
@@ -253,33 +259,43 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
               },
             )
           }
-          onCancel={() => navigate({ to: '/ref' })}
+          onCancel={() => navigate({ to: '/$sport/ref', params: { sport: sportSlug } })}
         />
       ) : match.status === 'completed' ? (
         <div className="p-3 md:p-4 flex-1 max-w-md mx-auto w-full">
           <MatchCompleteBanner
             match={match}
-            onBackToCourts={() => navigate({ to: '/ref' })}
+            onBackToCourts={() => navigate({ to: '/$sport/ref', params: { sport: sportSlug } })}
           />
         </div>
       ) : (
-        <div className="p-3 md:p-4 flex-1">
-          <MatchScoreboard
-            match={match}
-            mode="ref"
-            disabled={disabled}
-            pending={
-              scorePoint.isPending ||
-              sideOut.isPending ||
-              undo.isPending ||
-              callTimeout.isPending
-            }
-            onPoint={handlePoint}
-            onSideOut={handleSideOut}
-            onUndo={handleUndo}
-            onTimeout={handleTimeout}
-            onMenu={() => setMenuOpen((v) => !v)}
-          />
+        // Ref-specific layout: scoring in the main column, with verbal-call
+        // controls and the live event log in a secondary panel. Stacks on
+        // phones/portrait tablets; splits side-by-side on wide/landscape so a
+        // ref watching the court keeps scoring + log in view at once.
+        <div className="p-3 md:p-4 flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_22rem] gap-4 items-start">
+          <div className="min-w-0">
+            <MatchScoreboard
+              match={match}
+              mode="ref"
+              disabled={disabled}
+              pending={
+                scorePoint.isPending ||
+                sideOut.isPending ||
+                undo.isPending ||
+                callTimeout.isPending
+              }
+              onPoint={handlePoint}
+              onSideOut={handleSideOut}
+              onUndo={handleUndo}
+              onTimeout={handleTimeout}
+              onMenu={() => setMenuOpen((v) => !v)}
+            />
+          </div>
+          <aside className="flex flex-col gap-4 min-w-0 w-full">
+            <VerbalsPanel match={match} disabled={disabled} />
+            <MatchEventLog publicId={publicId} />
+          </aside>
         </div>
       )}
 
@@ -321,7 +337,7 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
             </button>
             <Link
               role="menuitem"
-              to="/settings/scoring"
+              to="/$sport/settings/scoring" params={{ sport: sportSlug }}
               className="block px-3 py-2 hover:bg-(--color-bg-hover) rounded text-sm text-(--color-text-primary)"
               onClick={() => setMenuOpen(false)}
             >

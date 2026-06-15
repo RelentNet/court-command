@@ -13,9 +13,10 @@ import { Modal } from '../../components/Modal'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../components/Toast'
 import { ArrowLeft, Eye } from 'lucide-react'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { formatDate, formatDateTime } from '../../lib/formatters'
 
+import { useSport } from '../../auth/SportContext'
 const ROLE_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info' | 'default'> = {
   platform_admin: 'error',
   organization_admin: 'warning',
@@ -35,6 +36,9 @@ interface UserDetailProps {
 }
 
 export function UserDetail({ userId }: UserDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const { data: user, isLoading, error, refetch } = useAdminUser(userId)
@@ -112,7 +116,7 @@ export function UserDetail({ userId }: UserDetailProps) {
   if (error || !user) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/admin/users' })}>
+        <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/$sport/admin/users', params: { sport: sportSlug } })}>
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to Users
         </Button>
         <div className="rounded-xl border border-(--color-border) bg-(--color-bg-secondary) p-8 text-center">
@@ -133,7 +137,7 @@ export function UserDetail({ userId }: UserDetailProps) {
   return (
     <div className="space-y-6">
       {/* Back button */}
-      <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/admin/users' })}>
+      <Button variant="ghost" size="sm" onClick={() => navigate({ to: '/$sport/admin/users', params: { sport: sportSlug } })}>
         <ArrowLeft className="h-4 w-4 mr-1" /> Back to Users
       </Button>
 

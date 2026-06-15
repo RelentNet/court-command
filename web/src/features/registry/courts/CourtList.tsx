@@ -10,6 +10,7 @@ import { Button } from '../../../components/Button'
 import { LayoutGrid } from 'lucide-react'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 const STREAM_VARIANTS: Record<string, 'error' | 'info' | 'success' | 'default'> = {
   youtube: 'error',
   twitch: 'info',
@@ -18,6 +19,9 @@ const STREAM_VARIANTS: Record<string, 'error' | 'info' | 'success' | 'default'> 
 }
 
 export function CourtList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const pagination = usePagination(20)
 
   const { data, isLoading, error } = useFloatingCourts(pagination.limit, pagination.offset)
@@ -31,8 +35,8 @@ export function CourtList() {
       header: 'Name',
       render: (c: (typeof courts)[0]) => (
         <Link
-          to="/courts/$courtId"
-          params={{ courtId: String(c.id) }}
+          to="/$sport/courts/$courtId"
+          params={{ sport: sportSlug, courtId: String(c.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {c.name}

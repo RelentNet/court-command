@@ -293,6 +293,101 @@ export function usePublicTournamentCourts(slug: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Public Division Detail — bracket, standings, matches (no auth required)
+// ---------------------------------------------------------------------------
+
+/**
+ * Division detail payload from `GET /public/divisions/{id}`. Lighter than the
+ * authed Division struct — only the fields the spectator page needs, plus the
+ * embedded tournament reference (for the back-link) and aggregate counts.
+ */
+export interface PublicDivisionDetail {
+  id: number
+  tournament_id: number
+  name: string
+  slug: string
+  format: string
+  bracket_format: string
+  scoring_format?: string
+  status: string
+  current_phase?: string
+  tournament: {
+    id: number
+    slug: string
+    name: string
+  }
+  counts: {
+    registrations: number
+    matches: number
+  }
+}
+
+/**
+ * Standings entry from `GET /public/divisions/{id}/standings`. Identical shape
+ * to the authed division standings (see leagues/hooks StandingsEntry).
+ */
+export interface PublicStandingsEntry {
+  id: number
+  season_id?: number
+  division_id: number
+  team_id: number
+  team?: TeamSummary
+  wins: number
+  losses: number
+  draws: number
+  points_for: number
+  points_against: number
+  point_differential: number
+  matches_played: number
+  standing_points: number
+  override_points?: number
+  is_withdrawn: boolean
+  rank: number
+}
+
+export function usePublicDivision(divisionId: string) {
+  return useQuery<PublicDivisionDetail>({
+    queryKey: ['public-division', divisionId],
+    queryFn: () =>
+      apiGet<PublicDivisionDetail>(`/api/v1/public/divisions/${divisionId}`),
+    enabled: !!divisionId,
+    staleTime: 2 * 60 * 1000,
+  })
+}
+
+export function usePublicDivisionBracket(divisionId: string) {
+  return useQuery<LiveMatch[]>({
+    queryKey: ['public-division-bracket', divisionId],
+    queryFn: () =>
+      apiGet<LiveMatch[]>(`/api/v1/public/divisions/${divisionId}/bracket`),
+    enabled: !!divisionId,
+    staleTime: 30 * 1000, // 30s — bracket scores update during play
+  })
+}
+
+export function usePublicDivisionStandings(divisionId: string) {
+  return useQuery<PublicStandingsEntry[]>({
+    queryKey: ['public-division-standings', divisionId],
+    queryFn: () =>
+      apiGet<PublicStandingsEntry[]>(
+        `/api/v1/public/divisions/${divisionId}/standings`,
+      ),
+    enabled: !!divisionId,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function usePublicDivisionMatches(divisionId: string) {
+  return useQuery<LiveMatch[]>({
+    queryKey: ['public-division-matches', divisionId],
+    queryFn: () =>
+      apiGet<LiveMatch[]>(`/api/v1/public/divisions/${divisionId}/matches`),
+    enabled: !!divisionId,
+    staleTime: 30 * 1000,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // League Sub-Resources — seasons, tournaments
 // ---------------------------------------------------------------------------
 

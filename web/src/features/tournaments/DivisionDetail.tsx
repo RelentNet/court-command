@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { useGetDivision, useGetTournament } from './hooks'
 import { TabLayout } from '../../components/TabLayout'
 import { Skeleton } from '../../components/Skeleton'
@@ -14,6 +14,7 @@ import { DivisionSeeds } from './DivisionSeeds'
 import { DivisionBracket } from './DivisionBracket'
 import { ChevronLeft, Users } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 interface DivisionDetailProps {
   tournamentId: string
   divisionId: string
@@ -23,6 +24,9 @@ export function DivisionDetail({
   tournamentId,
   divisionId,
 }: DivisionDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [activeTab, setActiveTab] = useState('overview')
   const { user } = useAuth()
   // TODO: replace with scoped authorization (Batch I) once that lands.
@@ -53,7 +57,7 @@ export function DivisionDetail({
         title="Failed to load division"
         description={(error as Error)?.message || 'Division not found.'}
         action={
-          <Link to="/tournaments/$tournamentId" params={{ tournamentId }}>
+          <Link to="/$sport/tournaments/$tournamentId" params={{ sport: sportSlug, tournamentId }}>
             <Button variant="secondary">Back to Tournament</Button>
           </Link>
         }
@@ -74,8 +78,8 @@ export function DivisionDetail({
     <div>
       <div className="mb-6">
         <Link
-          to="/tournaments/$tournamentId"
-          params={{ tournamentId }}
+          to="/$sport/tournaments/$tournamentId"
+          params={{ sport: sportSlug, tournamentId }}
           className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-3"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -100,8 +104,8 @@ export function DivisionDetail({
               </p>
             </div>
             <Link
-              to="/tournaments/$tournamentId"
-              params={{ tournamentId }}
+              to="/$sport/tournaments/$tournamentId"
+              params={{ sport: sportSlug, tournamentId }}
             >
               <Button variant="primary" size="sm">
                 Register Now

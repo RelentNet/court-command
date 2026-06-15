@@ -1,4 +1,4 @@
-import { useAuth } from '../auth/hooks'
+import { useAuth } from '../../auth/useAuth'
 import { useDashboard } from './hooks'
 import { StatsSummary } from './StatsSummary'
 import { UpcomingMatches } from './UpcomingMatches'
@@ -47,13 +47,15 @@ export function PlayerDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header. Smoke 2.5/4.1: bumped greeting from text-sm muted to
+          text-lg secondary so it actually reads as a greeting and not
+          a subtitle. The page title stays semantic h1. */}
       <div>
-        <h1 className="text-2xl font-bold text-(--color-text-primary)">
-          My Court Command
-        </h1>
-        <p className="text-sm text-(--color-text-muted) mt-1">
+        <h1 className="text-3xl font-bold text-(--color-text-primary)">
           Welcome back, {displayName}
+        </h1>
+        <p className="text-base text-(--color-text-secondary) mt-1">
+          Here's what's happening on your courts.
         </p>
       </div>
 

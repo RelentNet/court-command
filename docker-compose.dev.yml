@@ -1,0 +1,104 @@
+# docker-compose.dev.yml
+#
+# Local development stack: Postgres + Redis + Logto.
+#
+# This file is a STANDALONE local dev environment, not an override of
+# docker-compose.yaml. It runs the three persistent services that the
+# Court Command backend talks to, with host port bindings so the Go
+# backend (run natively via `go run main.go` or `make dev`) and the Vite
+# frontend (run via `pnpm dev`) can connect from the host.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   make logto-seed      # provisions Logto (idempotent)
+#   make dev             # runs the Go backend natively
+#
+# To shut down:
+#   docker compose -f docker-compose.dev.yml down
+#
+# To wipe state and start fresh:
+#   docker compose -f docker-compose.dev.yml down -v
+#
+# See docs/LOCAL_DEV.md for the full first-run walkthrough.
+
+name: court-command-dev
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: cc_db_dev
+    environment:
+      POSTGRES_USER: courtcommand
+      POSTGRES_PASSWORD: courtcommand
+      POSTGRES_DB: courtcommand
+      # POSTGRES_MULTIPLE_DATABASES is parsed by the init script in
+      # scripts/postgres-init/ to create additional databases (here:
+      # the one Logto needs).
+      POSTGRES_MULTIPLE_DATABASES: logto
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./scripts/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courtcommand"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: cc_redis_dev
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  logto:
+    image: svhd/logto:1.22.0
+    container_name: cc_logto_dev
+    depends_on:
+      db:
+        condition: service_healthy
+    # `npm run cli db seed -- --swe` creates Logto's tables on first run
+    # (schema migration + seed of built-in roles, OIDC keys, default
+    # tenant). On subsequent runs it's a no-op. Without this, Logto
+    # crash-loops because its expected tables don't exist.
+    entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
+    ports:
+      - "3001:3001"   # OIDC core endpoint (issuer, JWKS, /oidc/token)
+      - "3002:3002"   # Logto admin UI (operator browser)
+    environment:
+      TRUST_PROXY_HEADER: "1"
+      DB_URL: "postgres://courtcommand:courtcommand@db:5432/logto"
+      ENDPOINT: "http://localhost:3001"
+      ADMIN_ENDPOINT: "http://localhost:3002"
+      # Logto's default DATABASE_CONNECTION_TIMEOUT (5000ms) is too tight
+      # for a cold-start boot on a local docker stack: the slonik pool
+      # acquires its first connection before module loading is fully
+      # complete and times out. 30s is plenty of headroom and only
+      # affects connection-establishment, not query timeouts.
+      DATABASE_CONNECTION_TIMEOUT: "30000"
+      # host.docker.internal is the magic host that resolves to the host
+      # machine's IP from inside Linux Docker containers (with the
+      # extra_hosts mapping below). Lets webhooks delivered by Logto
+      # reach the natively-run Go backend at http://host.docker.internal:8080.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # Logto exposes the OIDC discovery doc at /oidc/.well-known/openid-configuration
+      # NOT /api/.well-known/openid-configuration (the latter returns 404).
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/oidc/.well-known/openid-configuration > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  pgdata_dev:

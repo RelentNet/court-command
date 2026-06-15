@@ -8,7 +8,11 @@ import { Skeleton } from '../../components/Skeleton'
 import { useAllCourts } from '../scoring/hooks'
 import { CourtGrid } from '../referee/CourtGrid'
 
+import { useSport } from '../../auth/SportContext'
 export function ScorekeeperHome() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const courts = useAllCourts()
   const [jumpId, setJumpId] = useState('')
@@ -18,8 +22,8 @@ export function ScorekeeperHome() {
     const trimmed = jumpId.trim()
     if (!trimmed) return
     navigate({
-      to: '/scorekeeper/matches/$publicId',
-      params: { publicId: trimmed },
+      to: '/$sport/scorekeeper/matches/$publicId',
+      params: { sport: sportSlug, publicId: trimmed },
     })
   }
 

@@ -11,11 +11,15 @@ import { AddressInput, type AddressData } from '../../../components/AddressInput
 import { ArrowLeft } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
+import { useSport } from '../../../auth/SportContext'
 interface OrgFormProps {
   org?: Organization
 }
 
 export function OrgForm({ org }: OrgFormProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const createOrg = useCreateOrg()
@@ -82,7 +86,7 @@ export function OrgForm({ org }: OrgFormProps) {
     mutation.mutate(payload, {
       onSuccess: (data) => {
         toast('success', isEditing ? 'Organization updated' : 'Organization created')
-        navigate({ to: '/organizations/$orgId', params: { orgId: String(data.id) } })
+        navigate({ to: '/$sport/organizations/$orgId', params: { sport: sportSlug, orgId: String(data.id) } })
       },
       onError: (err) => toast('error', (err as Error).message),
     })
@@ -91,7 +95,7 @@ export function OrgForm({ org }: OrgFormProps) {
   return (
     <div>
       <Link
-        to="/organizations"
+        to="/$sport/organizations" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Organizations
@@ -172,7 +176,7 @@ export function OrgForm({ org }: OrgFormProps) {
           <Button type="submit" loading={createOrg.isPending || updateOrg.isPending}>
             {isEditing ? 'Save Changes' : 'Create Organization'}
           </Button>
-          <Link to="/organizations">
+          <Link to="/$sport/organizations" params={{ sport: sportSlug }}>
             <Button type="button" variant="secondary">
               Cancel
             </Button>

@@ -6,9 +6,12 @@ import { ThemeToggle } from './ThemeToggle'
 import { Avatar } from './Avatar'
 import {
   LayoutDashboard, Trophy, Medal, MapPin, Users, UsersRound, Building2, Tv, Menu, ChevronLeft, LogOut,
-  Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper,
+  Gavel, ClipboardList, Zap, Search, LogIn, Shield, Home, FolderKanban, Newspaper, Repeat,
+  Radio, Calendar,
 } from 'lucide-react'
 import { useSearchModal } from '../features/search/SearchContext'
+import { useSport } from '../auth/SportContext'
+import { useAuth } from '../auth/useAuth'
 
 interface SidebarUser {
   first_name: string
@@ -28,35 +31,59 @@ const STORAGE_KEY = 'cc_sidebar_expanded'
 interface NavItem { label: string; icon: typeof LayoutDashboard; path: string; href?: string }
 interface NavGroup { label?: string; items: NavItem[] }
 
-// Full nav for authenticated users
-const baseAuthNavGroups: NavGroup[] = [
-  { items: [
-    { label: 'Home', icon: Home, path: '/' },
-    { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-    { label: 'My Assets', icon: FolderKanban, path: '/manage' },
-  ]},
-  { label: 'Events', items: [
-    { label: 'Leagues', icon: Medal, path: '/leagues' },
-    { label: 'Tournaments', icon: Trophy, path: '/tournaments' },
-  ]},
-  { label: 'Manage', items: [
-    { label: 'Venues & Courts', icon: MapPin, path: '/venues' },
-    { label: 'Players', icon: Users, path: '/players' },
-    { label: 'Teams', icon: UsersRound, path: '/teams' },
-    { label: 'Organizations', icon: Building2, path: '/organizations' },
-  ]},
-  { label: 'Scoring', items: [
-    { label: 'Ref Console', icon: Gavel, path: '/ref' },
-    { label: 'Scorekeeper', icon: ClipboardList, path: '/scorekeeper' },
-    { label: 'Quick Match', icon: Zap, path: '/quick-match' },
-  ]},
-  { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay' }] },
-]
+// Full nav for authenticated users. Sport-scoped paths are built lazily so
+// each entry resolves to the user's currently-active sport (e.g. /pickleball
+// rather than a hardcoded slug). The `/` and `/overlay` paths stay flat.
+function getBaseAuthNavGroups(sportSlug: string): NavGroup[] {
+  const s = sportSlug ? `/${sportSlug}` : ''
+  return [
+    { items: [
+      { label: 'Home', icon: Home, path: '/' },
+      { label: 'Dashboard', icon: LayoutDashboard, path: `${s}/dashboard` },
+      { label: 'My Assets', icon: FolderKanban, path: `${s}/manage` },
+    ]},
+    // Public-facing browse: same pages anonymous visitors see, but
+    // accessed from inside the authenticated shell. Smoke 1.1, 1.9,
+    // 1.10, 3.1 -- signed-in users explicitly want these accessible
+    // (TDs want to preview their tournaments' public view; refs want
+    // to see live scores from the same browser session).
+    { label: 'Browse', items: [
+      { label: 'Live Scores', icon: Radio, path: '/public/live' },
+      { label: 'Events', icon: Calendar, path: '/public/events' },
+      // path is the React key only; href triggers the external <a> branch.
+      { label: 'News', icon: Newspaper, path: '#news', href: 'https://news.courtcommand.app' },
+    ]},
+    { label: 'Events', items: [
+      { label: 'Leagues', icon: Medal, path: `${s}/leagues` },
+      { label: 'Tournaments', icon: Trophy, path: `${s}/tournaments` },
+    ]},
+    { label: 'Manage', items: [
+      { label: 'Venues & Courts', icon: MapPin, path: `${s}/venues` },
+      { label: 'Players', icon: Users, path: `${s}/players` },
+      { label: 'Teams', icon: UsersRound, path: `${s}/teams` },
+      { label: 'Organizations', icon: Building2, path: `${s}/organizations` },
+    ]},
+    { label: 'Scoring', items: [
+      { label: 'Ref Console', icon: Gavel, path: `${s}/ref` },
+      { label: 'Scorekeeper', icon: ClipboardList, path: `${s}/scorekeeper` },
+      { label: 'Quick Match', icon: Zap, path: `${s}/quick-match` },
+    ]},
+    // Note: trailing slash is intentional. The TanStack Router file-based
+    // route is registered with fullPath '/overlay/'. Without the slash,
+    // TanStack matches /overlay against the parametrized /$sport route
+    // (with params.sport='overlay'), and SportGuard bounces to /, which
+    // then auto-redirects to dashboard for single-sport authenticated users.
+    { label: 'Broadcast', items: [{ label: 'Overlay', icon: Tv, path: '/overlay/' }] },
+  ]
+}
 
-const adminNavGroup: NavGroup = {
-  label: 'Admin', items: [
-    { label: 'Admin', icon: Shield, path: '/admin' },
-  ],
+function getAdminNavGroup(sportSlug: string): NavGroup {
+  const s = sportSlug ? `/${sportSlug}` : ''
+  return {
+    label: 'Admin', items: [
+      { label: 'Admin', icon: Shield, path: `${s}/admin` },
+    ],
+  }
 }
 
 // Roles that can see Scoring nav
@@ -69,27 +96,32 @@ const BROADCAST_ROLES = new Set([
   'platform_admin', 'tournament_director', 'broadcast_operator',
 ])
 
-function getAuthNavGroups(role?: string): NavGroup[] {
+function getAuthNavGroups(role: string | undefined, sportSlug: string): NavGroup[] {
+  const baseAuthNavGroups = getBaseAuthNavGroups(sportSlug)
   const groups: NavGroup[] = []
 
-  // Core nav (Home, Dashboard, My Assets) — all authenticated users
-  groups.push(baseAuthNavGroups[0]) // Home/Dashboard/My Assets
-  groups.push(baseAuthNavGroups[1]) // Events (Leagues, Tournaments)
-  groups.push(baseAuthNavGroups[2]) // Manage (Venues, Players, Teams, Orgs)
+  // Indices match the array order in getBaseAuthNavGroups:
+  //   [0] Home/Dashboard/My Assets
+  //   [1] Browse (Live, Events, News) -- public surface for signed-in users
+  //   [2] Events (Leagues, Tournaments)
+  //   [3] Manage (Venues, Players, Teams, Orgs)
+  //   [4] Scoring (Ref, Scorekeeper, Quick Match) -- gated by SCORING_ROLES
+  //   [5] Broadcast (Overlay) -- gated by BROADCAST_ROLES
+  groups.push(baseAuthNavGroups[0])
+  groups.push(baseAuthNavGroups[1])
+  groups.push(baseAuthNavGroups[2])
+  groups.push(baseAuthNavGroups[3])
 
-  // Scoring — only scoring-eligible roles
   if (role && SCORING_ROLES.has(role)) {
-    groups.push(baseAuthNavGroups[3]) // Scoring
+    groups.push(baseAuthNavGroups[4])
   }
 
-  // Broadcast — only broadcast-eligible roles
   if (role && BROADCAST_ROLES.has(role)) {
-    groups.push(baseAuthNavGroups[4]) // Broadcast
+    groups.push(baseAuthNavGroups[5])
   }
 
-  // Admin — platform_admin only
   if (role === 'platform_admin') {
-    groups.push(adminNavGroup)
+    groups.push(getAdminNavGroup(sportSlug))
   }
 
   return groups
@@ -110,8 +142,17 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const isMobile = useIsMobile()
   const matchRoute = useMatchRoute()
   const location = useLocation()
+  const { sport, sports } = useSport()
+  const { signIn } = useAuth()
+  // Sidebar links to /<sport>/dashboard etc. need a slug even when the
+  // current route doesn't carry one (e.g. on /, /public/*, /overlay/*).
+  // Fall back to the first known sport so the links are always
+  // navigable. Single-sport launch mode (Pickleball-only) means this
+  // is essentially a constant; multi-sport users default to the first
+  // alphabetically-active sport until they pick.
+  const sportSlug = sport?.slug ?? sports[0]?.slug ?? ''
   const isAuthenticated = !!user
-  const navGroups = isAuthenticated ? getAuthNavGroups(user?.role) : publicNavGroups
+  const navGroups = isAuthenticated ? getAuthNavGroups(user?.role, sportSlug) : publicNavGroups
 
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -155,9 +196,13 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           {user ? (
             <Avatar name={displayName} size="sm" />
           ) : (
-            <Link to="/login" search={{ redirect: '/' }} className="text-sm font-medium text-cyan-400 hover:text-cyan-300">
+            <button
+              type="button"
+              onClick={() => signIn('/')}
+              className="text-sm font-medium text-cyan-400 hover:text-cyan-300"
+            >
               Sign In
-            </Link>
+            </button>
           )}
         </header>
         {mobileOpen && (
@@ -174,11 +219,11 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
                 </div>
                 <NavContent expanded={true} isActive={isActive} navGroups={navGroups} />
               </div>
-              {user && onLogout ? (
-                <SidebarFooter expanded={true} displayName={displayName} publicId={user.public_id} onLogout={onLogout} />
-              ) : (
-                <PublicFooter expanded={true} />
-              )}
+      {user && onLogout ? (
+        <SidebarFooter expanded={true} displayName={displayName} publicId={user.public_id} onLogout={onLogout} sportSlug={sportSlug} />
+      ) : (
+        <PublicFooter expanded={true} />
+      )}
             </nav>
           </>
         )}
@@ -207,7 +252,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         <NavContent expanded={expanded} isActive={isActive} navGroups={navGroups} />
       </div>
       {user && onLogout ? (
-        <SidebarFooter expanded={expanded} displayName={displayName} publicId={user.public_id} onLogout={onLogout} />
+        <SidebarFooter expanded={expanded} displayName={displayName} publicId={user.public_id} onLogout={onLogout} sportSlug={sportSlug} />
       ) : (
         <PublicFooter expanded={expanded} />
       )}
@@ -279,13 +324,27 @@ function NavContent({ expanded, isActive, navGroups }: { expanded: boolean; isAc
   )
 }
 
-function SidebarFooter({ expanded, displayName, publicId, onLogout }: { expanded: boolean; displayName: string; publicId: string; onLogout: () => void }) {
+function SidebarFooter({ expanded, displayName, publicId, onLogout, sportSlug }: { expanded: boolean; displayName: string; publicId: string; onLogout: () => void; sportSlug: string }) {
   return (
     <div className={cn('border-t border-(--color-border) p-2 space-y-1')}>
       <ThemeToggle collapsed={!expanded} />
+      {/* Switch sport: bounces back to the sport picker (/) so the user
+          can re-pick. Useful for multi-sport users; SportGuard also
+          redirects here when the URL sport doesn't match the JWT org. */}
+      <Link
+        to="/"
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors text-(--color-text-secondary) hover:bg-(--color-bg-hover) hover:text-(--color-text-primary)',
+          expanded ? '' : 'justify-center px-2',
+        )}
+        title={!expanded ? 'Switch sport' : undefined}
+      >
+        <Repeat className="h-5 w-5 shrink-0" />
+        {expanded && <span>Switch sport</span>}
+      </Link>
       {expanded ? (
         <div className="flex items-center gap-3 px-3 py-2">
-          <Link to="/profile" className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-(--color-bg-hover) -mx-1 px-1 py-0.5 transition-colors">
+          <Link to="/$sport/profile" params={{ sport: sportSlug }} className="flex items-center gap-3 flex-1 min-w-0 rounded-lg hover:bg-(--color-bg-hover) -mx-1 px-1 py-0.5 transition-colors">
             <Avatar name={displayName} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-(--color-text-primary) truncate">{displayName}</p>
@@ -306,21 +365,22 @@ function SidebarFooter({ expanded, displayName, publicId, onLogout }: { expanded
 }
 
 function PublicFooter({ expanded }: { expanded: boolean }) {
+  const { signIn } = useAuth()
   return (
     <div className={cn('border-t border-(--color-border) p-2 space-y-1')}>
       <ThemeToggle collapsed={!expanded} />
-      <Link
-        to="/login"
-        search={{ redirect: '/' }}
+      <button
+        type="button"
+        onClick={() => signIn('/')}
         className={cn(
-          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-cyan-400 hover:bg-cyan-500/10',
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-cyan-400 hover:bg-cyan-500/10 w-full',
           expanded ? '' : 'justify-center px-2',
         )}
         title={!expanded ? 'Sign In' : undefined}
       >
         <LogIn className="h-5 w-5 shrink-0" />
         {expanded && <span>Sign In</span>}
-      </Link>
+      </button>
     </div>
   )
 }

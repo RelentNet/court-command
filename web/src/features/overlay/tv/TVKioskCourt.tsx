@@ -18,13 +18,18 @@ export function TVKioskCourt({ slug }: TVKioskCourtProps) {
   const { courtsQuery, overlayQuery } = useOverlayDataBySlug(slug, {})
   const data = overlayQuery.data
 
-  // Reset body and hide overflow while kiosk is on-screen.
+  // Force dark theme + reset body for kiosk mode (smoke 14.1/14.2 --
+  // venue TVs need dark backgrounds regardless of operator preference).
   useEffect(() => {
+    const html = document.documentElement
+    const wasDark = html.classList.contains('dark')
+    html.classList.add('dark')
     const prevBg = document.body.style.background
     const prevOverflow = document.body.style.overflow
     document.body.style.background = '#000'
     document.body.style.overflow = 'hidden'
     return () => {
+      if (!wasDark) html.classList.remove('dark')
       document.body.style.background = prevBg
       document.body.style.overflow = prevOverflow
     }

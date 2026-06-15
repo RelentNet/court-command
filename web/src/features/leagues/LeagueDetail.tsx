@@ -19,11 +19,15 @@ import { LeagueRegistrations } from './LeagueRegistrations'
 import { LeagueAnnouncementFeed } from './LeagueAnnouncementFeed'
 import { ChevronLeft } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 interface Props {
   leagueId: string
 }
 
 export function LeagueDetail({ leagueId }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [activeTab, setActiveTab] = useState('overview')
   const leagueIdNum = Number(leagueId)
   const { data: league, isLoading, error } = useGetLeague(leagueIdNum)
@@ -47,7 +51,7 @@ export function LeagueDetail({ leagueId }: Props) {
         title="Failed to load league"
         description={(error as Error)?.message || 'League not found.'}
         action={
-          <Link to="/leagues">
+          <Link to="/$sport/leagues" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Leagues</Button>
           </Link>
         }
@@ -67,7 +71,7 @@ export function LeagueDetail({ leagueId }: Props) {
     <div>
       <div className="mb-6">
         <Link
-          to="/leagues"
+          to="/$sport/leagues" params={{ sport: sportSlug }}
           className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-3"
         >
           <ChevronLeft className="h-4 w-4" />

@@ -18,12 +18,16 @@ import {
 } from './hooks'
 import { Plus, MapPin, X } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 export interface TournamentCourtsProps {
   tournamentId: number
   venueId: number | null
 }
 
 export function TournamentCourts({ tournamentId, venueId }: TournamentCourtsProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const courts = useCourtsForTournament(tournamentId)
   const venueCourts = useVenueCourts(venueId ? String(venueId) : '')
@@ -101,7 +105,7 @@ export function TournamentCourts({ tournamentId, venueId }: TournamentCourtsProp
             <Plus size={16} className="mr-1" /> Create Temporary Court
           </Button>
           <Link
-            to="/ref"
+            to="/$sport/ref" params={{ sport: sportSlug }}
             className="text-sm text-(--color-accent) hover:underline self-center"
           >
             Open Ref Home

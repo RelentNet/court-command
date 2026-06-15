@@ -9,7 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/court-command/court-command/auth"
+	"github.com/court-command/court-command/db/generated"
 	"github.com/court-command/court-command/handler"
+	"github.com/court-command/court-command/logto"
 	"github.com/court-command/court-command/middleware"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
@@ -83,6 +86,115 @@ type Config struct {
 
 	// Phase 4C: WebSocket
 	WSHandler chi.Router
+
+	// Logto Phase 3: public sport directory
+	SportsHandler *handler.SportsHandler
+
+	// Logto Phase 3: profile endpoints (JWT-protected, mounted under
+	// /api/v1/me/profile). Optional in the Config so tests that don't
+	// care about Logto wiring (almost all of them today) can leave it
+	// nil and the routes simply don't register.
+	ProfileHandler *handler.ProfileHandler
+	JWTValidator   *auth.Validator
+
+	// Logto Phase 3 Task 9: webhook + on-demand user mirror.
+	//
+	// LogtoWebhookHandler is mounted publicly at
+	// /api/v1/webhooks/logto -- no auth middleware in front; the
+	// HMAC signature on the Logto-Signature-Sha-256 header IS the
+	// auth. Leaving it nil disables the route entirely (used by
+	// testutil.TestServer where no Logto deps are wired).
+	//
+	// LogtoClient + UserSyncService + Queries together enable the
+	// MirrorUser middleware on /api/v1/me/* protected routes. All
+	// three must be non-nil for the middleware to be chained;
+	// otherwise the routes still work but skip the on-demand
+	// mirror (the webhook path will eventually populate the row,
+	// at which point requests start succeeding).
+	LogtoWebhookHandler *handler.LogtoWebhookHandler
+	LogtoClient         *logto.Client
+	UserSyncService     *service.UserSyncService
+	Queries             *generated.Queries
+
+	// OrgRoles supplies the org-role lookup the JWTSession middleware
+	// uses to elevate users to platform_admin when their JWT lacks
+	// the organization_roles claim (which is Logto's default --
+	// see api/middleware/org_role_resolver.go for the full story).
+	// When nil (testutil / dev-without-Logto) the elevation falls
+	// back to the JWT fast path only.
+	OrgRoles middleware.OrgRoleResolver
+
+	// SportResolver maps a sport slug (the X-Sport header) to its Logto
+	// organization ID. When set AND the JWT auth path is active, useAuth
+	// chains middleware.RequireSportMatchesJWT after JWT auth on every
+	// sport-scoped protected group, so a token minted for one sport's
+	// org cannot act on another sport's resources. Nil in
+	// testutil/cookie-only environments (no claims in context), where
+	// the sport check is skipped entirely.
+	SportResolver *middleware.SportResolver
+}
+
+// authMiddlewares returns the middleware chain that should gate
+// authenticated route groups. In production (cfg.JWTValidator != nil)
+// this is RequireJWT + JWTSession -- validates the Logto JWT and
+// populates session.Data via on-demand mirror lookup, so existing
+// handlers that read session.SessionData(r.Context()) continue working
+// without code changes.
+//
+// In testutil/cookie-only environments (cfg.JWTValidator == nil) this
+// falls back to the legacy RequireAuth(SessionStore) cookie path so
+// existing test fixtures keep working.
+//
+// Phase 6 cutover will drop the cookie branch entirely.
+func authMiddlewares(cfg *Config) []func(http.Handler) http.Handler {
+	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+		return []func(http.Handler) http.Handler{
+			middleware.RequireJWT(cfg.JWTValidator, true),
+			middleware.JWTSession(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService, cfg.OrgRoles),
+		}
+	}
+	return []func(http.Handler) http.Handler{
+		middleware.RequireAuth(cfg.SessionStore),
+	}
+}
+
+// jwtAuthActive reports whether the production JWT auth path is wired
+// (vs. the legacy cookie-only path used by testutil.TestServer). The
+// sport-scoped check only makes sense on the JWT path, since it reads
+// auth.Claims (the organization_id) off the request context, which only
+// the JWT chain populates.
+func jwtAuthActive(cfg *Config) bool {
+	return cfg.JWTValidator != nil && cfg.LogtoClient != nil &&
+		cfg.UserSyncService != nil && cfg.Queries != nil
+}
+
+// useAuthNoSport applies only the base auth chain (JWT validation +
+// session bridge, or the legacy cookie path). Use for authenticated
+// route groups that are NOT sport-scoped -- e.g. identity endpoints
+// reached before a sport is selected, where the SPA sends no X-Sport
+// header and a non-org token.
+func useAuthNoSport(r chi.Router, cfg *Config) {
+	for _, mw := range authMiddlewares(cfg) {
+		r.Use(mw)
+	}
+}
+
+// useAuth applies the base auth chain and, on the JWT path with a
+// configured SportResolver, additionally chains RequireSportMatchesJWT
+// so a token minted for one sport's Logto org cannot act on another
+// sport's resources. Used for every sport-scoped protected group.
+//
+// The sport check is appended AFTER the base chain so auth.Claims is on
+// the request context when it runs (RequireSportMatchesJWT depends on
+// it). It is skipped when the JWT path is inactive (cookie-only tests,
+// where there are no claims) or when no resolver is configured.
+func useAuth(r chi.Router, cfg *Config) {
+	for _, mw := range authMiddlewares(cfg) {
+		r.Use(mw)
+	}
+	if cfg.SportResolver != nil && jwtAuthActive(cfg) {
+		r.Use(middleware.RequireSportMatchesJWT(cfg.SportResolver))
+	}
 }
 
 // New creates a chi.Router with all middleware and routes mounted.
@@ -99,53 +211,125 @@ func New(cfg *Config) chi.Router {
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
 	r.Use(middleware.MaxBodySize(1 << 20))           // 1 MB default limit
 	r.Use(middleware.OptionalAuth(cfg.SessionStore)) // Populate session data when cookie present
+	// Phase 3.6 C1: OptionalJWT mirrors OptionalAuth for the JWT path.
+	// Mixed-auth route groups (those mounted without an explicit
+	// useAuth wrapper -- e.g. /leagues, /tournaments where reads are
+	// public and writes do handler-level `if sess == nil { 401 }`)
+	// rely on a global middleware to populate session.Data. Without
+	// this, the SPA's JWT can never reach those handlers.
+	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+		r.Use(middleware.OptionalJWT(
+			cfg.JWTValidator, cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
+	}
 
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
 		// Public routes (no auth required)
 		r.Get("/health", cfg.HealthHandler.Check)
 
-		// Auth routes (public)
+		// Sport directory (public — sport picker fetches this before the
+		// user picks an org and gets a JWT, so no auth middleware here).
+		if cfg.SportsHandler != nil {
+			r.Get("/sports", cfg.SportsHandler.ListSports)
+		}
+
+		// Logto Phase 3: profile endpoints. Mounted under RequireJWT so
+		// every request has a validated Logto access token in context
+		// before reaching the handler. orgScoped=true because Phase 3
+		// frontends call these with org-scoped tokens (urn:logto:org:*).
+		// Task 9 will add MirrorUser middleware in this same group so
+		// the local users.id is on the request context too.
+		if cfg.ProfileHandler != nil && cfg.JWTValidator != nil {
+			r.Group(func(r chi.Router) {
+				r.Use(middleware.RequireJWT(cfg.JWTValidator, true))
+				// Task 9: chain MirrorUser AFTER RequireJWT so the
+				// local users row is guaranteed to exist for the
+				// JWT subject before the handler runs. Conditional
+				// because testutil.TestServer doesn't wire the
+				// Logto deps; in that case we keep the legacy
+				// behavior (handler resolves users.id directly via
+				// ProfileService.LookupUserByLogtoSubject).
+				if cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
+					r.Use(middleware.MirrorUser(cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
+				}
+				// Phase 3 fix: /api/v1/auth/me is now JWT-authenticated.
+				// The legacy cookie-mounted /auth/me below is removed in
+				// the same commit; the SPA only authenticates via JWT.
+				r.Get("/auth/me", cfg.AuthHandler.MeJWT)
+				r.Get("/me/profile", cfg.ProfileHandler.GetMyProfile)
+				r.Patch("/me/profile", cfg.ProfileHandler.PatchMyProfile)
+			})
+		}
+
+		// Logto webhook (public -- HMAC signature IS the auth).
+		// Mounted under /api/v1 like every other API route so a
+		// future API gateway / reverse proxy that path-routes on
+		// /api/v1 catches this too.
+		if cfg.LogtoWebhookHandler != nil {
+			r.Post("/webhooks/logto", cfg.LogtoWebhookHandler.Handle)
+		}
+
+		// Auth routes. /register, /login, /logout stay on the cookie
+		// path until Phase 6 cutover deletes them. /auth/me is mounted
+		// on the JWT-protected block above when the JWT validator is
+		// configured (production); when it's nil (testutil.TestServer
+		// for legacy cookie-only tests), we fall back to the
+		// cookie-session Me handler here so existing tests that exercise
+		// the login -> /me flow keep working.
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", cfg.AuthHandler.Register)
 			r.Post("/login", cfg.AuthHandler.Login)
 			r.Post("/logout", cfg.AuthHandler.Logout)
 
-			// Authenticated auth routes
+			// Authenticated /auth/* sub-routes. Use the same JWT/cookie
+			// auth chain as the rest of the app so the SPA's JWT
+			// reaches MyTournamentStaff (Phase 3 fix C6).
+			//
+			// /auth/me itself is mounted in the dedicated Phase 3 JWT
+			// block above when JWTValidator is configured. When it's
+			// nil (testutil mode), authMiddlewares falls back to the
+			// cookie path and we mount the legacy /me here too.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
-				r.Get("/me", cfg.AuthHandler.Me)
+				// Identity endpoints: reached before a sport is selected,
+				// so the SPA may send no X-Sport header. Use the base auth
+				// chain WITHOUT the sport-scoped check.
+				useAuthNoSport(r, cfg)
+				if cfg.JWTValidator == nil {
+					// Legacy fallback for testutil/cookie-only environments.
+					// Phase 6 cutover deletes this branch entirely.
+					r.Get("/me", cfg.AuthHandler.Me)
+				}
 				r.Get("/me/tournament-staff", cfg.AuthHandler.MyTournamentStaff)
 			})
 		})
 
 		// Player routes (authenticated)
 		r.Route("/players", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.PlayerHandler.Routes())
 		})
 
 		// Team routes (authenticated)
 		r.Route("/teams", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.TeamHandler.Routes())
 		})
 
 		// Organization routes (authenticated)
 		r.Route("/organizations", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.OrgHandler.Routes())
 		})
 
 		// Venue routes (authenticated)
 		r.Route("/venues", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.VenueHandler.Routes())
 		})
 
 		// Court routes (authenticated — standalone/floating courts)
 		r.Route("/courts", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.CourtHandler.Routes())
 		})
 
@@ -160,14 +344,14 @@ func New(cfg *Config) chi.Router {
 				r.Mount("/", cfg.SeasonHandler.Routes())
 			})
 			r.Route("/{leagueID}/division-templates", func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.DivTemplateHandler.Routes())
 			})
 			r.Route("/{leagueID}/announcements", func(r chi.Router) {
 				r.Mount("/", cfg.AnnouncementHandler.LeagueAnnouncementRoutes())
 			})
 			r.Route("/{leagueID}/registrations", func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.LeagueRegHandler.Routes())
 			})
 		})
@@ -217,7 +401,7 @@ func New(cfg *Config) chi.Router {
 
 		// Scoring presets (mixed auth: public reads, handler-level auth on writes)
 		r.Route("/scoring-presets", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.ScoringPresetHandler.Routes())
 		})
 
@@ -235,7 +419,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated writes/reads.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.MatchHandler.Routes())
 			})
 		})
@@ -249,7 +433,7 @@ func New(cfg *Config) chi.Router {
 
 		// Bracket generation (authenticated)
 		r.Route("/divisions/{divisionID}/bracket", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.BracketHandler.Routes())
 		})
 
@@ -260,7 +444,7 @@ func New(cfg *Config) chi.Router {
 
 		// Team-scoped matches
 		r.Route("/teams/{teamID}/matches", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.MatchHandler.TeamRoutes())
 		})
 
@@ -274,7 +458,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated writes/reads.
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Mount("/", cfg.MatchSeriesHandler.Routes())
 			})
 		})
@@ -286,7 +470,7 @@ func New(cfg *Config) chi.Router {
 
 		// Quick matches (authenticated)
 		r.Route("/quick-matches", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.QuickMatchHandler.Routes())
 		})
 
@@ -301,7 +485,7 @@ func New(cfg *Config) chi.Router {
 
 		// Player dashboard (authenticated)
 		r.Route("/dashboard", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.DashboardHandler.Routes())
 		})
 
@@ -329,7 +513,7 @@ func New(cfg *Config) chi.Router {
 
 			// Authenticated control panel routes
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.RequireAuth(cfg.SessionStore))
+				useAuth(r, cfg)
 				r.Get("/court/{courtID}/config", cfg.OverlayHandler.GetConfig)
 				r.Put("/court/{courtID}/config/theme", cfg.OverlayHandler.UpdateTheme)
 				r.Put("/court/{courtID}/config/elements", cfg.OverlayHandler.UpdateElements)
@@ -343,22 +527,25 @@ func New(cfg *Config) chi.Router {
 
 		// Source Profile routes (authenticated)
 		r.Route("/source-profiles", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.SourceProfileHandler.Routes())
 		})
 
 		// --- Phase 8 routes ---
 
 		// Stop impersonation — must be OUTSIDE admin group because
-		// the impersonated session has the target user's role (not platform_admin)
+		// the impersonated session has the target user's role (not
+		// platform_admin). Use the base auth chain WITHOUT the sport
+		// check: escaping impersonation must always succeed regardless of
+		// which sport scope the request carries.
 		r.Route("/admin/stop-impersonation", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuthNoSport(r, cfg)
 			r.Post("/", cfg.AdminHandler.StopImpersonation)
 		})
 
 		// Admin routes (authenticated + platform_admin only)
 		r.Route("/admin", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Use(middleware.RequirePlatformAdmin)
 			r.Mount("/", cfg.AdminHandler.Routes())
 			if cfg.AdHandler != nil {
@@ -383,7 +570,7 @@ func New(cfg *Config) chi.Router {
 
 		// Upload routes (authenticated)
 		r.Route("/uploads", func(r chi.Router) {
-			r.Use(middleware.RequireAuth(cfg.SessionStore))
+			useAuth(r, cfg)
 			r.Mount("/", cfg.UploadHandler.Routes())
 		})
 

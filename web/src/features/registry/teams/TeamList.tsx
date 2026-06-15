@@ -13,7 +13,11 @@ import { Users2, Plus } from 'lucide-react'
 
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 export function TeamList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search)
   const pagination = usePagination(20)
@@ -33,8 +37,8 @@ export function TeamList() {
       header: 'Name',
       render: (t: (typeof teams)[0]) => (
         <Link
-          to="/teams/$teamId"
-          params={{ teamId: String(t.id) }}
+          to="/$sport/teams/$teamId"
+          params={{ sport: sportSlug, teamId: String(t.id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           <span className="flex items-center gap-2">
@@ -64,8 +68,8 @@ export function TeamList() {
       render: (t: (typeof teams)[0]) =>
         t.org_name ? (
           <Link
-            to="/organizations/$orgId"
-            params={{ orgId: String(t.org_id) }}
+            to="/$sport/organizations/$orgId"
+            params={{ sport: sportSlug, orgId: String(t.org_id) }}
             className="text-cyan-400 hover:underline"
           >
             {t.org_name}
@@ -89,7 +93,7 @@ export function TeamList() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-(--color-text-primary)">Teams</h1>
-        <Link to="/teams/new">
+        <Link to="/$sport/teams/new" params={{ sport: sportSlug }}>
           <Button size="sm">
             <Plus className="h-4 w-4" /> Create Team
           </Button>
@@ -123,7 +127,7 @@ export function TeamList() {
           description={search ? `No results for "${search}"` : 'No teams created yet.'}
           action={
             !search ? (
-              <Link to="/teams/new">
+              <Link to="/$sport/teams/new" params={{ sport: sportSlug }}>
                 <Button>Create Team</Button>
               </Link>
             ) : undefined

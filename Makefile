@@ -1,5 +1,76 @@
 # Makefile
-.PHONY: dev dev-frontend dev-all up down full full-down build migrate-up migrate-down migrate-create sqlc test test-db seed backup backup-full restore restore-db backup-list backup-before-deploy
+.PHONY: dev dev-frontend dev-all dev-up dev-down dev-logs dev-reset up down full full-down build migrate-up migrate-down migrate-create sqlc test test-db seed logto-seed backup backup-full restore restore-db backup-list backup-before-deploy
+
+# ---- Local development (docker-compose.dev.yml) ----
+# Brings up postgres + redis + logto with host port bindings; the Go
+# backend runs natively on the host for fast iteration. See
+# docs/LOCAL_DEV.md for the full first-run walkthrough.
+
+# Start the dev infra (db + redis + logto)
+dev-up:
+	docker compose -f docker-compose.dev.yml up -d
+	@echo ""
+	@echo "Dev infra ready:"
+	@echo "  Postgres   localhost:5432  (user=courtcommand pass=courtcommand db=courtcommand,logto)"
+	@echo "  Redis      localhost:6379"
+	@echo "  Logto OIDC http://localhost:3001"
+	@echo "  Logto admin http://localhost:3002"
+	@echo ""
+	@echo "Next: see docs/LOCAL_DEV.md for first-run setup."
+
+# Stop dev infra (preserves volumes / data)
+dev-down:
+	docker compose -f docker-compose.dev.yml down
+
+# Tail logs from the dev infra services
+dev-logs:
+	docker compose -f docker-compose.dev.yml logs -f
+
+# Wipe dev infra including all data (Postgres volume + Logto state)
+dev-reset:
+	docker compose -f docker-compose.dev.yml down -v
+	@echo "Dev infra wiped. Run 'make dev-up' to start fresh."
+
+# Provision Logto (idempotent): creates apps, resources, scopes, org
+# template, organizations, bootstrap admin, webhook. Reads config from
+# .env (LOGTO_MANAGEMENT_API_APP_ID/SECRET must be set first -- see
+# docs/LOCAL_DEV.md "First-run setup").
+logto-seed:
+	@if [ ! -f .env ]; then echo "ERROR: .env not found. Copy from .env.example first."; exit 1; fi
+	@cd api && set -a && . ../.env && set +a && go run ./cmd/logto-seed
+
+# Provision a production Logto tenant + sync sports.logto_org_id
+# in the production app DB. Run ONCE at launch (re-running is safe;
+# every step is idempotent). Env source order:
+#   1. .env.prod (preferred -- gitignored, holds prod values)
+#   2. .env (fallback for operators with a single env file)
+#
+# Required vars in the env file:
+#   LOGTO_ENDPOINT                       https://logto.courtcommand.app
+#   LOGTO_API_RESOURCE                   https://api.courtcommand.app/api
+#   LOGTO_MANAGEMENT_API_APP_ID          (from Logto admin -> Apps -> M2M)
+#   LOGTO_MANAGEMENT_API_APP_SECRET      (same place)
+#   LOGTO_MANAGEMENT_API_RESOURCE        https://default.logto.app/api  (Logto-internal, fixed)
+#   LOGTO_SPA_REDIRECT_URI               https://courtcommand.app/auth/callback
+#   LOGTO_WEBHOOK_URL                    https://api.courtcommand.app/api/v1/webhooks/logto
+#   LOGTO_BOOTSTRAP_EMAIL/PASSWORD/NAME  for the first admin
+#   DATABASE_URL                         points at the prod app DB (for sports.logto_org_id sync)
+#   APP_ENV                              must be "production" to skip Demo Sport
+#
+# Output: prints LOGTO_PICKLEBALL_ORG_ID, LOGTO_WEBHOOK_SIGNING_KEY,
+# VITE_LOGTO_APP_ID etc. Paste into Coolify env, restart api+web.
+prod-bootstrap:
+	@ENV_FILE=.env.prod; if [ ! -f $$ENV_FILE ]; then ENV_FILE=.env; fi; \
+	if [ ! -f $$ENV_FILE ]; then echo "ERROR: neither .env.prod nor .env found"; exit 1; fi; \
+	echo "Sourcing $$ENV_FILE"; \
+	cd api && set -a && . ../$$ENV_FILE && set +a && \
+	if [ "$$APP_ENV" != "production" ]; then \
+	  echo "ERROR: APP_ENV is not 'production' -- refusing to run prod-bootstrap with dev settings"; \
+	  exit 1; \
+	fi; \
+	go run ./cmd/logto-seed
+
+# ---- Legacy single-stack (docker-compose.yaml -- prod / Coolify shape) ----
 
 # Start Docker services (db + redis only)
 up:
@@ -60,11 +131,24 @@ test-db: up
 test: test-db
 	cd api && go test ./... -v -count=1
 
-# Seed development data (all entity types — run after migrations)
-seed: up
-	@echo "Seeding development data..."
-	docker compose exec -T db psql -U courtcommand -d courtcommand < api/db/seed.sql
-	@echo "Done! Login with admin@courtcommand.com / TestPass123!"
+# Seed development domain data (orgs, tournaments, leagues, venues,
+# matches, etc.) against the dev stack (docker-compose.dev.yml).
+# Preserves the Logto-bootstrap admin row (logto_user_id IS NOT NULL);
+# only wipes domain tables and shadow users.
+#
+# Prereqs:
+#   1. make dev-up         # postgres + redis + logto running
+#   2. make migrate-up     # schema is current
+#   3. make logto-seed     # Logto provisioned; bootstrap admin row exists
+#   4. (sign in once via the SPA so the admin is mirrored to local users)
+#
+# After seeding, the bootstrap admin remains the only signin-capable
+# user; all other users are shadow players (status='unclaimed') / staff
+# fixtures with logto_user_id=NULL.
+seed:
+	@echo "Seeding development domain data..."
+	docker compose -f docker-compose.dev.yml exec -T db psql -U courtcommand -d courtcommand < api/db/seed.sql
+	@echo "Done. Sign in via the SPA with the Logto bootstrap admin to see the seeded fixtures."
 
 # ---- Backup & Restore ----
 
@@ -75,12 +159,20 @@ backup:
 	docker compose exec -T db pg_dump -U courtcommand courtcommand > backups/db-$$TIMESTAMP.sql && \
 	echo "Database backup: backups/db-$$TIMESTAMP.sql ($$(wc -c < backups/db-$$TIMESTAMP.sql | tr -d ' ') bytes)"
 
-# Full backup: database + uploaded files (for before deploys or major changes)
+# Full backup: app database + Logto identity database + uploaded files
+# (for before deploys or major changes). Run as 'make backup-full' on
+# the production host where the compose stack is running.
 backup-full:
 	@mkdir -p backups
 	@TIMESTAMP=$$(date +%Y%m%d-%H%M%S); \
 	docker compose exec -T db pg_dump -U courtcommand courtcommand > backups/db-$$TIMESTAMP.sql && \
-	echo "Database backup: backups/db-$$TIMESTAMP.sql"; \
+	echo "App db backup: backups/db-$$TIMESTAMP.sql"; \
+	if docker compose ps -q db_logto >/dev/null 2>&1 && [ -n "$$(docker compose ps -q db_logto)" ]; then \
+		docker compose exec -T db_logto pg_dump -U $${LOGTO_DB_USER:-logto} $${LOGTO_DB_NAME:-logto} > backups/db_logto-$$TIMESTAMP.sql && \
+		echo "Logto db backup: backups/db_logto-$$TIMESTAMP.sql"; \
+	else \
+		echo "(db_logto service not running; skipped identity backup)"; \
+	fi; \
 	if [ -d api/uploads ] && [ "$$(ls -A api/uploads 2>/dev/null)" ]; then \
 		tar czf backups/uploads-$$TIMESTAMP.tar.gz -C api uploads && \
 		echo "Uploads backup: backups/uploads-$$TIMESTAMP.tar.gz"; \
@@ -125,11 +217,23 @@ restore-uploads:
 
 # List all available backups
 backup-list:
-	@echo "=== Database Backups ==="
+	@echo "=== App database backups ==="
 	@ls -lh backups/db-*.sql 2>/dev/null || echo "  None"
 	@echo ""
-	@echo "=== Upload Backups ==="
+	@echo "=== Logto identity database backups ==="
+	@ls -lh backups/db_logto-*.sql 2>/dev/null || echo "  None"
+	@echo ""
+	@echo "=== Upload backups ==="
 	@ls -lh backups/uploads-*.tar.gz 2>/dev/null || echo "  None"
+
+# Package the Court Command Ghost theme into a zip ready for upload
+# at https://news.courtcommand.app/ghost (Admin -> Design -> Change theme).
+# Output: ghost-theme/cc-ghost-theme.zip (gitignored).
+ghost-theme:
+	@cd ghost-theme && rm -f cc-ghost-theme.zip && \
+		zip -r cc-ghost-theme.zip . -x '*.zip' -x '.*' && \
+		echo "Created ghost-theme/cc-ghost-theme.zip ($$(du -h cc-ghost-theme.zip | cut -f1))"
+	@echo "Upload via Ghost admin: Settings -> Design -> Change theme -> Upload."
 
 # Include .env if it exists
 -include .env

@@ -12,6 +12,9 @@
 # For local dev, override with: docker compose -f docker-compose.yaml -f docker-compose.local.yaml up
 
 services:
+  # Application database (Court Command). Isolated from Logto's data
+  # so a compromise of the api can't touch identity tables, and either
+  # database can be restored independently.
   db:
     image: postgres:17-alpine
     environment:
@@ -27,6 +30,27 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Identity database (Logto). Separate Postgres process + separate
+  # volume + separate role/password from the application db. The api
+  # service has no credentials that reach this instance; Logto has
+  # no credentials that reach the application db. Different security
+  # blast radii, independent backup/restore lifecycle, independent
+  # version pinning if Logto ever needs to lag Postgres major upgrades.
+  db_logto:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${LOGTO_DB_USER:-logto}
+      POSTGRES_PASSWORD: ${LOGTO_DB_PASSWORD:-logto}
+      POSTGRES_DB: ${LOGTO_DB_NAME:-logto}
+    volumes:
+      - pgdata_logto:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LOGTO_DB_USER:-logto}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     healthcheck:
@@ -36,22 +60,96 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Logto self-hosted OIDC provider. Backed by the dedicated db_logto
+  # service. Two HTTP endpoints, each with its own public domain:
+  #   :3001 -> OIDC core (issuer, JWKS, /oidc/token)  -> logto.courtcommand.app
+  #   :3002 -> Logto admin UI                          -> logto-admin.courtcommand.app
+  #
+  # Coolify's magic SERVICE_FQDN_<NAME>_<PORT> vars route traffic to the
+  # right container:port. Set the actual FQDN values in the Coolify env tab:
+  #   SERVICE_FQDN_LOGTO_3001=https://logto.courtcommand.app
+  #   SERVICE_FQDN_LOGTOADMIN_3002=https://logto-admin.courtcommand.app
+  logto:
+    image: svhd/logto:1.22.0
+    depends_on:
+      db_logto:
+        condition: service_healthy
+    # `npm run cli db seed -- --swe` creates Logto's tables on first run
+    # (schema migration + seed of built-in roles, OIDC keys, default
+    # tenant). On subsequent runs it's a no-op. Without this, Logto
+    # crash-loops because its expected tables don't exist.
+    entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
+    expose:
+      - "3001"
+      - "3002"
+    environment:
+      # Coolify proxy routing: tell the proxy to forward
+      # logto.courtcommand.app -> this container's :3001
+      # logto-admin.courtcommand.app -> this container's :3002
+      SERVICE_FQDN_LOGTO_3001: ${SERVICE_FQDN_LOGTO_3001:-https://logto.courtcommand.app}
+      SERVICE_FQDN_LOGTOADMIN_3002: ${SERVICE_FQDN_LOGTOADMIN_3002:-https://logto-admin.courtcommand.app}
+      TRUST_PROXY_HEADER: "1"
+      DB_URL: postgres://${LOGTO_DB_USER:-logto}:${LOGTO_DB_PASSWORD:-logto}@db_logto:5432/${LOGTO_DB_NAME:-logto}
+      ENDPOINT: ${LOGTO_ENDPOINT:-https://logto.courtcommand.app}
+      ADMIN_ENDPOINT: ${LOGTO_ADMIN_ENDPOINT:-https://logto-admin.courtcommand.app}
+      # Logto's default DATABASE_CONNECTION_TIMEOUT (5000ms) is too tight
+      # for cold-start boot. 30s is plenty of headroom and only affects
+      # connection-establishment, not query timeouts.
+      DATABASE_CONNECTION_TIMEOUT: "30000"
+    healthcheck:
+      # Logto exposes the OIDC discovery doc at /oidc/.well-known/openid-configuration
+      # NOT /api/.well-known/openid-configuration (the latter returns 404).
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/oidc/.well-known/openid-configuration > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
+      args:
+        # Coolify (this version) does not expose SOURCE_COMMIT or
+        # COOLIFY_GIT_COMMIT_SHA at docker build time; this arg arrives
+        # as the literal "unknown" and the Dockerfile uses it directly.
+        # The build_at timestamp in /api/v1/health remains a reliable
+        # deploy fingerprint. If a future Coolify version surfaces the
+        # SHA via either env var, swap this to ${COOLIFY_GIT_COMMIT_SHA:-unknown}.
+        COMMIT: unknown
     expose:
       - "8080"
     environment:
+      # Coolify proxy: api.courtcommand.app -> this container's :8080.
+      # The :- default fires only when the env var is unset; Coolify
+      # auto-creates SERVICE_FQDN_API_8080 as an empty string when the
+      # compose mentions it, so we have to set it in the Coolify env tab.
+      SERVICE_FQDN_API_8080: ${SERVICE_FQDN_API_8080:-https://api.courtcommand.app}
       DATABASE_URL: ${DATABASE_URL:-postgres://courtcommand:courtcommand@db:5432/courtcommand?sslmode=disable}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       PORT: "8080"
       APP_ENV: ${APP_ENV:-production}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://courtcommand.app,https://news.courtcommand.app}
+      # Logto OIDC (Phase 3+). Without these the API runs but every
+      # JWT-protected route 401s -- main.go fail-fast in production
+      # mode (APP_ENV=production) refuses to start when any are
+      # missing. See docs/LOGTO_SETUP.md for provisioning.
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
+      LOGTO_API_RESOURCE: ${LOGTO_API_RESOURCE:-}
+      LOGTO_MANAGEMENT_API_APP_ID: ${LOGTO_MANAGEMENT_API_APP_ID:-}
+      LOGTO_MANAGEMENT_API_APP_SECRET: ${LOGTO_MANAGEMENT_API_APP_SECRET:-}
+      LOGTO_MANAGEMENT_API_RESOURCE: ${LOGTO_MANAGEMENT_API_RESOURCE:-}
+      LOGTO_WEBHOOK_SIGNING_KEY: ${LOGTO_WEBHOOK_SIGNING_KEY:-}
     depends_on:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      # api validates JWTs against logto's JWKS on startup (depending
+      # on the route mix). Wait for logto so the api's first health
+      # probe doesn't race a not-ready OIDC server.
+      logto:
         condition: service_healthy
     volumes:
       - uploads:/app/uploads
@@ -63,6 +161,70 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  # One-shot Logto bootstrap.
+  #
+  # Runs the logto-seed binary (baked into the api image). Idempotent:
+  # each step is find-or-create; safe to run multiple times.
+  #
+  # The seeder:
+  #   - registers the API resource + 12 scopes in Logto
+  #   - creates the SPA application (prints VITE_LOGTO_APP_ID)
+  #   - configures the email connector + sign-in experience
+  #   - creates the bootstrap admin (LOGTO_BOOTSTRAP_EMAIL)
+  #   - registers the User-type role with all 12 API scopes
+  #   - creates the Logto webhook (prints LOGTO_WEBHOOK_SIGNING_KEY)
+  #   - syncs sports.logto_org_id in the application db
+  #   - exits 0
+  #
+  # Gated behind the `seed` profile so it does NOT run on every deploy.
+  # First-launch and re-seed flow:
+  #   docker compose --profile seed up seed --abort-on-container-exit
+  #
+  # In Coolify (where compose profiles are awkward), invoke via the
+  # Terminal UI on the api container:
+  #   ./logto-seed
+  # The binary is baked alongside court-command in the api image.
+  #
+  # After a fresh seed, copy the printed VITE_LOGTO_APP_ID +
+  # LOGTO_WEBHOOK_SIGNING_KEY into Coolify's env tab and redeploy so
+  # the web bundle bakes in VITE_LOGTO_APP_ID and the api receives
+  # LOGTO_WEBHOOK_SIGNING_KEY for HMAC verify.
+  seed:
+    profiles: ["seed"]
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      args:
+        COMMIT: unknown
+    entrypoint: ["./logto-seed"]
+    environment:
+      LOGTO_ENDPOINT: ${LOGTO_ENDPOINT:-}
+      LOGTO_API_RESOURCE: ${LOGTO_API_RESOURCE:-}
+      LOGTO_MANAGEMENT_API_APP_ID: ${LOGTO_MANAGEMENT_API_APP_ID:-}
+      LOGTO_MANAGEMENT_API_APP_SECRET: ${LOGTO_MANAGEMENT_API_APP_SECRET:-}
+      LOGTO_MANAGEMENT_API_RESOURCE: ${LOGTO_MANAGEMENT_API_RESOURCE:-https://default.logto.app/api}
+      LOGTO_SPA_REDIRECT_URI: ${LOGTO_SPA_REDIRECT_URI:-https://courtcommand.app/auth/callback}
+      LOGTO_WEBHOOK_URL: ${LOGTO_WEBHOOK_URL:-https://api.courtcommand.app/api/v1/webhooks/logto}
+      LOGTO_BOOTSTRAP_EMAIL: ${LOGTO_BOOTSTRAP_EMAIL:-daniel.f.velez@gmail.com}
+      LOGTO_BOOTSTRAP_PASSWORD: ${LOGTO_BOOTSTRAP_PASSWORD:-}
+      LOGTO_BOOTSTRAP_NAME: ${LOGTO_BOOTSTRAP_NAME:-Daniel Velez}
+      DATABASE_URL: ${DATABASE_URL:-postgres://courtcommand:courtcommand@db:5432/courtcommand?sslmode=disable}
+      APP_ENV: ${APP_ENV:-production}
+      SEED_DEMO_SPORT: ${SEED_DEMO_SPORT:-false}
+      EMAIL_VERIFY_ON_SIGNUP: ${EMAIL_VERIFY_ON_SIGNUP:-true}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Court Command}
+    depends_on:
+      db:
+        condition: service_healthy
+      logto:
+        condition: service_healthy
+    restart: "no"
+
   web:
     build:
       context: ./web
@@ -70,8 +232,20 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-https://api.courtcommand.app}
         VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+        # Logto OIDC -- these are baked into the JS bundle at build
+        # time. The frontend throws on init if VITE_LOGTO_ENDPOINT or
+        # VITE_LOGTO_APP_ID is missing. Set in Coolify env BEFORE the
+        # web service is rebuilt; changes require a build restart.
+        VITE_LOGTO_ENDPOINT: ${VITE_LOGTO_ENDPOINT:-}
+        VITE_LOGTO_APP_ID: ${VITE_LOGTO_APP_ID:-}
+        VITE_LOGTO_API_RESOURCE: ${VITE_LOGTO_API_RESOURCE:-}
+        VITE_AUTO_REDIRECT_SINGLE_SPORT: ${VITE_AUTO_REDIRECT_SINGLE_SPORT:-true}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     expose:
       - "80"
+    environment:
+      # Coolify proxy: courtcommand.app -> this container's :80
+      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-https://courtcommand.app}
     depends_on:
       api:
         condition: service_healthy
@@ -82,15 +256,35 @@ services:
     expose:
       - "2368"
     environment:
+      # Coolify proxy: news.courtcommand.app -> this container's :2368
+      SERVICE_FQDN_GHOST_2368: ${SERVICE_FQDN_GHOST_2368:-https://news.courtcommand.app}
       url: ${GHOST_URL:-https://news.courtcommand.app}
       database__client: sqlite3
       database__connection__filename: /var/lib/ghost/content/data/ghost.db
       NODE_ENV: production
+      # SMTP for Ghost member magic-link emails. Shares the same Resend
+      # account / verified domain as the Logto sign-in emails so both
+      # authenticate from the same sender reputation. Required for Ghost
+      # member sign-up to work; without it Ghost falls back to a console
+      # log and members never receive their login link.
+      #
+      # Ghost uses nodemailer's Direct/SMTP transport. We use generic
+      # SMTP (host/port/secure/auth.user/auth.pass) rather than the
+      # `service` preset so any SMTP-compatible provider works (Resend,
+      # Postmark, AWS SES, SendGrid, etc.) with the same env vars.
+      mail__transport: SMTP
+      mail__options__host: ${SMTP_HOST:-smtp.resend.com}
+      mail__options__port: ${SMTP_PORT:-465}
+      mail__options__secureConnection: "true"
+      mail__options__auth__user: ${SMTP_USER:-resend}
+      mail__options__auth__pass: ${SMTP_PASS:-}
+      mail__from: ${EMAIL_FROM_NAME:-Court Command} <${EMAIL_FROM:-noreply@mail.courtcommand.app}>
     volumes:
       - ghost_content:/var/lib/ghost/content
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  pgdata:           # courtcommand application data
+  pgdata_logto:     # Logto identity data (separate volume = independent backup/restore)
   uploads:
   ghost_content:

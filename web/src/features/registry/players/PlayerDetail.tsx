@@ -10,11 +10,15 @@ import { formatDate, formatPlayerName } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 import { NewsWidget } from '../../../components/NewsWidget'
 
+import { useSport } from '../../../auth/SportContext'
 interface PlayerDetailProps {
   playerId: string
 }
 
 export function PlayerDetail({ playerId }: PlayerDetailProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: player, isLoading, error } = usePlayer(playerId)
 
   if (isLoading) {
@@ -32,7 +36,7 @@ export function PlayerDetail({ playerId }: PlayerDetailProps) {
         title="Player not found"
         description="This player may have been removed or you don't have access."
         action={
-          <Link to="/players">
+          <Link to="/$sport/players" params={{ sport: sportSlug }}>
             <Button variant="secondary">Back to Players</Button>
           </Link>
         }
@@ -43,7 +47,7 @@ export function PlayerDetail({ playerId }: PlayerDetailProps) {
   return (
     <div>
       <Link
-        to="/players"
+        to="/$sport/players" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Players
@@ -69,8 +73,10 @@ export function PlayerDetail({ playerId }: PlayerDetailProps) {
           <InfoRow label="Email" value={player.email} />
           <InfoRow label="Date of Birth" value={formatDate(player.date_of_birth)} />
           <InfoRow label="Handedness" value={player.handedness} />
-          <InfoRow label="DUPR ID" value={player.dupr_id} />
+          {/* Smoke 8.1: VAIR is our preferred rating partner — show it
+              first/primary, DUPR second. Platform stays rating-agnostic. */}
           <InfoRow label="VAIR ID" value={player.vair_id} />
+          <InfoRow label="DUPR ID" value={player.dupr_id} />
           <InfoRow label="Gender" value={player.gender} />
           <InfoRow
             label="Location"

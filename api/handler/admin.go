@@ -10,7 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/court-command/court-command/auth"
 	"github.com/court-command/court-command/db/generated"
+	"github.com/court-command/court-command/logto"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
 )
@@ -22,15 +24,23 @@ type AdminHandler struct {
 	apiKeySvc      *service.ApiKeyService
 	sessionStore   *session.Store
 	uploadSvc      *service.UploadService
+	// logtoClient mints subject tokens for the Logto-native impersonation
+	// flow (OAuth 2.0 Token Exchange). May be nil in cookie-only / testutil
+	// environments without Logto Management API creds; the impersonate
+	// endpoint returns 503 in that case.
+	logtoClient *logto.Client
 }
 
-// NewAdminHandler creates a new AdminHandler.
+// NewAdminHandler creates a new AdminHandler. logtoClient may be nil in
+// environments without Logto Management API creds (testutil, dev-without-Logto);
+// the JWT impersonation endpoint requires it and 503s when absent.
 func NewAdminHandler(
 	queries *generated.Queries,
 	activityLogSvc *service.ActivityLogService,
 	apiKeySvc *service.ApiKeyService,
 	sessionStore *session.Store,
 	uploadSvc *service.UploadService,
+	logtoClient *logto.Client,
 ) *AdminHandler {
 	return &AdminHandler{
 		queries:        queries,
@@ -38,6 +48,7 @@ func NewAdminHandler(
 		apiKeySvc:      apiKeySvc,
 		sessionStore:   sessionStore,
 		uploadSvc:      uploadSvc,
+		logtoClient:    logtoClient,
 	}
 }
 
@@ -51,6 +62,9 @@ func (h *AdminHandler) Routes() chi.Router {
 	r.Get("/users/{userID}", h.GetUser)
 	r.Patch("/users/{userID}/role", h.UpdateUserRole)
 	r.Patch("/users/{userID}/status", h.UpdateUserStatus)
+	// Logto-native impersonation: mint a subject token the SPA exchanges at
+	// Logto's /oidc/token. Mounted under the admin group (platform_admin only).
+	r.Post("/users/{userID}/impersonate", h.ImpersonateUser)
 
 	// Venue management
 	r.Get("/venues/pending", h.ListPendingVenues)
@@ -67,8 +81,12 @@ func (h *AdminHandler) Routes() chi.Router {
 	r.Post("/api-keys", h.CreateApiKey)
 	r.Delete("/api-keys/{keyID}", h.RevokeApiKey)
 
-	// Impersonation (start only — stop is registered outside admin group in router.go)
-	r.Post("/impersonate/{userID}", h.StartImpersonation)
+	// Impersonation: Logto-native start endpoint is /users/{userID}/impersonate
+	// above. Stop is registered outside the admin group in router.go (the
+	// impersonated token is not platform_admin). The legacy cookie-path
+	// StartImpersonation handler/route is intentionally NOT mounted anymore —
+	// it was dead under JWT auth. See StartImpersonation's deprecation note;
+	// the handler is retained only until Phase 6 deletes the cookie store.
 
 	// Upload cleanup
 	r.Post("/uploads/cleanup", h.CleanOrphanedUploads)
@@ -683,7 +701,115 @@ func (h *AdminHandler) CreateUnclaimedPlayer(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// impersonateResponse is returned by ImpersonateUser. subject_token is the
+// short-lived (~10 min), single-use Logto subject token the SPA exchanges at
+// Logto's /oidc/token endpoint (grant_type=token-exchange) for an access token
+// scoped to the target user. The token must never be logged.
+type impersonateResponse struct {
+	SubjectToken string `json:"subject_token"`
+	Target       struct {
+		PublicID  string `json:"public_id"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Role      string `json:"role"`
+	} `json:"target"`
+}
+
+// ImpersonateUser handles POST /api/v1/admin/users/{userID}/impersonate.
+//
+// This is the JWT-path (Logto-native) impersonation entrypoint, replacing the
+// dead cookie-based StartImpersonation below. The route is mounted inside the
+// /admin group, which is gated by useAuth + RequirePlatformAdmin, so only
+// platform_admins reach this handler. It:
+//
+//  1. Resolves the target user and rejects self-impersonation.
+//  2. Calls the Logto Management API to mint a subject token for the target's
+//     Logto user ID (POST /api/subject-tokens), embedding the impersonator's
+//     identity in the subject-token context for end-to-end audit visibility.
+//  3. Writes an activity_logs row (who impersonated whom).
+//  4. Returns the subject token to the SPA, which exchanges it at Logto's
+//     /oidc/token for an access token whose sub=target and act.sub=admin.
+//
+// The exchanged access token is deliberately never produced or seen by this
+// backend -- the SPA performs the exchange with the admin's own actor token.
+func (h *AdminHandler) ImpersonateUser(w http.ResponseWriter, r *http.Request) {
+	sess := session.SessionData(r.Context())
+	if sess == nil {
+		Unauthorized(w, "authentication required")
+		return
+	}
+
+	if h.logtoClient == nil {
+		WriteError(w, http.StatusServiceUnavailable, "IMPERSONATION_UNAVAILABLE",
+			"impersonation requires Logto Management API configuration")
+		return
+	}
+
+	target, ok := h.resolveUserParam(w, r)
+	if !ok {
+		return
+	}
+
+	if target.ID == sess.UserID {
+		WriteError(w, http.StatusBadRequest, "SELF_IMPERSONATION", "cannot impersonate yourself")
+		return
+	}
+
+	if target.LogtoUserID == nil || *target.LogtoUserID == "" {
+		// Unclaimed / not-yet-mirrored users have no Logto identity to assume.
+		WriteError(w, http.StatusBadRequest, "NO_LOGTO_IDENTITY",
+			"target user has no linked Logto account and cannot be impersonated")
+		return
+	}
+
+	// Embed the impersonator + a machine-readable reason in the subject-token
+	// context so the audit signal is visible in Logto's own logs and in the
+	// issued impersonation token, not just our activity_logs.
+	//
+	// impersonator_logto_id MUST be the calling admin's Logto user ID as a
+	// STRING: the JWT customizer maps it to act.sub, and both auth.actorSubject
+	// (api/auth/context.go) and the SPA's impersonation banner expect a string
+	// there. We read it from the admin's own validated token (claims.Subject)
+	// rather than the local user row so the value matches Logto's user IDs.
+	subjectCtx := map[string]interface{}{
+		"impersonator_public_id": sess.PublicID,
+		"impersonator_user_id":   sess.UserID,
+		"reason":                 "court_command_admin_impersonation",
+	}
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok {
+		subjectCtx["impersonator_logto_id"] = claims.Subject
+	}
+
+	tok, err := h.logtoClient.CreateSubjectToken(r.Context(), *target.LogtoUserID, subjectCtx)
+	if err != nil {
+		InternalError(w, "failed to create impersonation token")
+		return
+	}
+
+	// Audit: record who impersonated whom. Mirrors the legacy
+	// start_impersonation action name so existing log filters keep working.
+	h.activityLogSvc.LogActivity(r.Context(), sess.UserID, "start_impersonation", "user", &target.ID, map[string]string{
+		"target_user_public_id": target.PublicID,
+		"method":                "logto_token_exchange",
+	}, r.RemoteAddr)
+
+	resp := impersonateResponse{SubjectToken: tok.SubjectToken}
+	resp.Target.PublicID = target.PublicID
+	resp.Target.FirstName = target.FirstName
+	resp.Target.LastName = target.LastName
+	resp.Target.Role = target.Role
+
+	Success(w, resp)
+}
+
 // StartImpersonation handles POST /admin/impersonate/{userID}.
+//
+// DEPRECATED legacy cookie-path impersonation. Non-functional under the JWT
+// auth path the SPA now uses (it reads/writes the cc_session cookie which the
+// JWT chain ignores). Superseded by ImpersonateUser above. Kept registered for
+// the cookie-only testutil path until Phase 6 deletes the cookie session store
+// entirely. Do NOT wire new callers to this.
+//
 // Creates a new session as the target user with impersonator metadata.
 func (h *AdminHandler) StartImpersonation(w http.ResponseWriter, r *http.Request) {
 	sess := session.SessionData(r.Context())
@@ -763,11 +889,37 @@ func (h *AdminHandler) StartImpersonation(w http.ResponseWriter, r *http.Request
 }
 
 // StopImpersonation handles POST /admin/stop-impersonation.
-// Restores the admin's original session.
+//
+// Under the Logto-native (JWT) flow, "stopping" is performed client-side: the
+// SPA discards the impersonation token and reverts to the admin's own token.
+// This endpoint exists purely to write the matching audit-log entry. It
+// detects the JWT path by reading the `act` claim off the request (the
+// impersonation token carries act.sub=<admin logto id>); when present it logs
+// stop_impersonation and returns success WITHOUT touching the cookie store.
+//
+// The legacy cookie branch (sess.IsImpersonating(), via the cc_session
+// Impersonator* fields) is retained for the cookie-only testutil path until
+// Phase 6 removes the cookie session store.
 func (h *AdminHandler) StopImpersonation(w http.ResponseWriter, r *http.Request) {
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		Unauthorized(w, "not authenticated")
+		return
+	}
+
+	// JWT path: the request is authenticated with an impersonation token whose
+	// act.sub identifies the impersonating admin. There is no server-side
+	// session to tear down (the SPA discards the token); just record the audit
+	// entry. sess.UserID is the impersonated (target) user's local id.
+	if claims, ok := auth.ClaimsFromContext(r.Context()); ok && claims.IsImpersonated() {
+		var impersonatorID int64
+		if admin, err := h.queries.GetUserByLogtoUserID(r.Context(), &claims.ActorSubject); err == nil {
+			impersonatorID = admin.ID
+		}
+		h.activityLogSvc.LogActivity(r.Context(), impersonatorID, "stop_impersonation", "user", &sess.UserID, map[string]string{
+			"method": "logto_token_exchange",
+		}, r.RemoteAddr)
+		Success(w, map[string]interface{}{"restored": true})
 		return
 	}
 

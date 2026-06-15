@@ -10,7 +10,11 @@ import { useToast } from '../../components/Toast'
 import { useCreateQuickMatch } from './hooks'
 
 
+import { useSport } from '../../auth/SportContext'
 export function QuickMatchCreate() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const create = useCreateQuickMatch()
@@ -33,7 +37,7 @@ export function QuickMatchCreate() {
       {
         onSuccess: (m) => {
           toast('success', 'Quick match created')
-          navigate({ to: '/ref/matches/$publicId', params: { publicId: m.public_id } })
+          navigate({ to: '/$sport/ref/matches/$publicId', params: { sport: sportSlug, publicId: m.public_id } })
         },
         onError: (err) =>
           toast(
@@ -98,7 +102,7 @@ export function QuickMatchCreate() {
         <div className="flex gap-2 justify-end mt-2">
           <Button
             variant="secondary"
-            onClick={() => navigate({ to: '/quick-match' })}
+            onClick={() => navigate({ to: '/$sport/quick-match', params: { sport: sportSlug } })}
             disabled={create.isPending}
           >
             Cancel

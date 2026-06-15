@@ -29,6 +29,7 @@ import { cn } from '../../lib/cn'
 import { formatDate } from '../../lib/formatters'
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, Check, FileDown } from 'lucide-react'
 
+import { useSport } from '../../auth/SportContext'
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -575,6 +576,9 @@ function SeasonPicker({
 // ---------------------------------------------------------------------------
 
 export function TournamentCreate() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const createTournament = useCreateTournament()
@@ -702,7 +706,7 @@ export function TournamentCreate() {
     try {
       const result = await createTournament.mutateAsync(payload as Partial<import('./hooks').Tournament>)
       toast('success', `Tournament ${status === 'draft' ? 'saved as draft' : 'created and published'}`)
-      navigate({ to: '/tournaments/$tournamentId', params: { tournamentId: String(result.id) } })
+      navigate({ to: '/$sport/tournaments/$tournamentId', params: { sport: sportSlug, tournamentId: String(result.id) } })
     } catch (err) {
       toast('error', (err as Error).message || 'Failed to create tournament')
     }

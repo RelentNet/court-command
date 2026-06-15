@@ -13,6 +13,7 @@ import { EmptyState } from '../../../components/EmptyState'
 import { ArrowLeft, User } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 
+import { useSport } from '../../../auth/SportContext'
 // Values MUST match CHECK constraint in api/db/migrations/00002_add_player_profile.sql
 // The empty value ('') sends null on submit — kept as the "not set" default.
 const GENDER_OPTIONS = [
@@ -31,6 +32,9 @@ const HANDEDNESS_OPTIONS = [
 ]
 
 export function PlayerForm() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const { data: profile, isLoading, error } = useMyProfile()
@@ -147,7 +151,7 @@ export function PlayerForm() {
     updateProfile.mutate(payload as any, {
       onSuccess: () => {
         toast('success', 'Profile updated')
-        navigate({ to: '/dashboard' })
+        navigate({ to: '/$sport/dashboard', params: { sport: sportSlug } })
       },
       onError: (err) => toast('error', (err as Error).message),
     })
@@ -156,7 +160,7 @@ export function PlayerForm() {
   return (
     <div>
       <Link
-        to="/dashboard"
+        to="/$sport/dashboard" params={{ sport: sportSlug }}
         className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-4"
       >
         <ArrowLeft className="h-4 w-4" /> Dashboard
@@ -411,7 +415,7 @@ export function PlayerForm() {
           <Button type="submit" loading={updateProfile.isPending}>
             Save Changes
           </Button>
-          <Link to="/dashboard">
+          <Link to="/$sport/dashboard" params={{ sport: sportSlug }}>
             <Button type="button" variant="secondary">
               Cancel
             </Button>

@@ -65,9 +65,11 @@ function LiveMatchCard({ match }: { match: LiveMatch }) {
   const team2 = match.team_2
 
   return (
+    // TODO(phase3-task10): backend should expose sport_slug on LiveMatch so
+    // this resolves to the actual sport instead of defaulting to pickleball.
     <Link
-      to="/matches/$publicId"
-      params={{ publicId: match.public_id }}
+      to="/$sport/matches/$publicId"
+      params={{ sport: 'pickleball', publicId: match.public_id }}
       className="block"
     >
       <Card className="hover:border-(--color-accent) transition-colors">

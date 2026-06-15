@@ -8,6 +8,7 @@ import { FormField } from '../../components/FormField'
 import { Input } from '../../components/Input'
 import { DateInput } from '../../components/DateInput'
 
+import { useSport } from '../../auth/SportContext'
 interface CloneDialogProps {
   tournament: Tournament
   open: boolean
@@ -15,6 +16,9 @@ interface CloneDialogProps {
 }
 
 export function CloneDialog({ tournament, open, onClose }: CloneDialogProps) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const cloneMutation = useCloneTournament(String(tournament.id))
@@ -38,8 +42,8 @@ export function CloneDialog({ tournament, open, onClose }: CloneDialogProps) {
       toast('success', 'Tournament cloned successfully')
       onClose()
       navigate({
-        to: '/tournaments/$tournamentId',
-        params: { tournamentId: String(cloned.id) },
+        to: '/$sport/tournaments/$tournamentId',
+        params: { sport: sportSlug, tournamentId: String(cloned.id) },
       })
     } catch (err) {
       toast('error', (err as Error).message)

@@ -173,12 +173,18 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	activityLogService := service.NewActivityLogService(queries)
 	apiKeyService := service.NewApiKeyService(queries)
 	uploadService := service.NewUploadService(queries, t.TempDir())
-	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, store, uploadService)
+	// nil logtoClient: testutil runs the cookie-only path with no Logto Mgmt
+	// API; the JWT impersonation endpoint 503s here, which tests don't exercise.
+	adminHandler := handler.NewAdminHandler(queries, activityLogService, apiKeyService, store, uploadService, nil)
 	uploadHandler := handler.NewUploadHandler(uploadService)
 
 	// CMS Settings
 	settingsService := service.NewSettingsService(pool)
 	settingsHandler := handler.NewSettingsHandler(settingsService)
+
+	// Logto Phase 3: public sport directory
+	sportsService := service.NewSportsService(queries)
+	sportsHandler := handler.NewSportsHandler(sportsService)
 
 	r := router.New(&router.Config{
 		DB:             pool,
@@ -237,6 +243,9 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 
 		// CMS Settings
 		SettingsHandler: settingsHandler,
+
+		// Logto Phase 3
+		SportsHandler: sportsHandler,
 	})
 
 	ts := httptest.NewServer(r)

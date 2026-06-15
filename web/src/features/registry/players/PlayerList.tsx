@@ -15,13 +15,17 @@ import { DateInput } from '../../../components/DateInput'
 import { FormField } from '../../../components/FormField'
 import { Modal } from '../../../components/Modal'
 import { useToast } from '../../../components/Toast'
-import { useAuth } from '../../auth/hooks'
+import { useAuth } from '../../../auth/useAuth'
 import { apiPost } from '../../../lib/api'
 import { Users, UserPlus } from 'lucide-react'
 import { formatPlayerName } from '../../../lib/formatters'
 import { AdSlot } from '../../../components/AdSlot'
 
+import { useSport } from '../../../auth/SportContext'
 export function PlayerList() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newFirst, setNewFirst] = useState('')
@@ -64,8 +68,8 @@ export function PlayerList() {
       header: 'Name',
       render: (p: (typeof players)[0]) => (
         <Link
-          to="/players/$playerId"
-          params={{ playerId: String(p.public_id) }}
+          to="/$sport/players/$playerId"
+          params={{ sport: sportSlug, playerId: String(p.public_id) }}
           className="font-medium text-(--color-text-primary) hover:text-cyan-400"
         >
           {formatPlayerName(p.first_name, p.last_name, p.display_name)}
@@ -98,13 +102,32 @@ export function PlayerList() {
       className: 'hidden lg:table-cell',
     },
     {
-      key: 'dupr',
-      header: 'DUPR',
-      render: (p: (typeof players)[0]) => (
-        <span className="text-(--color-text-secondary)">
-          {p.dupr_id ?? '\u2014'}
-        </span>
-      ),
+      // Smoke 8.1: VAIR is our preferred rating partner. Show VAIR
+      // primary; DUPR secondary in muted text. Players who don't have
+      // either show an em-dash. Long-term we may federate ratings via
+      // a single column once VAIR's API lands; for now the UI
+      // discriminates on which the player has filled in.
+      key: 'rating',
+      header: 'Rating',
+      render: (p: (typeof players)[0]) => {
+        if (!p.vair_id && !p.dupr_id) {
+          return <span className="text-(--color-text-secondary)">{'\u2014'}</span>
+        }
+        return (
+          <span className="flex flex-col text-xs leading-tight">
+            {p.vair_id && (
+              <span className="text-(--color-text-primary) font-medium">
+                <span className="text-(--color-text-muted) mr-1">VAIR</span>{p.vair_id}
+              </span>
+            )}
+            {p.dupr_id && (
+              <span className="text-(--color-text-muted)">
+                DUPR {p.dupr_id}
+              </span>
+            )}
+          </span>
+        )
+      },
       className: 'hidden md:table-cell',
     },
   ]

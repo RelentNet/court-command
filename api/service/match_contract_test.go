@@ -67,6 +67,10 @@ var canonicalEventTypes = map[string]string{
 	"EventTypeSubstitution":     "substitution",
 	"EventTypeScoreOverride":    "score_override",
 	"EventTypeForfeitDeclared":  "forfeit_declared",
+	"EventTypeLet":              "let",
+	"EventTypeReDo":             "re_do",
+	"EventTypeFault":            "fault",
+	"EventTypeLineCall":         "line_call",
 }
 
 // TestEventTypeConstants_LowercaseSnake guards CR-1: every EventType constant

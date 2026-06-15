@@ -11,11 +11,15 @@ import { SeasonForm } from './SeasonForm'
 import { Calendar } from 'lucide-react'
 import { formatDate } from '../../lib/formatters'
 
+import { useSport } from '../../auth/SportContext'
 interface Props {
   leagueId: number
 }
 
 export function SeasonList({ leagueId }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { data: seasons, isLoading, error } = useListSeasons(leagueId)
   const [showCreate, setShowCreate] = useState(false)
 
@@ -49,11 +53,9 @@ export function SeasonList({ leagueId }: Props) {
           {seasons.map((season) => (
             <Link
               key={season.id}
-              to="/leagues/$leagueId/seasons/$seasonId"
-              params={{
-                leagueId: String(leagueId),
-                seasonId: String(season.id),
-              }}
+              to="/$sport/leagues/$leagueId/seasons/$seasonId"
+              params={{ sport: sportSlug, leagueId: String(leagueId),
+                seasonId: String(season.id), }}
               className="block"
             >
               <Card className="hover:border-cyan-400 transition-colors cursor-pointer h-full">

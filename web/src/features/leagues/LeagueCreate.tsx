@@ -12,7 +12,11 @@ import { SponsorEditor } from '../../components/SponsorEditor'
 import { AddressInput, type AddressData } from '../../components/AddressInput'
 import { useToast } from '../../components/Toast'
 
+import { useSport } from '../../auth/SportContext'
 export function LeagueCreate() {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const navigate = useNavigate()
   const { toast } = useToast()
   const createLeague = useCreateLeague()
@@ -71,7 +75,7 @@ export function LeagueCreate() {
         'success',
         status === 'draft' ? 'League saved as draft' : 'League published',
       )
-      navigate({ to: '/leagues/$leagueId', params: { leagueId: String(league.id) } })
+      navigate({ to: '/$sport/leagues/$leagueId', params: { sport: sportSlug, leagueId: String(league.id) } })
     } catch (err) {
       toast('error', (err as Error).message || 'Failed to create league')
     }
@@ -156,7 +160,7 @@ export function LeagueCreate() {
         <div className="px-6 py-4 bg-(--color-bg-primary) border-t border-(--color-border) flex flex-col sm:flex-row gap-3 justify-end">
           <Button
             variant="secondary"
-            onClick={() => navigate({ to: '/leagues' })}
+            onClick={() => navigate({ to: '/$sport/leagues', params: { sport: sportSlug } })}
             disabled={createLeague.isPending}
           >
             Cancel

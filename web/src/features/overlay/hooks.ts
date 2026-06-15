@@ -44,9 +44,54 @@ export function useOverlayConfig(courtID: number | null | undefined) {
     queryKey: ['overlay', 'config', courtID],
     queryFn: () =>
       apiGet<CourtOverlayConfig>(`/api/v1/overlay/court/${courtID}/config`),
+    select: normalizeOverlayConfig,
     enabled: courtID != null && courtID > 0,
     staleTime: 2 * 60 * 1000,
   })
+}
+
+/**
+ * Backend `config.elements` may omit keys (e.g. for a freshly-created
+ * court that has never had its overlay configured, or for newly-added
+ * element kinds that pre-existing rows haven't migrated to). Fill in
+ * a `{visible: false}` default for every missing key so renderer
+ * components can safely access `config.elements.<key>.visible` without
+ * defensive null guards in 12 different files.
+ *
+ * Default keys mirror ALL_ELEMENT_KEYS in contract.ts.
+ */
+const ALL_ELEMENT_KEYS: Array<keyof ElementsConfig> = [
+  'scoreboard',
+  'lower_third',
+  'player_card',
+  'team_card',
+  'sponsor_bug',
+  'tournament_bug',
+  'coming_up_next',
+  'match_result',
+  'custom_text',
+  'bracket_snapshot',
+  'pool_standings',
+  'series_score',
+]
+
+function normalizeOverlayConfig(c: CourtOverlayConfig): CourtOverlayConfig {
+  const incoming = (c.elements ?? {}) as Partial<ElementsConfig>
+  const elements = {} as ElementsConfig
+  for (const key of ALL_ELEMENT_KEYS) {
+    const existing = incoming[key]
+    // Each element config extends ElementConfigBase ({visible: boolean}).
+    // Spread existing first so any element-specific extras (e.g.
+    // CustomTextConfig.text) survive; visible defaults to false.
+    elements[key] = {
+      visible: false,
+      ...(existing ?? {}),
+    } as ElementsConfig[typeof key]
+  }
+  return {
+    ...c,
+    elements,
+  }
 }
 
 export interface OverlayDataOptions {
@@ -64,6 +109,14 @@ export interface OverlayDataOptions {
  * normal operation the overlay WebSocket pushes fresh data — callers
  * enable polling via the `refetchInterval` option only for the preview
  * pane, which doesn't maintain a WebSocket.
+ *
+ * Normalization: backend emits `team_*.players: null` and other
+ * potentially-null array fields when no live match is on the court
+ * (idle state). The `select` callback below converts these to `[]` so
+ * downstream renderers (TeamRow, PlayerCard, TeamCard, etc.) can
+ * safely call `.slice` / `.map` / `.length` without per-component null
+ * guards. The OverlayTeamData TS type still claims `PlayerBrief[]`
+ * (non-null) and matches what consumers see.
  */
 export function useOverlayData(
   courtID: number | null | undefined,
@@ -80,10 +133,26 @@ export function useOverlayData(
       apiGet<OverlayData>(
         `/api/v1/overlay/court/${courtID}/data${query ? '?' + query : ''}`,
       ),
+    select: normalizeOverlayData,
     enabled: courtID != null && courtID > 0,
     staleTime: 0,
     retry: 1,
   })
+}
+
+/**
+ * Coerces backend-null arrays into [] so downstream renderers don't
+ * crash. Centralized here because every consumer of useOverlayData
+ * is exposed to the same shape.
+ */
+function normalizeOverlayData(d: OverlayData): OverlayData {
+  return {
+    ...d,
+    team_1: { ...d.team_1, players: d.team_1.players ?? [] },
+    team_2: { ...d.team_2, players: d.team_2.players ?? [] },
+    completed_games: d.completed_games ?? [],
+    sponsor_logos: d.sponsor_logos ?? [],
+  }
 }
 
 /** Response shape from GET /api/v1/overlay/court/{slug}/resolve. */

@@ -201,6 +201,26 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, sessionData *session.D
 	return userToResponse(&user), nil
 }
 
+// GetCurrentUserByLogtoSubject retrieves the user mirror row by Logto
+// user ID. Used by the JWT-protected /api/v1/auth/me endpoint introduced
+// in Phase 3 (replaces the cookie-session GetCurrentUser path).
+//
+// Phase 3 Task 9's MirrorUser middleware should run BEFORE this is
+// called, guaranteeing the row exists. If the middleware is skipped
+// (testutil paths), pgx.ErrNoRows is propagated as NotFound so the
+// handler can return 404.
+func (s *AuthService) GetCurrentUserByLogtoSubject(ctx context.Context, logtoUserID string) (*UserResponse, error) {
+	sub := logtoUserID
+	user, err := s.queries.GetUserByLogtoUserID(ctx, &sub)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, NewNotFound("user mirror not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("looking up user by logto subject: %w", err)
+	}
+	return userToResponse(&user), nil
+}
+
 // TournamentStaffAssignment is the response for a user's current tournament staff role.
 type TournamentStaffAssignment struct {
 	TournamentID   int64  `json:"tournament_id"`

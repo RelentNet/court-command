@@ -20,6 +20,7 @@ import { useToast } from '../../components/Toast'
 import { ChevronLeft, Trophy, CheckCircle2, XCircle, BarChart3 } from 'lucide-react'
 import { formatDate } from '../../lib/formatters'
 
+import { useSport } from '../../auth/SportContext'
 interface Props {
   leagueId: string
   seasonId: string
@@ -33,6 +34,9 @@ const STATUS_TRANSITIONS: Record<string, { label: string; next: string }[]> = {
 }
 
 export function SeasonDetail({ leagueId, seasonId }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   const { toast } = useToast()
   const leagueIdNum = Number(leagueId)
   const seasonIdNum = Number(seasonId)
@@ -61,7 +65,7 @@ export function SeasonDetail({ leagueId, seasonId }: Props) {
         title="Failed to load season"
         description={(error as Error)?.message || 'Season not found.'}
         action={
-          <Link to="/leagues/$leagueId" params={{ leagueId }}>
+          <Link to="/$sport/leagues/$leagueId" params={{ sport: sportSlug, leagueId }}>
             <Button variant="secondary">Back to League</Button>
           </Link>
         }
@@ -85,8 +89,8 @@ export function SeasonDetail({ leagueId, seasonId }: Props) {
     <div>
       <div className="mb-6">
         <Link
-          to="/leagues/$leagueId"
-          params={{ leagueId }}
+          to="/$sport/leagues/$leagueId"
+          params={{ sport: sportSlug, leagueId }}
           className="inline-flex items-center gap-1 text-sm text-(--color-text-secondary) hover:text-(--color-text-primary) mb-3"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -164,7 +168,7 @@ export function SeasonDetail({ leagueId, seasonId }: Props) {
                 Tournaments
               </h2>
               <Link
-                to="/tournaments/create"
+                to="/$sport/tournaments/create" params={{ sport: sportSlug }}
                 search={{ league_id: leagueIdNum, season_id: seasonIdNum }}
               >
                 <Button size="sm">Create Tournament</Button>
@@ -181,8 +185,8 @@ export function SeasonDetail({ leagueId, seasonId }: Props) {
                 {tournamentList.map((t) => (
                   <Link
                     key={t.id}
-                    to="/tournaments/$tournamentId"
-                    params={{ tournamentId: String(t.id) }}
+                    to="/$sport/tournaments/$tournamentId"
+                    params={{ sport: sportSlug, tournamentId: String(t.id) }}
                   >
                     <Card className="hover:border-cyan-400 transition-colors cursor-pointer h-full">
                       <div className="p-4">

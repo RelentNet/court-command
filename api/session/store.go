@@ -31,7 +31,14 @@ type Data struct {
 	PublicID  string `json:"public_id"`
 	CreatedAt int64  `json:"created_at"`
 
-	// Impersonation fields — set when an admin is viewing as another user.
+	// Impersonation fields — LEGACY cookie-path only. Set by the deprecated
+	// AdminHandler.StartImpersonation cookie flow, which is no longer mounted
+	// (impersonation now runs via Logto OAuth 2.0 Token Exchange on the JWT
+	// path — the act claim carries the impersonator, not these fields).
+	// Retained only because the cookie session store + legacy cookie Me
+	// handler still reference them in the testutil-only path.
+	// TODO(phase-6): delete these fields together with the cookie session
+	// store, the legacy Me handler, and AdminHandler.StartImpersonation.
 	ImpersonatorID       int64  `json:"impersonator_id,omitempty"`
 	ImpersonatorPublicID string `json:"impersonator_public_id,omitempty"`
 	ImpersonatorToken    string `json:"impersonator_token,omitempty"`

@@ -10,6 +10,28 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// buildCommit and buildBuiltAt are injected at link time via -ldflags so
+// /api/v1/health can report which build is live. Defaults are used during
+// `go run` and tests where the linker flags aren't applied.
+//
+// See api/Dockerfile for the production build invocation. The COMMIT
+// build arg flows in from docker-compose.yaml's SOURCE_COMMIT (or
+// COOLIFY_GIT_COMMIT_SHA) lookup. When Coolify does not expose the SHA
+// at build time -- as is the case at the moment -- buildCommit stays
+// "unknown" and operators rely on buildBuiltAt to confirm a fresh
+// deploy.
+//
+// Phase 2 deploy: migration 00041 runs on startup via
+// db.RunMigrations in main.go. A successful 200 response on this
+// endpoint after a fresh built_at timestamp implicitly confirms the
+// migration applied without error.
+//
+//nolint:gochecknoglobals // build-time constants
+var (
+	buildCommit  = "dev"
+	buildBuiltAt = "unknown"
+)
+
 // HealthHandler checks the health of backend services.
 type HealthHandler struct {
 	db    *pgxpool.Pool
@@ -50,6 +72,10 @@ func (h *HealthHandler) Check(w http.ResponseWriter, r *http.Request) {
 		"services": map[string]string{
 			"database": dbStatus,
 			"redis":    redisStatus,
+		},
+		"build": map[string]string{
+			"commit":   buildCommit,
+			"built_at": buildBuiltAt,
 		},
 	})
 }
