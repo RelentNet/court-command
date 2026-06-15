@@ -1,5 +1,9 @@
 # Court Command — Beta Punchlist & PR Plan
 
+> **Current status & handoff lives in [STATUS.md](STATUS.md)** — this file is the
+> original PR plan/history. As of 2026-06-14, PRs #5–#19 are merged; see STATUS.md
+> for what's done and what remains.
+
 Source of truth for wrapping up the beta. Derived from the annotated
 [SMOKE_TEST.md](SMOKE_TEST.md) run (2026-06) plus the known-broken list in
 [FEATURES.md](FEATURES.md) §21.
