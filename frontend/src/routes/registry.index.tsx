@@ -1,10 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Pencil, Plus, Settings, Shirt, Trash2, User, Users } from 'lucide-react'
+import { useRef, useState } from 'react'
+import {
+  Download,
+  Pencil,
+  Plus,
+  Settings,
+  Shirt,
+  Trash2,
+  Upload,
+  User,
+  Users,
+} from 'lucide-react'
 import config from '../config'
 import { TeamEditor } from '../components/TeamEditor'
 import { PlayerEditor } from '../components/PlayerEditor'
+import { parsePlayersCsv, playersToCsv } from '../utils/playerCsv'
 import type { MatchPreset, Player, Team } from '../types/domain'
 
 export const Route = createFileRoute('/registry/')({
@@ -185,6 +196,7 @@ function PlayersPanel() {
   const queryClient = useQueryClient()
   const [isCreating, setIsCreating] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: players } = useQuery<Array<Player>>({
     queryKey: ['players'],
@@ -204,6 +216,82 @@ function PlayersPanel() {
       queryClient.invalidateQueries({ queryKey: ['players'] })
     },
   })
+
+  const importMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const text = await file.text()
+      const rows = parsePlayersCsv(text)
+      if (rows.length === 0) {
+        throw new Error('No valid player rows found in file.')
+      }
+
+      // Skip names that already exist (case-insensitive) to avoid duplicates.
+      const existing = new Set(
+        (players ?? []).map((p) => p.display_name.trim().toLowerCase()),
+      )
+
+      let imported = 0
+      let skipped = 0
+      let failed = 0
+
+      for (const row of rows) {
+        const key = row.display_name.trim().toLowerCase()
+        if (existing.has(key)) {
+          skipped++
+          continue
+        }
+        existing.add(key)
+        try {
+          const res = await fetch(`${config.API_URL}/players`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              display_name: row.display_name,
+              handedness: row.handedness,
+              skill_rating: row.skill_rating,
+            }),
+          })
+          if (!res.ok) throw new Error(String(res.status))
+          imported++
+        } catch {
+          failed++
+        }
+      }
+
+      return { imported, skipped, failed, total: rows.length }
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['players'] })
+      const parts = [`${result.imported} imported`]
+      if (result.skipped) parts.push(`${result.skipped} skipped (duplicate)`)
+      if (result.failed) parts.push(`${result.failed} failed`)
+      alert(`Import complete: ${parts.join(', ')}.`)
+    },
+    onError: (error: unknown) => {
+      alert(
+        `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    },
+  })
+
+  const handleExport = () => {
+    const csv = playersToCsv(players ?? [])
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'players.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) importMutation.mutate(file)
+    e.target.value = '' // allow re-importing the same file
+  }
 
   if (isCreating || editingPlayer) {
     return (
@@ -228,7 +316,29 @@ function PlayersPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-3">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={handleImportFile}
+          className="hidden"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importMutation.isPending}
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 px-4 py-2 border border-slate-700 rounded-lg font-bold transition-colors"
+        >
+          <Upload className="w-5 h-5" />{' '}
+          {importMutation.isPending ? 'Importing...' : 'Import CSV'}
+        </button>
+        <button
+          onClick={handleExport}
+          disabled={!players || players.length === 0}
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 px-4 py-2 border border-slate-700 rounded-lg font-bold transition-colors"
+        >
+          <Download className="w-5 h-5" /> Export CSV
+        </button>
         <button
           onClick={() => setIsCreating(true)}
           className="flex items-center gap-2 bg-lime-600 hover:bg-lime-500 px-4 py-2 rounded-lg font-bold transition-colors"
