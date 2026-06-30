@@ -50,7 +50,7 @@ function mapTeams(items: SearchTeamResult[], sportSlug: string): SearchResultIte
     id: t.id,
     label: t.name,
     subtitle: t.short_name !== t.name ? t.short_name : undefined,
-    link: `/${sportSlug}/teams/${t.slug}`,
+    link: `/${sportSlug}/teams/${t.id}`,
   }))
 }
 
@@ -60,7 +60,7 @@ function mapOrganizations(items: SearchOrganizationResult[], sportSlug: string):
     id: o.id,
     label: o.name,
     subtitle: [o.city, o.state_province].filter(Boolean).join(', ') || undefined,
-    link: `/${sportSlug}/organizations/${o.slug}`,
+    link: `/${sportSlug}/organizations/${o.id}`,
   }))
 }
 

@@ -4,6 +4,7 @@ import { Card } from '../../components/Card'
 import { EmptyState } from '../../components/EmptyState'
 import { StatusBadge } from '../../components/StatusBadge'
 import { formatDateTime } from '../../lib/formatters'
+import { useSport } from '../../auth/SportContext'
 import type { DashboardMatch } from './hooks'
 
 interface Props {
@@ -11,6 +12,9 @@ interface Props {
 }
 
 export function UpcomingMatches({ data }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   if (data.length === 0) {
     return (
       <EmptyState
@@ -26,7 +30,8 @@ export function UpcomingMatches({ data }: Props) {
       {data.map((match) => (
         <Link
           key={match.id}
-          to={`/matches/${match.public_id}` as string}
+          to="/$sport/matches/$publicId"
+          params={{ sport: sportSlug, publicId: match.public_id }}
           className="block"
         >
           <Card className="hover:border-(--color-accent) transition-colors">
