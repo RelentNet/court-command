@@ -52,6 +52,35 @@ func parseDivisionID(r *http.Request) (int64, error) {
 	return strconv.ParseInt(chi.URLParam(r, "divisionID"), 10, 64)
 }
 
+// isRegistrationStaff reports whether the current request is made by a
+// privileged staff member who may see staff-only registration fields
+// (admin_notes). The registration read routes are public, so unauthenticated
+// callers and plain players never receive admin_notes; only platform admins and
+// tournament directors do.
+func isRegistrationStaff(r *http.Request) bool {
+	sess := session.SessionData(r.Context())
+	if sess == nil {
+		return false
+	}
+	switch sess.Role {
+	case "platform_admin", "tournament_director":
+		return true
+	default:
+		return false
+	}
+}
+
+// canManageRegistrations reports whether the given role may mutate
+// registrations (status, seed, placement, check-in, withdraw, admin notes).
+func canManageRegistrations(role string) bool {
+	switch role {
+	case "platform_admin", "tournament_director":
+		return true
+	default:
+		return false
+	}
+}
+
 // Register creates a new registration.
 func (h *RegistrationHandler) Register(w http.ResponseWriter, r *http.Request) {
 	sess := session.SessionData(r.Context())
@@ -113,7 +142,7 @@ func (h *RegistrationHandler) GetRegistration(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	reg, err := h.regSvc.GetByID(r.Context(), regID)
+	reg, err := h.regSvc.GetByID(r.Context(), regID, isRegistrationStaff(r))
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -131,10 +160,11 @@ func (h *RegistrationHandler) ListRegistrations(w http.ResponseWriter, r *http.R
 	}
 
 	limit, offset := parsePagination(r)
+	includeStaff := isRegistrationStaff(r)
 
 	// Check for optional status filter
 	if status := r.URL.Query().Get("status"); status != "" {
-		regs, total, err := h.regSvc.ListByDivisionAndStatus(r.Context(), divisionID, status, limit, offset)
+		regs, total, err := h.regSvc.ListByDivisionAndStatus(r.Context(), divisionID, status, limit, offset, includeStaff)
 		if err != nil {
 			HandleServiceError(w, err)
 			return
@@ -143,7 +173,7 @@ func (h *RegistrationHandler) ListRegistrations(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	regs, total, err := h.regSvc.ListByDivision(r.Context(), divisionID, limit, offset)
+	regs, total, err := h.regSvc.ListByDivision(r.Context(), divisionID, limit, offset, includeStaff)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -157,6 +187,16 @@ func (h *RegistrationHandler) UpdateStatus(w http.ResponseWriter, r *http.Reques
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
 		return
 	}
 
@@ -180,7 +220,7 @@ func (h *RegistrationHandler) UpdateStatus(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	reg, err := h.regSvc.UpdateStatus(r.Context(), regID, body.Status)
+	reg, err := h.regSvc.UpdateStatus(r.Context(), divisionID, regID, body.Status)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -194,6 +234,16 @@ func (h *RegistrationHandler) UpdateSeed(w http.ResponseWriter, r *http.Request)
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
 		return
 	}
 
@@ -214,7 +264,7 @@ func (h *RegistrationHandler) UpdateSeed(w http.ResponseWriter, r *http.Request)
 
 	seed := pgtype.Int4{Int32: body.Seed, Valid: true}
 
-	reg, err := h.regSvc.UpdateSeed(r.Context(), regID, seed)
+	reg, err := h.regSvc.UpdateSeed(r.Context(), divisionID, regID, seed)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -228,6 +278,16 @@ func (h *RegistrationHandler) UpdatePlacement(w http.ResponseWriter, r *http.Req
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
 		return
 	}
 
@@ -248,7 +308,7 @@ func (h *RegistrationHandler) UpdatePlacement(w http.ResponseWriter, r *http.Req
 
 	placement := pgtype.Int4{Int32: body.Placement, Valid: true}
 
-	reg, err := h.regSvc.UpdatePlacement(r.Context(), regID, placement)
+	reg, err := h.regSvc.UpdatePlacement(r.Context(), divisionID, regID, placement)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -264,6 +324,16 @@ func (h *RegistrationHandler) CheckIn(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
+		return
+	}
 
 	regID, err := strconv.ParseInt(chi.URLParam(r, "registrationID"), 10, 64)
 	if err != nil {
@@ -271,7 +341,7 @@ func (h *RegistrationHandler) CheckIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reg, err := h.regSvc.CheckIn(r.Context(), regID)
+	reg, err := h.regSvc.CheckIn(r.Context(), divisionID, regID)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -287,6 +357,16 @@ func (h *RegistrationHandler) WithdrawMidTournament(w http.ResponseWriter, r *ht
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
+		return
+	}
 
 	regID, err := strconv.ParseInt(chi.URLParam(r, "registrationID"), 10, 64)
 	if err != nil {
@@ -294,7 +374,7 @@ func (h *RegistrationHandler) WithdrawMidTournament(w http.ResponseWriter, r *ht
 		return
 	}
 
-	reg, err := h.regSvc.WithdrawMidTournament(r.Context(), regID)
+	reg, err := h.regSvc.WithdrawMidTournament(r.Context(), divisionID, regID)
 	if err != nil {
 		HandleServiceError(w, err)
 		return
@@ -310,6 +390,10 @@ func (h *RegistrationHandler) BulkNoShow(w http.ResponseWriter, r *http.Request)
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
 		return
 	}
 
@@ -359,6 +443,16 @@ func (h *RegistrationHandler) UpdateAdminNotes(w http.ResponseWriter, r *http.Re
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
+	if !canManageRegistrations(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage registrations")
+		return
+	}
+
+	divisionID, err := parseDivisionID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid division ID")
+		return
+	}
 
 	regID, err := strconv.ParseInt(chi.URLParam(r, "registrationID"), 10, 64)
 	if err != nil {
@@ -374,7 +468,7 @@ func (h *RegistrationHandler) UpdateAdminNotes(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	reg, err := h.regSvc.UpdateAdminNotes(r.Context(), regID, body.AdminNotes)
+	reg, err := h.regSvc.UpdateAdminNotes(r.Context(), divisionID, regID, body.AdminNotes)
 	if err != nil {
 		HandleServiceError(w, err)
 		return

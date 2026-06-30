@@ -49,6 +49,36 @@ func (h *OverlayHandler) requireSession(w http.ResponseWriter, r *http.Request) 
 	return sess
 }
 
+// requireCourtManage authenticates the request and verifies the caller may
+// manage the target court's overlay configuration. On success it returns the
+// resolved courtID and true. On any failure it writes the appropriate error
+// response (401/400/403/404) and returns false, so callers can simply
+// `if courtID, ok := h.requireCourtManage(w, r); !ok { return }`.
+func (h *OverlayHandler) requireCourtManage(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	sess := h.requireSession(w, r)
+	if sess == nil {
+		return 0, false
+	}
+
+	courtID, err := h.parseCourtID(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+		return 0, false
+	}
+
+	ok, err := h.overlayService.CanManageCourt(r.Context(), courtID, sess.UserID, sess.Role)
+	if err != nil {
+		HandleServiceError(w, err)
+		return 0, false
+	}
+	if !ok {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "You do not have permission to manage this court's overlay")
+		return 0, false
+	}
+
+	return courtID, true
+}
+
 // ResolveCourtSlug handles GET /api/v1/overlay/court/{courtID}/resolve
 // Public endpoint — resolves a court slug (or numeric ID) to its canonical
 // court_id and slug. Used by the frontend to map URL slugs to numeric IDs
@@ -105,13 +135,8 @@ func (h *OverlayHandler) GetOverlayData(w http.ResponseWriter, r *http.Request) 
 
 // GetConfig handles GET /api/v1/overlay/court/{courtID}/config
 func (h *OverlayHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -126,13 +151,8 @@ func (h *OverlayHandler) GetConfig(w http.ResponseWriter, r *http.Request) {
 
 // UpdateTheme handles PUT /api/v1/overlay/court/{courtID}/config/theme
 func (h *OverlayHandler) UpdateTheme(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -161,13 +181,8 @@ func (h *OverlayHandler) UpdateTheme(w http.ResponseWriter, r *http.Request) {
 
 // UpdateElements handles PUT /api/v1/overlay/court/{courtID}/config/elements
 func (h *OverlayHandler) UpdateElements(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -190,13 +205,8 @@ func (h *OverlayHandler) UpdateElements(w http.ResponseWriter, r *http.Request) 
 
 // GenerateToken handles POST /api/v1/overlay/court/{courtID}/config/token/generate
 func (h *OverlayHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -211,13 +221,8 @@ func (h *OverlayHandler) GenerateToken(w http.ResponseWriter, r *http.Request) {
 
 // RevokeToken handles DELETE /api/v1/overlay/court/{courtID}/config/token
 func (h *OverlayHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -232,13 +237,13 @@ func (h *OverlayHandler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 
 // SetSourceProfile handles PUT /api/v1/overlay/court/{courtID}/config/source-profile
 func (h *OverlayHandler) SetSourceProfile(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
+	sess := h.requireSession(w, r)
+	if sess == nil {
 		return
 	}
 
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -248,6 +253,23 @@ func (h *OverlayHandler) SetSourceProfile(w http.ResponseWriter, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "INVALID_JSON", "Invalid request body")
 		return
+	}
+
+	// When linking a profile (not clearing), verify the caller owns the
+	// referenced source profile (or is a platform admin) — mirroring the
+	// ownership gate the dedicated source-profile handlers enforce. Without
+	// this, any court manager could wire their court to a profile they do
+	// not own.
+	if req.SourceProfileID != nil {
+		profile, err := h.sourceProfileService.GetByID(r.Context(), *req.SourceProfileID)
+		if err != nil {
+			WriteError(w, http.StatusNotFound, "NOT_FOUND", "Source profile not found")
+			return
+		}
+		if profile.CreatedByUserID != sess.UserID && sess.Role != "platform_admin" {
+			WriteError(w, http.StatusForbidden, "FORBIDDEN", "Access denied")
+			return
+		}
 	}
 
 	config, err := h.overlayService.SetSourceProfile(r.Context(), courtID, req.SourceProfileID)
@@ -263,13 +285,8 @@ func (h *OverlayHandler) SetSourceProfile(w http.ResponseWriter, r *http.Request
 // Allows Broadcast Operators to override any canonical overlay field per-court
 // without modifying the underlying tournament/team/match data. Authenticated.
 func (h *OverlayHandler) UpdateDataOverrides(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 
@@ -293,13 +310,8 @@ func (h *OverlayHandler) UpdateDataOverrides(w http.ResponseWriter, r *http.Requ
 // ClearDataOverrides handles DELETE /api/v1/overlay/court/{courtID}/config/data-overrides
 // Resets all per-court data overrides to empty. Authenticated.
 func (h *OverlayHandler) ClearDataOverrides(w http.ResponseWriter, r *http.Request) {
-	if sess := h.requireSession(w, r); sess == nil {
-		return
-	}
-
-	courtID, err := h.parseCourtID(r)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+	courtID, ok := h.requireCourtManage(w, r)
+	if !ok {
 		return
 	}
 

@@ -93,10 +93,13 @@ func (s *UploadService) SaveFile(ctx context.Context, userID int64, file io.Read
 	if _, err := rand.Read(randBytes); err != nil {
 		return nil, fmt.Errorf("generating filename: %w", err)
 	}
-	ext := filepath.Ext(originalName)
-	if ext == "" {
-		ext = extensionFromContentType(contentType)
-	}
+	// Always derive the on-disk extension from the validated/sniffed
+	// contentType, never from the client-controlled original filename.
+	// contentType is already gated by AllowedContentTypes above, so this
+	// can only ever yield a safe allowlisted extension (.jpg/.png/.gif/
+	// .webp/.pdf) and never .html/.svg/.xhtml. The original filename is
+	// retained only in the DB original_name column for display.
+	ext := extensionFromContentType(contentType)
 	filename := hex.EncodeToString(randBytes) + ext
 
 	// Ensure upload directory exists
