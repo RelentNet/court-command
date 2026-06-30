@@ -62,7 +62,10 @@ export function TournamentDirectory() {
         onQueryChange={setQuery}
         statusOptions={TOURNAMENT_STATUS_OPTIONS}
         selectedStatus={status}
-        onStatusChange={setStatus}
+        onStatusChange={(v) => {
+          setStatus(v)
+          pagination.setPage(1)
+        }}
       />
 
       {isLoading ? (

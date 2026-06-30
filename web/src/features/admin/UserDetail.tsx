@@ -92,8 +92,11 @@ export function UserDetail({ userId }: UserDetailProps) {
     if (!user) return
     startImpersonation.mutate(user.id, {
       onSuccess: () => {
-        // Full reload to reset all cached state and enter impersonation mode
-        window.location.href = '/dashboard'
+        // Full reload to reset all cached state and enter impersonation mode.
+        // Navigate to the sport-scoped dashboard; if no sport is resolved,
+        // fall back to '/' so the SPA re-resolves sport context (matching
+        // ImpersonationBanner.handleStop).
+        window.location.href = sportSlug ? `/${sportSlug}/dashboard` : '/'
       },
       onError: (err) => {
         toast('error', err.message || 'Failed to start impersonation.')
