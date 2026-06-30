@@ -219,7 +219,7 @@ func New(cfg *Config) chi.Router {
 	// this, the SPA's JWT can never reach those handlers.
 	if cfg.JWTValidator != nil && cfg.LogtoClient != nil && cfg.UserSyncService != nil && cfg.Queries != nil {
 		r.Use(middleware.OptionalJWT(
-			cfg.JWTValidator, cfg.LogtoClient, cfg.Queries, cfg.UserSyncService))
+			cfg.JWTValidator, cfg.LogtoClient, cfg.Queries, cfg.UserSyncService, cfg.OrgRoles))
 	}
 
 	// API v1 routes

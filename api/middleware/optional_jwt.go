@@ -47,13 +47,17 @@ import (
 // valid JWT if present. Pass-through on every failure path so anonymous
 // requests survive.
 //
-// Args mirror JWTSession (validator + Logto client + queries + userSync)
-// because the populate path is identical to the bridge.
+// Args mirror JWTSession (validator + Logto client + queries + userSync
+// + orgRoles) because the populate path is identical to the bridge.
+//
+// orgRoles can be nil -- in that case only the JWT fast path runs (the
+// same posture JWTSession takes with a nil resolver).
 func OptionalJWT(
 	validator *auth.Validator,
 	client LogtoUserFetcher,
 	queries JWTSessionQueries,
 	userSync UserSyncer,
+	orgRoles OrgRoleResolver,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -141,9 +145,38 @@ func OptionalJWT(
 			// the local users.role column which defaults to 'player' for
 			// freshly-mirrored users; we override here when claims show an
 			// elevated org role.
+			//
+			// Path 1: JWT fast path. Free if it works; no-op otherwise.
 			if elevated := claims.ElevatedRole(); elevated != "" && elevated != data.Role {
 				data.Role = elevated
 			}
+
+			// Path 2: Management API path -- mirror JWTSession exactly.
+			// Logto does NOT populate organization_roles on API-resource
+			// access tokens, so in production Path 1 never fires and
+			// data.Role stays at the local default ('player'). Without
+			// this, mixed-auth admin-only writes (e.g. /standings recompute
+			// /override, /tournaments/{id}/staff) wrongly 403 a genuine
+			// platform_admin whose session.Data comes solely from this
+			// global middleware. Permissive on resolver error: pass through
+			// with the local role rather than failing a possibly-anonymous
+			// request.
+			if orgRoles != nil &&
+				data.Role != "platform_admin" &&
+				claims.OrganizationID != "" {
+				roles, lookupErr := orgRoles.GetUserOrganizationRoles(
+					r.Context(), claims.OrganizationID, sub)
+				if lookupErr != nil {
+					slog.WarnContext(r.Context(),
+						"optional-jwt org-role lookup failed; falling back to local DB role",
+						"user_id", sub,
+						"org_id", claims.OrganizationID,
+						"err", lookupErr)
+				} else if containsRole(roles, "platform_admin") {
+					data.Role = "platform_admin"
+				}
+			}
+
 			ctx := session.SetSessionData(r.Context(), data)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
