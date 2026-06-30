@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -413,16 +415,54 @@ func (s *MatchSeriesService) RecordMatchResult(ctx context.Context, seriesID int
 		return MatchSeriesResponse{}, &ValidationError{Message: "series must be in_progress to record results"}
 	}
 
-	// Determine which team won and update wins
-	team1Wins := series.Team1Wins
-	team2Wins := series.Team2Wins
+	// Validate the child match: it must exist, belong to THIS series, and be
+	// completed. Without this, the matchID parameter was ignored entirely,
+	// letting a caller record a result for a foreign or never-played match.
+	childMatch, err := qtx.GetMatchForUpdate(ctx, matchID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return MatchSeriesResponse{}, &ValidationError{Message: "match not found"}
+		}
+		return MatchSeriesResponse{}, fmt.Errorf("get child match for series result: %w", err)
+	}
+	if !childMatch.MatchSeriesID.Valid || childMatch.MatchSeriesID.Int64 != seriesID {
+		return MatchSeriesResponse{}, &ValidationError{Message: "match does not belong to this series"}
+	}
+	if childMatch.Status != "completed" {
+		return MatchSeriesResponse{}, &ValidationError{Message: "child match must be completed to record its result"}
+	}
 
-	if series.Team1ID.Valid && winnerTeamID == series.Team1ID.Int64 {
-		team1Wins++
-	} else if series.Team2ID.Valid && winnerTeamID == series.Team2ID.Int64 {
-		team2Wins++
-	} else {
+	// Derive the winner from the child match's own recorded winner rather than
+	// trusting the client-supplied winnerTeamID. The winner must still be one of
+	// the series teams.
+	if !childMatch.WinnerTeamID.Valid {
+		return MatchSeriesResponse{}, &ValidationError{Message: "child match has no recorded winner"}
+	}
+	derivedWinner := childMatch.WinnerTeamID.Int64
+	if (!series.Team1ID.Valid || derivedWinner != series.Team1ID.Int64) &&
+		(!series.Team2ID.Valid || derivedWinner != series.Team2ID.Int64) {
 		return MatchSeriesResponse{}, &ValidationError{Message: "winner must be one of the series teams"}
+	}
+
+	// Reconcile win counts by counting completed, series-linked child matches
+	// per winning team. This is idempotent: replaying the same result (or a
+	// previously counted match) cannot inflate a team's wins, because we recount
+	// from the authoritative set of completed matches each time.
+	childMatches, err := qtx.ListMatchesBySeriesID(ctx, pgtype.Int8{Int64: seriesID, Valid: true})
+	if err != nil {
+		return MatchSeriesResponse{}, fmt.Errorf("list series child matches: %w", err)
+	}
+	var team1Wins, team2Wins int32
+	for _, cm := range childMatches {
+		if cm.Status != "completed" || !cm.WinnerTeamID.Valid {
+			continue
+		}
+		switch {
+		case series.Team1ID.Valid && cm.WinnerTeamID.Int64 == series.Team1ID.Int64:
+			team1Wins++
+		case series.Team2ID.Valid && cm.WinnerTeamID.Int64 == series.Team2ID.Int64:
+			team2Wins++
+		}
 	}
 
 	_, err = qtx.UpdateMatchSeriesScore(ctx, generated.UpdateMatchSeriesScoreParams{

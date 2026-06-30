@@ -1,6 +1,7 @@
 package bracket
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -145,6 +146,107 @@ func TestGenerateDoubleElimination(t *testing.T) {
 func TestGenerateDoubleElimination_TooFewEntries(t *testing.T) {
 	_, err := GenerateDoubleElimination([]SeedEntry{{Seed: 1, TeamID: 1}})
 	assert.Error(t, err)
+}
+
+// TestGenerateDoubleElimination_LosersBracketWiring asserts that the internal
+// losers-bracket progression is structurally valid for several bracket sizes:
+// every non-final LB match points its winner forward into a later, existing LB
+// match in a later round, exactly one LB match feeds grand finals, and no
+// destination slot is targeted by more than one source.
+func TestGenerateDoubleElimination_LosersBracketWiring(t *testing.T) {
+	for _, n := range []int{4, 8, 16} {
+		t.Run(roundsLabel(n), func(t *testing.T) {
+			matches, err := GenerateDoubleElimination(makeEntries(n))
+			require.NoError(t, err)
+
+			byNum := make(map[int]BracketMatch, len(matches))
+			for _, m := range matches {
+				byNum[m.MatchNumber] = m
+			}
+
+			grandFinals := matches[len(matches)-1]
+			require.Equal(t, "Grand Finals", grandFinals.RoundName)
+
+			// Collect losers-bracket matches in declared order.
+			var lbMatches []BracketMatch
+			for _, m := range matches {
+				if len(m.RoundName) >= 6 && m.RoundName[:6] == "Losers" {
+					lbMatches = append(lbMatches, m)
+				}
+			}
+			require.NotEmpty(t, lbMatches, "expected losers bracket matches for n=%d", n)
+
+			// Track (destMatch, slot) targets to detect collisions across both
+			// the LB-internal winner wiring and the WB-dropout loser wiring.
+			type target struct{ matchNum, slot int }
+			seen := make(map[target]int)
+			record := func(dst, slot int) {
+				seen[target{dst, slot}]++
+			}
+
+			lbFeedingGrandFinals := 0
+			for _, m := range lbMatches {
+				if m.NextMatchNumber == grandFinals.MatchNumber {
+					lbFeedingGrandFinals++
+					record(m.NextMatchNumber, m.NextMatchSlot)
+					continue
+				}
+				// Non-final LB match: must point at a later, existing match in a
+				// strictly later round.
+				require.NotZero(t, m.NextMatchNumber,
+					"LB match %d (%s) has no NextMatchNumber (orphaned)", m.MatchNumber, m.RoundName)
+				dst, ok := byNum[m.NextMatchNumber]
+				require.True(t, ok, "LB match %d points at non-existent match %d", m.MatchNumber, m.NextMatchNumber)
+				assert.Greater(t, dst.MatchNumber, m.MatchNumber,
+					"LB match %d should feed a later match, got %d", m.MatchNumber, dst.MatchNumber)
+				assert.Greater(t, dst.Round, m.Round,
+					"LB match %d should feed a later round", m.MatchNumber)
+				record(m.NextMatchNumber, m.NextMatchSlot)
+			}
+
+			assert.Equal(t, 1, lbFeedingGrandFinals, "exactly one LB match should feed grand finals")
+
+			// Include winners-bracket dropout targets so survivor/dropout
+			// collisions in shared LB matches would be caught.
+			for _, m := range matches {
+				if m.LoserNextMatchNumber != 0 {
+					record(m.LoserNextMatchNumber, m.LoserNextMatchSlot)
+				}
+			}
+
+			for tgt, count := range seen {
+				assert.LessOrEqual(t, count, 1,
+					"destination match %d slot %d targeted by %d sources (collision)", tgt.matchNum, tgt.slot, count)
+			}
+		})
+	}
+}
+
+// TestGenerateDoubleElimination_TwoTeams verifies the 2-team edge case: with no
+// losers bracket, the winners-final loser must feed grand finals slot 2 so the
+// final can be filled and the event can complete.
+func TestGenerateDoubleElimination_TwoTeams(t *testing.T) {
+	matches, err := GenerateDoubleElimination(makeEntries(2))
+	require.NoError(t, err)
+
+	grandFinals := matches[len(matches)-1]
+	require.Equal(t, "Grand Finals", grandFinals.RoundName)
+
+	// Some match must feed grand finals slot 2.
+	slot2Fed := false
+	for _, m := range matches {
+		if m.NextMatchNumber == grandFinals.MatchNumber && m.NextMatchSlot == 2 {
+			slot2Fed = true
+		}
+		if m.LoserNextMatchNumber == grandFinals.MatchNumber && m.LoserNextMatchSlot == 2 {
+			slot2Fed = true
+		}
+	}
+	assert.True(t, slot2Fed, "grand finals slot 2 must have a feeder for a 2-team double elimination")
+}
+
+func roundsLabel(n int) string {
+	return fmt.Sprintf("n=%d", n)
 }
 
 func TestGenerateRoundRobin_4Teams(t *testing.T) {
