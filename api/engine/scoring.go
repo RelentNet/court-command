@@ -122,11 +122,18 @@ func (e *ScoringEngine) Point(state MatchState, scoringTeam int32) EngineResult 
 			Winner:       winner,
 		})
 
-		// Check match over.
-		team1Wins, team2Wins := countWins(state.CompletedGames)
-		gamesToWin := e.config.GamesToWin()
+		// Check match over. The match is decided by SET wins, not raw game
+		// wins: CompletedGames accumulates every game of the entire match, so we
+		// segment it into sets (each won by the first team to GamesToWin() games)
+		// and only finish when a team reaches SetsToWin sets. With SetsToWin==1
+		// this reduces to "first team to GamesToWin() games wins the match".
+		team1Sets, team2Sets := e.countSetWins(state.CompletedGames)
+		setsToWin := e.config.SetsToWin
+		if setsToWin < 1 {
+			setsToWin = 1
+		}
 
-		if team1Wins >= gamesToWin || team2Wins >= gamesToWin {
+		if team1Sets >= setsToWin || team2Sets >= setsToWin {
 			result.MatchOverDetected = true
 		}
 
@@ -292,4 +299,37 @@ func countWins(games []GameResult) (int32, int32) {
 		}
 	}
 	return t1, t2
+}
+
+// countSetWins segments the match's completed games into sets and tallies set
+// wins per team. games is the full, ordered list of completed games for the
+// whole match (CompletedGames is never reset per set). Within each set the
+// first team to GamesToWin() game wins takes the set; the in-set tally then
+// resets for the next set. This makes match completion respect SetsToWin
+// rather than counting raw game wins globally.
+func (e *ScoringEngine) countSetWins(games []GameResult) (int32, int32) {
+	gamesToWin := e.config.GamesToWin()
+	if gamesToWin < 1 {
+		gamesToWin = 1
+	}
+
+	var setWins1, setWins2 int32
+	var gameWins1, gameWins2 int32
+	for _, g := range games {
+		switch g.Winner {
+		case 1:
+			gameWins1++
+		case 2:
+			gameWins2++
+		}
+
+		if gameWins1 >= gamesToWin {
+			setWins1++
+			gameWins1, gameWins2 = 0, 0
+		} else if gameWins2 >= gamesToWin {
+			setWins2++
+			gameWins1, gameWins2 = 0, 0
+		}
+	}
+	return setWins1, setWins2
 }

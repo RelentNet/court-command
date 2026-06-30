@@ -88,3 +88,39 @@ var AllEventTypes = []string{
 	EventTypeFault,
 	EventTypeLineCall,
 }
+
+// scoreMutatingEventTypes are the event types that change a match's
+// score/serving state. These MUST be applied through the scoring engine
+// (ScorePoint, SideOut, RemovePoint, etc.) so the engine remains the single
+// source of truth for scoring; they are rejected on the generic RecordEvent
+// annotation endpoint.
+var scoreMutatingEventTypes = map[string]bool{
+	EventTypePointTeam1:       true,
+	EventTypePointTeam2:       true,
+	EventTypePointRemoved:     true,
+	EventTypeSideOut:          true,
+	EventTypeUndo:             true,
+	EventTypeConfirmGameOver:  true,
+	EventTypeConfirmMatchOver: true,
+}
+
+// validEventTypes is the set of every valid event_type value, derived from
+// AllEventTypes for O(1) membership checks.
+var validEventTypes = func() map[string]bool {
+	m := make(map[string]bool, len(AllEventTypes))
+	for _, t := range AllEventTypes {
+		m[t] = true
+	}
+	return m
+}()
+
+// IsValidEventType reports whether t is a recognized event_type.
+func IsValidEventType(t string) bool {
+	return validEventTypes[t]
+}
+
+// IsScoreMutatingEventType reports whether t changes scoring/serving state and
+// therefore must be routed through the scoring engine rather than RecordEvent.
+func IsScoreMutatingEventType(t string) bool {
+	return scoreMutatingEventTypes[t]
+}

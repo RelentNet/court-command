@@ -100,3 +100,20 @@ func TestIsEndChange_SingleGame(t *testing.T) {
 	assert.True(t, cfg.IsEndChange(6, 3, 1, 0))
 	assert.False(t, cfg.IsEndChange(5, 3, 1, 0))
 }
+
+func TestIsEndChange_DoesNotFireTwiceInDeuce(t *testing.T) {
+	cfg := ScoringConfig{PointsToWin: 11, WinBy: 2, GamesPerSet: 1, SetsToWin: 1}
+	// Deciding game is game 1. Midpoint = 6.
+
+	// First team to reach the midpoint triggers the end change exactly once.
+	assert.True(t, cfg.IsEndChange(6, 5, 1, 0), "should fire when team1 first reaches midpoint")
+	assert.True(t, cfg.IsEndChange(5, 6, 1, 0), "should fire when team2 first reaches midpoint")
+
+	// Once the trailing team also reaches the midpoint, the end change must NOT
+	// fire a second time (the previous implementation re-fired at 6-6).
+	assert.False(t, cfg.IsEndChange(6, 6, 1, 0), "must NOT fire again at 6-6")
+
+	// Past the midpoint, no fire.
+	assert.False(t, cfg.IsEndChange(7, 6, 1, 0), "past the midpoint: no fire")
+	assert.False(t, cfg.IsEndChange(7, 5, 1, 0), "leader past midpoint: no fire")
+}

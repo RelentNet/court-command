@@ -204,6 +204,9 @@ func GenerateDoubleElimination(entries []SeedEntry) ([]BracketMatch, error) {
 	loserMatchesInFirstRound := losersInRound / 2
 
 	var prevLoserMatches []int
+	// Track the index (into loserMatches) of each match, grouped by losers
+	// round, so we can wire the internal progression round-by-round below.
+	var loserRoundIdx [][]int
 
 	for lRound := 1; lRound <= numLoserRounds; lRound++ {
 		var matchesThisRound int
@@ -221,6 +224,7 @@ func GenerateDoubleElimination(entries []SeedEntry) ([]BracketMatch, error) {
 		}
 
 		var currentLoserMatches []int
+		var currentRoundIdx []int
 		for i := 0; i < matchesThisRound; i++ {
 			matchNum++
 			lm := BracketMatch{
@@ -229,31 +233,44 @@ func GenerateDoubleElimination(entries []SeedEntry) ([]BracketMatch, error) {
 				RoundName:   fmt.Sprintf("Losers Round %d", lRound),
 			}
 
-			// Wire losers bracket matches to next losers bracket match
-			if lRound < numLoserRounds {
-				// Will be calculated after all matches are created
-			}
-
+			currentRoundIdx = append(currentRoundIdx, len(loserMatches))
 			currentLoserMatches = append(currentLoserMatches, matchNum)
 			loserMatches = append(loserMatches, lm)
 		}
 		prevLoserMatches = currentLoserMatches
+		loserRoundIdx = append(loserRoundIdx, currentRoundIdx)
 	}
 
-	// Wire losers bracket internal progression
-	allLoserMatches := loserMatches
-	for i := range allLoserMatches {
-		if i < len(allLoserMatches)-1 {
-			// Simple sequential wiring for losers bracket
-			nextIdx := (i / 2) + len(winnerMatches) + len(allLoserMatches[:i+1])
-			if nextIdx < len(winnerMatches)+len(allLoserMatches) {
-				nextMatchNum := allLoserMatches[nextIdx-len(winnerMatches)].MatchNumber
-				allLoserMatches[i].NextMatchNumber = nextMatchNum
+	// Wire losers bracket internal progression round-by-round. Each match in
+	// losers round r feeds its winner into a match in losers round r+1; the
+	// last losers round's match is the LB final and is wired to grand finals
+	// separately below.
+	//
+	// Slot convention (chosen so an LB survivor never collides with a winners
+	// bracket dropout landing in the same destination):
+	//   - When the next round halves the field (minor round: survivors meet
+	//     each other), match i maps to match i/2 with slot from parity.
+	//   - When the next round keeps the same match count (major round:
+	//     survivor meets an incoming winners bracket dropout), match i maps to
+	//     match i and the survivor always takes slot 1, reserving slot 2 for
+	//     the dropout.
+	for r := 0; r < len(loserRoundIdx)-1; r++ {
+		curr := loserRoundIdx[r]
+		next := loserRoundIdx[r+1]
+		halving := len(next) < len(curr)
+		for i, idx := range curr {
+			if halving {
+				destIdx := next[i/2]
+				loserMatches[idx].NextMatchNumber = loserMatches[destIdx].MatchNumber
 				if i%2 == 0 {
-					allLoserMatches[i].NextMatchSlot = 1
+					loserMatches[idx].NextMatchSlot = 1
 				} else {
-					allLoserMatches[i].NextMatchSlot = 2
+					loserMatches[idx].NextMatchSlot = 2
 				}
+			} else {
+				destIdx := next[i]
+				loserMatches[idx].NextMatchNumber = loserMatches[destIdx].MatchNumber
+				loserMatches[idx].NextMatchSlot = 1
 			}
 		}
 	}
@@ -286,11 +303,18 @@ func GenerateDoubleElimination(entries []SeedEntry) ([]BracketMatch, error) {
 	wbFinals.NextMatchNumber = matchNum
 	wbFinals.NextMatchSlot = 1
 
-	// Wire LB finals winner to grand finals slot 2
+	// Wire grand finals slot 2: normally fed by the LB final winner. With only a
+	// single winners-bracket round (e.g. exactly 2 teams) there are no losers
+	// bracket matches, so the WB final's loser is the "losers bracket" and must
+	// feed grand finals slot 2 directly. Without this, slot 2 can never be
+	// filled and the event cannot complete.
 	if len(loserMatches) > 0 {
 		lbFinals := &loserMatches[len(loserMatches)-1]
 		lbFinals.NextMatchNumber = matchNum
 		lbFinals.NextMatchSlot = 2
+	} else {
+		wbFinals.LoserNextMatchNumber = matchNum
+		wbFinals.LoserNextMatchSlot = 2
 	}
 
 	// Combine all matches

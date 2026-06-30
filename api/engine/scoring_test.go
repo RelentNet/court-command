@@ -204,6 +204,38 @@ func TestMatchNotOver_BestOf3_OneWinEach(t *testing.T) {
 	assert.False(t, result.MatchOverDetected, "1-1 in games, need game 3")
 }
 
+func TestMatchOver_SetsToWin_RequiresMultipleSets(t *testing.T) {
+	// Best-of-3 SETS where each set is a single game (GamesPerSet=1 -> 1 game per set).
+	// A team must win 2 sets (i.e. 2 games) to win the match; winning the first
+	// set/game must NOT end the match.
+	cfg, _ := ParseScoringConfig(SideOutScoring, 11, 2, 0, 1, 2, 0)
+	eng := NewScoringEngine(cfg)
+
+	// Win the first set (game 1).
+	state := defaultState()
+	state.TeamOneScore = 10
+	state.TeamTwoScore = 5
+
+	result := eng.Point(state, 1) // 11-5, team 1 wins game 1
+	require.False(t, result.IsError)
+	assert.True(t, result.GameOverDetected)
+	assert.False(t, result.MatchOverDetected, "winning only the first of two required sets must not end the match")
+
+	// Win the second set (game 2) -> 2 sets -> match over.
+	state2 := defaultState()
+	state2.CompletedGames = []GameResult{
+		{GameNum: 1, TeamOneScore: 11, TeamTwoScore: 5, Winner: 1},
+	}
+	state2.CurrentGameNum = 2
+	state2.TeamOneScore = 10
+	state2.TeamTwoScore = 8
+
+	result2 := eng.Point(state2, 1) // 11-8, team 1 wins game 2 -> 2 sets
+	require.False(t, result2.IsError)
+	assert.True(t, result2.GameOverDetected)
+	assert.True(t, result2.MatchOverDetected, "winning both required sets must end the match")
+}
+
 // --- End change detection ---
 
 func TestEndChangeDetected(t *testing.T) {
