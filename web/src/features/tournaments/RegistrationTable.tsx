@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useListRegistrations, type Division, type Registration } from './hooks'
 import { useDebounce } from '../../hooks/useDebounce'
 import { Table } from '../../components/Table'
@@ -29,7 +29,7 @@ function RegistrationsForDivision({
   const { data } = useListRegistrations(String(division.id), undefined, 200)
 
   // Push data up to parent when it changes
-  useMemo(() => {
+  useEffect(() => {
     if (data?.items) {
       onData(division.id, data.items)
     }
