@@ -94,27 +94,43 @@ export function MapView({
       })
 
       gMarker.addListener('click', () => {
-        const content = `
-          <div style="font-family: system-ui, sans-serif; padding: 4px 0;">
-            <strong style="font-size: 14px;">${m.label}</strong>
-            ${m.sublabel ? `<br/><span style="font-size: 12px; color: #666;">${m.sublabel}</span>` : ''}
-            ${onMarkerClick ? `<br/><a href="#" id="map-marker-${m.id}" style="font-size: 12px; color: #0ea5e9;">View details &rarr;</a>` : ''}
-          </div>
-        `
-        infoWindowRef.current.setContent(content)
-        infoWindowRef.current.open(mapInstanceRef.current, gMarker)
+        // Build the InfoWindow content with DOM APIs and set untrusted
+        // values via textContent so label/sublabel can never be parsed as
+        // HTML (avoids stored DOM XSS via venue/org names).
+        const container = document.createElement('div')
+        container.style.fontFamily = 'system-ui, sans-serif'
+        container.style.padding = '4px 0'
+
+        const strong = document.createElement('strong')
+        strong.style.fontSize = '14px'
+        strong.textContent = m.label
+        container.appendChild(strong)
+
+        if (m.sublabel) {
+          container.appendChild(document.createElement('br'))
+          const span = document.createElement('span')
+          span.style.fontSize = '12px'
+          span.style.color = '#666'
+          span.textContent = m.sublabel
+          container.appendChild(span)
+        }
 
         if (onMarkerClick) {
-          setTimeout(() => {
-            const link = document.getElementById(`map-marker-${m.id}`)
-            if (link) {
-              link.addEventListener('click', (e) => {
-                e.preventDefault()
-                onMarkerClick(m)
-              })
-            }
-          }, 50)
+          container.appendChild(document.createElement('br'))
+          const link = document.createElement('a')
+          link.href = '#'
+          link.style.fontSize = '12px'
+          link.style.color = '#0ea5e9'
+          link.textContent = 'View details →'
+          link.addEventListener('click', (e) => {
+            e.preventDefault()
+            onMarkerClick(m)
+          })
+          container.appendChild(link)
         }
+
+        infoWindowRef.current.setContent(container)
+        infoWindowRef.current.open(mapInstanceRef.current, gMarker)
       })
 
       markersRef.current.push(gMarker)

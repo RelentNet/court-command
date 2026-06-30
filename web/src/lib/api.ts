@@ -90,6 +90,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return handleResponse<T>(response)
 }
 
+export async function apiPostForm<T>(path: string, form: FormData): Promise<T> {
+  // Do NOT set Content-Type so the browser adds the multipart boundary.
+  const headers = await buildHeaders()
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST', headers, body: form,
+  })
+  return handleResponse<T>(response)
+}
+
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const headers = await buildHeaders({ 'Content-Type': 'application/json' })
   const response = await fetch(`${API_BASE}${path}`, {

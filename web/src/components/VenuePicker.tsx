@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { apiGetPaginated, type PaginatedData } from '../lib/api'
+import { apiGet, apiGetPaginated, type PaginatedData } from '../lib/api'
 import { buildQueryString } from '../lib/formatters'
 import { cn } from '../lib/cn'
 import { useDebounce } from '../hooks/useDebounce'
@@ -36,14 +36,7 @@ export function VenuePicker({ value, onChange, className }: VenuePickerProps) {
 
   const { data: selectedVenue } = useQuery<Venue>({
     queryKey: ['venues', value],
-    queryFn: () => {
-      return apiGetPaginated<Venue>(
-        `/api/v1/venues${buildQueryString({ limit: 1, offset: 0 })}`,
-      ).then((r) => {
-        const found = r.items.find((v) => v.id === value)
-        return found || { id: value!, name: 'Unknown Venue', city: null, state_province: null }
-      })
-    },
+    queryFn: () => apiGet<Venue>(`/api/v1/venues/${value}`),
     enabled: !!value && !open,
   })
 
