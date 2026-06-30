@@ -100,16 +100,17 @@ func (s *RegistrationService) Register(ctx context.Context, params generated.Cre
 		return RegistrationResponse{}, &ValidationError{Message: "division is not open for registration"}
 	}
 
-	// Check capacity — if max_teams set, check approved count
+	// Check capacity — if max_teams set, count all slot-occupying registrations.
+	// Both 'approved' and 'checked_in' teams occupy a real field slot (matching
+	// bracket generation and standings, which treat approved+checked_in as the
+	// active set); counting only 'approved' would let check-ins free phantom
+	// slots and allow registrations to exceed max_teams.
 	if division.MaxTeams.Valid && division.MaxTeams.Int32 > 0 {
-		approvedCount, err := s.queries.CountRegistrationsByDivisionAndStatus(ctx, generated.CountRegistrationsByDivisionAndStatusParams{
-			DivisionID: params.DivisionID,
-			Status:     "approved",
-		})
+		activeCount, err := s.queries.CountActiveRegistrationsByDivision(ctx, params.DivisionID)
 		if err != nil {
 			return RegistrationResponse{}, fmt.Errorf("failed to count registrations: %w", err)
 		}
-		if approvedCount >= int64(division.MaxTeams.Int32) {
+		if activeCount >= int64(division.MaxTeams.Int32) {
 			// Division is full — waitlist
 			params.Status = "waitlisted"
 		}

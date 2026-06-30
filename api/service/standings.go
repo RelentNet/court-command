@@ -113,6 +113,21 @@ type teamStats struct {
 	PointsAgainst  int32
 	MatchesPlayed  int32
 	StandingPoints int32
+
+	// Admin adjustments carried over from the existing standings entry so that
+	// ranking honors them. OverridePoints, when set, replaces StandingPoints as
+	// the ranking key; IsWithdrawn teams are sorted to the bottom.
+	OverridePoints *int32
+	IsWithdrawn    bool
+}
+
+// rankingPoints returns the points value used to order standings, honoring an
+// admin override when present.
+func (t teamStats) rankingPoints() int32 {
+	if t.OverridePoints != nil {
+		return *t.OverridePoints
+	}
+	return t.StandingPoints
 }
 
 // ---------- Recompute ----------
@@ -125,6 +140,22 @@ func (svc *StandingsService) RecomputeStandings(ctx context.Context, seasonID, d
 	season, err := svc.queries.GetSeasonByID(ctx, seasonID)
 	if err != nil {
 		return nil, &NotFoundError{Message: "season not found"}
+	}
+
+	// Verify the division actually belongs to this season via its tournament,
+	// mirroring the canonical derivation used by the public standings read path
+	// (division -> tournament -> tournament.season_id). Without this, a mismatched
+	// (season, division) pair would upsert incoherent standings_entries rows.
+	division, err := svc.queries.GetDivisionByID(ctx, divisionID)
+	if err != nil {
+		return nil, &NotFoundError{Message: "division not found"}
+	}
+	tournament, err := svc.queries.GetTournamentByID(ctx, division.TournamentID)
+	if err != nil {
+		return nil, &NotFoundError{Message: "tournament not found"}
+	}
+	if !tournament.SeasonID.Valid || tournament.SeasonID.Int64 != seasonID {
+		return nil, &ValidationError{Message: "division does not belong to this season"}
 	}
 
 	method := "placement_points"
@@ -175,6 +206,24 @@ func (svc *StandingsService) RecomputeStandings(ctx context.Context, seasonID, d
 		return []StandingsEntryResponse{}, nil
 	}
 
+	// Load existing standings entries so admin adjustments (override_points,
+	// is_withdrawn) are honored when ranking. UpsertStandingsEntry preserves
+	// these columns in the DB, but ranking must read them or the recomputed
+	// rank would contradict the override/withdrawal.
+	existing, err := svc.queries.ListStandingsByDivision(ctx, generated.ListStandingsByDivisionParams{
+		SeasonID:   seasonID,
+		DivisionID: divisionID,
+		Limit:      1000,
+		Offset:     0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list existing standings: %w", err)
+	}
+	existingByTeam := make(map[int64]generated.StandingsEntry, len(existing))
+	for _, e := range existing {
+		existingByTeam[e.TeamID] = e
+	}
+
 	// 3. For each team, fetch completed matches and compute stats
 	allStats := make([]teamStats, 0, len(teamSet))
 
@@ -190,7 +239,7 @@ func (svc *StandingsService) RecomputeStandings(ctx context.Context, seasonID, d
 		stats := teamStats{TeamID: teamID}
 
 		for _, m := range matches {
-			if m.Status != "completed" {
+			if m.Status != "completed" && m.Status != "forfeited" {
 				continue
 			}
 
@@ -221,13 +270,30 @@ func (svc *StandingsService) RecomputeStandings(ctx context.Context, seasonID, d
 			}
 		}
 
+		// Carry over admin adjustments from the existing entry so ranking honors them.
+		if prev, ok := existingByTeam[teamID]; ok {
+			stats.IsWithdrawn = prev.IsWithdrawn
+			if prev.OverridePoints.Valid {
+				v := prev.OverridePoints.Int32
+				stats.OverridePoints = &v
+			}
+		}
+
 		allStats = append(allStats, stats)
 	}
 
-	// 4. Sort by standing_points DESC, then point_differential DESC, then wins DESC
+	// 4. Sort withdrawn teams to the bottom, then by effective ranking points
+	// (override when set, else standing_points) DESC, then point_differential
+	// DESC, then wins DESC.
 	sort.Slice(allStats, func(i, j int) bool {
-		if allStats[i].StandingPoints != allStats[j].StandingPoints {
-			return allStats[i].StandingPoints > allStats[j].StandingPoints
+		if allStats[i].IsWithdrawn != allStats[j].IsWithdrawn {
+			// Active teams (not withdrawn) rank ahead of withdrawn teams.
+			return !allStats[i].IsWithdrawn
+		}
+		ptsI := allStats[i].rankingPoints()
+		ptsJ := allStats[j].rankingPoints()
+		if ptsI != ptsJ {
+			return ptsI > ptsJ
 		}
 		diffI := allStats[i].PointsFor - allStats[i].PointsAgainst
 		diffJ := allStats[j].PointsFor - allStats[j].PointsAgainst
