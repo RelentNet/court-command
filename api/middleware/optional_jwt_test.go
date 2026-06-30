@@ -34,7 +34,7 @@ func optionalJWTRunner(
 	authHeader string,
 ) (sess *session.Data, reached bool, status int) {
 	t.Helper()
-	mw := middleware.OptionalJWT(v, fetcher, queries, syncer)
+	mw := middleware.OptionalJWT(v, fetcher, queries, syncer, nil)
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reached = true
 		sess = session.SessionData(r.Context())
@@ -170,7 +170,7 @@ func TestOptionalJWT_PreExistingSession_PreservesIt(t *testing.T) {
 	preData := &session.Data{UserID: 999, Role: "player", PublicID: "CC-99999"}
 
 	mw := middleware.OptionalJWT(v, &fakeFetcher{},
-		&fakeQueries{user: makeUser()}, &fakeSyncer{})
+		&fakeQueries{user: makeUser()}, &fakeSyncer{}, nil)
 	var observed *session.Data
 	h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		observed = session.SessionData(r.Context())

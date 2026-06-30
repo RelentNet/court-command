@@ -99,7 +99,9 @@ func main() {
 
 	// Phase 1+2 handlers
 	secureCookie := !cfg.IsDevelopment()
-	authHandler := handler.NewAuthHandler(authService, secureCookie)
+	// authHandler is constructed later (after orgRoleResolver) so MeJWT
+	// can share the Management-API role resolver JWTSession uses; see the
+	// NewAuthHandler call below the orgRoleResolver block.
 	healthHandler := handler.NewHealthHandler(pool, sessionStore.Client())
 	playerHandler := handler.NewPlayerHandler(playerService)
 	teamHandler := handler.NewTeamHandler(teamService)
@@ -287,6 +289,12 @@ func main() {
 		orgRoleResolver = middleware.NewLogtoMgmtAPIResolver(
 			logtoClient, sessionStore.Client(), middleware.OrgRolesCacheTTLFromEnv())
 	}
+
+	// AuthHandler takes the resolver so MeJWT (GET /api/v1/auth/me) elevates
+	// platform_admins via the Logto Management API the same way JWTSession
+	// does for the protected route groups. Constructed here, after the
+	// resolver, rather than with the other Phase 1+2 handlers above.
+	authHandler := handler.NewAuthHandler(authService, secureCookie, orgRoleResolver)
 
 	// Auto-bootstrap the Logto tenant on every boot. This calls the
 	// same idempotent provisioning logic as the api/cmd/logto-seed CLI:
