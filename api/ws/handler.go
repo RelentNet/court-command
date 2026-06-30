@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -152,7 +153,14 @@ func (h *Handler) handleSubscription(w http.ResponseWriter, r *http.Request, cha
 	h.logger.Info("websocket connected", "channel", channel, "remote", r.RemoteAddr)
 
 	// Subscribe to the Redis channel.
-	msgChan, cancelSub, err := h.ps.Subscribe(r.Context(), channel)
+	//
+	// Use context.WithoutCancel to strip the HTTP request's deadline/cancellation
+	// (the global chimw.Timeout(60s) middleware applies to /ws too) while
+	// preserving request-scoped values. Without this, every long-lived WebSocket
+	// would be forcibly torn down after 60s when the request context's deadline
+	// fires. The subscription is still cancelled on real client disconnect via
+	// the deferred cancelSub() below plus the read-pump's done channel.
+	msgChan, cancelSub, err := h.ps.Subscribe(context.WithoutCancel(r.Context()), channel)
 	if err != nil {
 		h.logger.Error("failed to subscribe", "channel", channel, "error", err)
 		conn.WriteMessage(websocket.CloseMessage,

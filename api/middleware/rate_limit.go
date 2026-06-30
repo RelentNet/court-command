@@ -72,14 +72,20 @@ func (rl *RateLimiter) allow(key string) bool {
 		return true
 	}
 
-	// Refill tokens based on elapsed time
+	// Refill tokens based on whole intervals elapsed; preserve the remainder.
+	// Advancing lastSeen unconditionally to now() would discard the
+	// sub-interval fractional time, so a client polling more often than once
+	// per interval would never accrue a full interval and could never refill.
 	elapsed := time.Since(v.lastSeen)
-	refill := int(elapsed/rl.interval) * rl.rate
-	v.tokens += refill
-	if v.tokens > rl.burst {
-		v.tokens = rl.burst
+	if intervals := int(elapsed / rl.interval); intervals > 0 {
+		v.tokens += intervals * rl.rate
+		if v.tokens > rl.burst {
+			v.tokens = rl.burst
+		}
+		// Advance lastSeen only by the whole intervals consumed, so the
+		// leftover fractional time still counts toward the next refill.
+		v.lastSeen = v.lastSeen.Add(time.Duration(intervals) * rl.interval)
 	}
-	v.lastSeen = time.Now()
 
 	if v.tokens <= 0 {
 		return false
