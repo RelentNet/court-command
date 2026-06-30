@@ -44,9 +44,17 @@ func Load() (*Config, error) {
 		cfg.Env = "development"
 	}
 
-	origins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if origins != "" {
-		cfg.CORSAllowedOrigins = strings.Split(origins, ",")
+	// Normalize origins once at parse time so every consumer (the CORS
+	// middleware and the WebSocket origin allowlist) shares an identical,
+	// whitespace-free set. Trimming here makes the parity the ws.Handler doc
+	// comment claims actually hold even when the env var has spaces after
+	// commas (e.g. "https://a.com, https://b.com").
+	if origins := os.Getenv("CORS_ALLOWED_ORIGINS"); origins != "" {
+		for _, o := range strings.Split(origins, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				cfg.CORSAllowedOrigins = append(cfg.CORSAllowedOrigins, o)
+			}
+		}
 	}
 
 	return cfg, nil
