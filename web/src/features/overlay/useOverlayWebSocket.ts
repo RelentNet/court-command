@@ -83,7 +83,6 @@ export function useOverlayWebSocket(
   const socketsRef = useRef<Record<string, WebSocket>>({})
   const attemptsRef = useRef<Record<string, number>>({})
   const timersRef = useRef<Record<string, number>>({})
-  const closedByUnmountRef = useRef(false)
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
@@ -92,7 +91,18 @@ export function useOverlayWebSocket(
       setState('disconnected')
       return
     }
-    closedByUnmountRef.current = false
+    // Per-run cancellation. A single shared ref would be reset to false by
+    // the next effect run before the previous run's sockets fire their
+    // (asynchronous) onclose, letting a torn-down run reschedule connect()
+    // for the stale court/match and pollute the new run's state. Capturing
+    // the flag in the effect closure ties it to this run only.
+    let cancelled = false
+    // Fresh per-run maps so a late onclose from a previous run can't mutate
+    // the new run's live socket/state/timer entries (same label keys).
+    stateRef.current = {}
+    socketsRef.current = {}
+    attemptsRef.current = {}
+    timersRef.current = {}
 
     const specs: OverlaySocketSpec[] = [
       { label: 'overlay', url: `${wsBaseUrl()}/ws/overlay/${courtID}` },
@@ -153,8 +163,13 @@ export function useOverlayWebSocket(
       }
 
       ws.onclose = () => {
+        // Ignore late closes from a torn-down effect run. `cancelled` is
+        // captured per-run so a previous run's socket can't act here.
+        if (cancelled) return
+        // Guard against a stale onclose deleting the new run's live socket:
+        // only clear/reschedule if this ws is still the registered one.
+        if (socketsRef.current[spec.label] !== ws) return
         delete socketsRef.current[spec.label]
-        if (closedByUnmountRef.current) return
         stateRef.current[spec.label] = 'disconnected'
         computeAggregate()
         const current = attemptsRef.current[spec.label] ?? 0
@@ -171,7 +186,7 @@ export function useOverlayWebSocket(
     specs.forEach(connect)
 
     return () => {
-      closedByUnmountRef.current = true
+      cancelled = true
       Object.values(timersRef.current).forEach((t) => window.clearTimeout(t))
       timersRef.current = {}
       Object.values(socketsRef.current).forEach((ws) => ws.close())
@@ -194,12 +209,17 @@ function applyMessage(
 ): void {
   switch (msg.type) {
     case 'overlay_data': {
-      qc.setQueryData<OverlayData>(
-        ['overlay', 'data', courtID, null, false],
-        msg.data as OverlayData,
+      // useOverlayData keys by (courtID, token ?? null, !!demo), so a
+      // hardcoded null/false key misses token-gated and demo overlays.
+      // Write by prefix predicate so the merge lands on whatever variant
+      // the renderer is actually observing — no HTTP round-trip. The raw
+      // backend shape is stored; normalizeOverlayData still runs via the
+      // query's `select` on read, preserving current behavior. Only touch
+      // entries something is observing (prev !== undefined).
+      qc.setQueriesData<OverlayData>(
+        { queryKey: ['overlay', 'data', courtID] },
+        (prev) => (prev === undefined ? prev : (msg.data as OverlayData)),
       )
-      // Also mirror into any token-scoped caches.
-      qc.invalidateQueries({ queryKey: ['overlay', 'data', courtID] })
       break
     }
     case 'config_update': {
