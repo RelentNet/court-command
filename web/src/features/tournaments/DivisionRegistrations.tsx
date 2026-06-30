@@ -3,6 +3,7 @@ import {
   useListRegistrations,
   useBulkNoShow,
   useCreateRegistration,
+  fetchAllRegistrations,
   type Registration,
   type Division,
 } from './hooks'
@@ -44,6 +45,7 @@ export function DivisionRegistrations({
   const debouncedSearch = useDebounce(search)
   const pagination = usePagination(20)
   const [bulkNoShowOpen, setBulkNoShowOpen] = useState(false)
+  const [bulkNoShowLoading, setBulkNoShowLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
 
   const { data, isLoading } = useListRegistrations(
@@ -67,15 +69,27 @@ export function DivisionRegistrations({
     : registrations
 
   async function handleBulkNoShow() {
+    setBulkNoShowLoading(true)
     try {
-      const ids = registrations
+      // The dialog promises to mark *all* non-checked-in registrations, so we
+      // must operate on the full division set, not just the current page.
+      // Fetch every registration (unfiltered) before computing the id list.
+      const allRegistrations = await fetchAllRegistrations(divisionId)
+      const ids = allRegistrations
         .filter((r) => r.status !== 'checked_in' && r.checked_in_at == null)
         .map((r) => r.id)
+      if (ids.length === 0) {
+        toast('success', 'No unchecked registrations to mark')
+        setBulkNoShowOpen(false)
+        return
+      }
       await bulkNoShowMutation.mutateAsync({ registration_ids: ids })
       toast('success', 'Marked unchecked registrations as no-show')
       setBulkNoShowOpen(false)
     } catch (err) {
       toast('error', (err as Error).message)
+    } finally {
+      setBulkNoShowLoading(false)
     }
   }
 
@@ -223,7 +237,7 @@ export function DivisionRegistrations({
         message="Mark all registrations that haven't checked in as no-show? This can be reversed per registration afterwards."
         confirmText="Mark No-Show"
         variant="danger"
-        loading={bulkNoShowMutation.isPending}
+        loading={bulkNoShowLoading || bulkNoShowMutation.isPending}
       />
     </div>
   )
