@@ -304,6 +304,47 @@ func (s *OverlayService) GetCourtSlug(ctx context.Context, courtID int64) (strin
 	return slug, nil
 }
 
+// CanManageCourt reports whether the given user may manage the overlay
+// configuration for a court. Returns true for platform admins, the court's
+// creator, or a manager of the court's owning venue. Mirrors
+// VenueService.CanManageVenue so the same ownership boundary that gates venue
+// and court mutations also gates overlay control-panel writes. Returns
+// NotFoundError when the court does not exist.
+func (s *OverlayService) CanManageCourt(ctx context.Context, courtID, userID int64, userRole string) (bool, error) {
+	if userRole == "platform_admin" {
+		return true, nil
+	}
+
+	court, err := s.queries.GetCourtByID(ctx, courtID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, &NotFoundError{Message: "court not found"}
+		}
+		return false, fmt.Errorf("get court for authorization: %w", err)
+	}
+
+	// The court creator may always manage it.
+	if court.CreatedByUserID.Valid && court.CreatedByUserID.Int64 == userID {
+		return true, nil
+	}
+
+	// Otherwise, the caller must be a manager of the court's owning venue.
+	if court.VenueID.Valid {
+		isMgr, err := s.queries.IsVenueManager(ctx, generated.IsVenueManagerParams{
+			VenueID: court.VenueID.Int64,
+			UserID:  userID,
+		})
+		if err != nil {
+			return false, fmt.Errorf("check venue manager for court authorization: %w", err)
+		}
+		if isMgr {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func generateSecureToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {

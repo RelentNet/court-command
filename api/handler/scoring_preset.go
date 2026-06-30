@@ -22,6 +22,19 @@ func NewScoringPresetHandler(service *service.ScoringPresetService) *ScoringPres
 	return &ScoringPresetHandler{service: service}
 }
 
+// canManageScoringPresets reports whether the given role may create or modify
+// scoring presets. Presets are a global, cross-tenant pool, so writes are
+// restricted to privileged operational roles; plain players (and any other
+// authenticated role) get read-only access via List/Get.
+func canManageScoringPresets(role string) bool {
+	switch role {
+	case "platform_admin", "tournament_director":
+		return true
+	default:
+		return false
+	}
+}
+
 // Routes returns a chi.Router with all scoring preset routes mounted.
 func (h *ScoringPresetHandler) Routes() chi.Router {
 	r := chi.NewRouter()
@@ -60,6 +73,10 @@ func (h *ScoringPresetHandler) Create(w http.ResponseWriter, r *http.Request) {
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageScoringPresets(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage scoring presets")
 		return
 	}
 
@@ -160,6 +177,10 @@ func (h *ScoringPresetHandler) Update(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
+	if !canManageScoringPresets(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage scoring presets")
+		return
+	}
 
 	id, err := strconv.ParseInt(chi.URLParam(r, "presetID"), 10, 64)
 	if err != nil {
@@ -236,6 +257,10 @@ func (h *ScoringPresetHandler) Deactivate(w http.ResponseWriter, r *http.Request
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
 		return
 	}
+	if !canManageScoringPresets(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage scoring presets")
+		return
+	}
 
 	id, err := strconv.ParseInt(chi.URLParam(r, "presetID"), 10, 64)
 	if err != nil {
@@ -256,6 +281,10 @@ func (h *ScoringPresetHandler) Activate(w http.ResponseWriter, r *http.Request) 
 	sess := session.SessionData(r.Context())
 	if sess == nil {
 		WriteError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Not authenticated")
+		return
+	}
+	if !canManageScoringPresets(sess.Role) {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "Only platform admins or tournament directors can manage scoring presets")
 		return
 	}
 

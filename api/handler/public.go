@@ -193,14 +193,26 @@ func parseLimitOffset(r *http.Request, defaultLimit, maxLimit int32) (int32, int
 	return int32(limit), int32(offset)
 }
 
-// publicTournamentStatuses are the only statuses visible on the public directory.
-var publicTournamentStatuses = map[string]bool{
-	"published":           true,
-	"registration_open":   true,
-	"registration_closed": true,
-	"in_progress":         true,
-	"completed":           true,
+// publicTournamentStatusList is the canonical ordered list of statuses visible
+// on the public directory. It is the single source of truth; the lookup map
+// below is derived from it so the SQL filter and the validation map can never
+// drift apart.
+var publicTournamentStatusList = []string{
+	"published",
+	"registration_open",
+	"registration_closed",
+	"in_progress",
+	"completed",
 }
+
+// publicTournamentStatuses are the only statuses visible on the public directory.
+var publicTournamentStatuses = func() map[string]bool {
+	m := make(map[string]bool, len(publicTournamentStatusList))
+	for _, s := range publicTournamentStatusList {
+		m[s] = true
+	}
+	return m
+}()
 
 // ListTournaments handles GET /api/v1/public/tournaments
 // Filterable by status query param (only publicly visible statuses allowed).
@@ -215,6 +227,7 @@ func (h *PublicHandler) ListTournaments(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var tournaments []generated.Tournament
+	var total int64
 	var err error
 
 	if status != "" {
@@ -223,25 +236,21 @@ func (h *PublicHandler) ListTournaments(w http.ResponseWriter, r *http.Request) 
 			Limit:  limit,
 			Offset: offset,
 		})
-	} else {
-		// No filter: fetch all tournaments and keep only publicly visible ones.
-		// Use a generous limit to compensate for post-filter reduction.
-		all, fetchErr := h.queries.ListTournaments(r.Context(), generated.ListTournamentsParams{
-			Limit:  limit + 50,
-			Offset: offset,
-		})
-		err = fetchErr
 		if err == nil {
-			tournaments = make([]generated.Tournament, 0, len(all))
-			for _, t := range all {
-				if publicTournamentStatuses[t.Status] {
-					tournaments = append(tournaments, t)
-				}
-			}
-			// Respect the original limit after filtering
-			if int32(len(tournaments)) > limit {
-				tournaments = tournaments[:limit]
-			}
+			total, err = h.queries.CountTournamentsByStatus(r.Context(), status)
+		}
+	} else {
+		// No status filter: filter to publicly-visible statuses in SQL so
+		// LIMIT/OFFSET and the total are computed over the same set. This
+		// keeps page boundaries aligned (no skipped/duplicated rows) and the
+		// reported total matching the visible public-only items.
+		tournaments, err = h.queries.ListPublicTournaments(r.Context(), generated.ListPublicTournamentsParams{
+			Column1: publicTournamentStatusList,
+			Limit:   limit,
+			Offset:  offset,
+		})
+		if err == nil {
+			total, err = h.queries.CountPublicTournaments(r.Context(), publicTournamentStatusList)
 		}
 	}
 
@@ -254,7 +263,6 @@ func (h *PublicHandler) ListTournaments(w http.ResponseWriter, r *http.Request) 
 		tournaments = []generated.Tournament{}
 	}
 
-	total, _ := h.queries.CountTournaments(r.Context())
 	Paginated(w, toPublicTournaments(tournaments), total, int(limit), int(offset))
 }
 

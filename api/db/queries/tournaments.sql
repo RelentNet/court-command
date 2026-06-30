@@ -122,6 +122,18 @@ LIMIT $2 OFFSET $3;
 SELECT COUNT(*) FROM tournaments
 WHERE status = $1 AND deleted_at IS NULL;
 
+-- name: ListPublicTournaments :many
+-- Public directory listing: filters to publicly-visible statuses in SQL so
+-- LIMIT/OFFSET and the matching count are computed over the same filtered set.
+SELECT * FROM tournaments
+WHERE deleted_at IS NULL AND status = ANY($1::text[])
+ORDER BY start_date DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountPublicTournaments :one
+SELECT COUNT(*) FROM tournaments
+WHERE deleted_at IS NULL AND status = ANY($1::text[]);
+
 -- name: SearchTournamentsByStatus :many
 SELECT * FROM tournaments
 WHERE deleted_at IS NULL

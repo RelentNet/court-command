@@ -41,15 +41,22 @@ type RegistrationResponse struct {
 	CheckedInAt        *string `json:"checked_in_at,omitempty"`
 }
 
-func toRegistrationResponse(r generated.Registration) RegistrationResponse {
+// toRegistrationResponse maps a registration row to its API representation.
+// When includeStaff is false (unauthenticated / non-staff readers), staff-only
+// fields (admin_notes) are omitted so internal tournament-director commentary is
+// never leaked on the public read paths.
+func toRegistrationResponse(r generated.Registration, includeStaff bool) RegistrationResponse {
 	resp := RegistrationResponse{
 		ID:                 r.ID,
 		DivisionID:         r.DivisionID,
 		RegisteredByUserID: r.RegisteredByUserID,
 		Status:             r.Status,
 		RegistrationNotes:  r.RegistrationNotes,
-		AdminNotes:         r.AdminNotes,
 		RegisteredAt:       r.RegisteredAt.Format(time.RFC3339),
+	}
+
+	if includeStaff {
+		resp.AdminNotes = r.AdminNotes
 	}
 
 	if r.TeamID.Valid {
@@ -129,11 +136,13 @@ func (s *RegistrationService) Register(ctx context.Context, params generated.Cre
 		return RegistrationResponse{}, fmt.Errorf("failed to create registration: %w", err)
 	}
 
-	return toRegistrationResponse(reg), nil
+	return toRegistrationResponse(reg, true), nil
 }
 
-// GetByID retrieves a registration by ID.
-func (s *RegistrationService) GetByID(ctx context.Context, id int64) (RegistrationResponse, error) {
+// GetByID retrieves a registration by ID. includeStaff controls whether
+// staff-only fields (admin_notes) are returned; pass false for unauthenticated
+// or non-staff callers.
+func (s *RegistrationService) GetByID(ctx context.Context, id int64, includeStaff bool) (RegistrationResponse, error) {
 	reg, err := s.queries.GetRegistrationByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -141,11 +150,12 @@ func (s *RegistrationService) GetByID(ctx context.Context, id int64) (Registrati
 		}
 		return RegistrationResponse{}, fmt.Errorf("get registration by id: %w", err)
 	}
-	return toRegistrationResponse(reg), nil
+	return toRegistrationResponse(reg, includeStaff), nil
 }
 
-// ListByDivision returns registrations for a division.
-func (s *RegistrationService) ListByDivision(ctx context.Context, divisionID int64, limit, offset int32) ([]RegistrationResponse, int64, error) {
+// ListByDivision returns registrations for a division. includeStaff controls
+// whether staff-only fields (admin_notes) are returned.
+func (s *RegistrationService) ListByDivision(ctx context.Context, divisionID int64, limit, offset int32, includeStaff bool) ([]RegistrationResponse, int64, error) {
 	regs, err := s.queries.ListRegistrationsByDivision(ctx, generated.ListRegistrationsByDivisionParams{
 		DivisionID: divisionID,
 		Limit:      limit,
@@ -162,14 +172,15 @@ func (s *RegistrationService) ListByDivision(ctx context.Context, divisionID int
 
 	result := make([]RegistrationResponse, len(regs))
 	for i, r := range regs {
-		result[i] = toRegistrationResponse(r)
+		result[i] = toRegistrationResponse(r, includeStaff)
 	}
 
 	return result, count, nil
 }
 
 // ListByDivisionAndStatus returns registrations filtered by division and status.
-func (s *RegistrationService) ListByDivisionAndStatus(ctx context.Context, divisionID int64, status string, limit, offset int32) ([]RegistrationResponse, int64, error) {
+// includeStaff controls whether staff-only fields (admin_notes) are returned.
+func (s *RegistrationService) ListByDivisionAndStatus(ctx context.Context, divisionID int64, status string, limit, offset int32, includeStaff bool) ([]RegistrationResponse, int64, error) {
 	regs, err := s.queries.ListRegistrationsByDivisionAndStatus(ctx, generated.ListRegistrationsByDivisionAndStatusParams{
 		DivisionID: divisionID,
 		Status:     status,
@@ -190,20 +201,25 @@ func (s *RegistrationService) ListByDivisionAndStatus(ctx context.Context, divis
 
 	result := make([]RegistrationResponse, len(regs))
 	for i, r := range regs {
-		result[i] = toRegistrationResponse(r)
+		result[i] = toRegistrationResponse(r, includeStaff)
 	}
 
 	return result, count, nil
 }
 
 // UpdateStatus updates a registration's status, with auto-promote from waitlist on withdrawal/rejection.
-func (s *RegistrationService) UpdateStatus(ctx context.Context, id int64, newStatus string) (RegistrationResponse, error) {
+// The registration must belong to divisionID; otherwise a not-found error is
+// returned so callers cannot mutate registrations outside the URL's division.
+func (s *RegistrationService) UpdateStatus(ctx context.Context, divisionID, id int64, newStatus string) (RegistrationResponse, error) {
 	reg, err := s.queries.GetRegistrationByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 		}
 		return RegistrationResponse{}, fmt.Errorf("get registration for status update: %w", err)
+	}
+	if reg.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 	}
 
 	updated, err := s.queries.UpdateRegistrationStatus(ctx, generated.UpdateRegistrationStatusParams{
@@ -228,11 +244,23 @@ func (s *RegistrationService) UpdateStatus(ctx context.Context, id int64, newSta
 		}
 	}
 
-	return toRegistrationResponse(updated), nil
+	return toRegistrationResponse(updated, true), nil
 }
 
-// UpdateSeed updates a registration's seed.
-func (s *RegistrationService) UpdateSeed(ctx context.Context, id int64, seed pgtype.Int4) (RegistrationResponse, error) {
+// UpdateSeed updates a registration's seed. The registration must belong to
+// divisionID; otherwise a not-found error is returned.
+func (s *RegistrationService) UpdateSeed(ctx context.Context, divisionID, id int64, seed pgtype.Int4) (RegistrationResponse, error) {
+	existing, err := s.queries.GetRegistrationByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+		}
+		return RegistrationResponse{}, fmt.Errorf("get registration for seed update: %w", err)
+	}
+	if existing.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+	}
+
 	reg, err := s.queries.UpdateRegistrationSeed(ctx, generated.UpdateRegistrationSeedParams{
 		ID:   id,
 		Seed: seed,
@@ -243,11 +271,23 @@ func (s *RegistrationService) UpdateSeed(ctx context.Context, id int64, seed pgt
 		}
 		return RegistrationResponse{}, fmt.Errorf("update registration seed: %w", err)
 	}
-	return toRegistrationResponse(reg), nil
+	return toRegistrationResponse(reg, true), nil
 }
 
-// UpdatePlacement updates a registration's final placement.
-func (s *RegistrationService) UpdatePlacement(ctx context.Context, id int64, placement pgtype.Int4) (RegistrationResponse, error) {
+// UpdatePlacement updates a registration's final placement. The registration
+// must belong to divisionID; otherwise a not-found error is returned.
+func (s *RegistrationService) UpdatePlacement(ctx context.Context, divisionID, id int64, placement pgtype.Int4) (RegistrationResponse, error) {
+	existing, err := s.queries.GetRegistrationByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+		}
+		return RegistrationResponse{}, fmt.Errorf("get registration for placement update: %w", err)
+	}
+	if existing.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+	}
+
 	reg, err := s.queries.UpdateRegistrationPlacement(ctx, generated.UpdateRegistrationPlacementParams{
 		ID:             id,
 		FinalPlacement: placement,
@@ -258,7 +298,7 @@ func (s *RegistrationService) UpdatePlacement(ctx context.Context, id int64, pla
 		}
 		return RegistrationResponse{}, fmt.Errorf("update registration placement: %w", err)
 	}
-	return toRegistrationResponse(reg), nil
+	return toRegistrationResponse(reg, true), nil
 }
 
 // BulkNoShow marks the given registration IDs as no_show, scoped to the
@@ -276,6 +316,7 @@ func (s *RegistrationService) BulkNoShow(ctx context.Context, divisionID int64, 
 }
 
 // ListSeekingPartner returns registrations that are seeking a partner.
+// This is a public read path, so staff-only fields are always omitted.
 func (s *RegistrationService) ListSeekingPartner(ctx context.Context, divisionID int64) ([]RegistrationResponse, error) {
 	regs, err := s.queries.ListSeekingPartner(ctx, divisionID)
 	if err != nil {
@@ -284,20 +325,24 @@ func (s *RegistrationService) ListSeekingPartner(ctx context.Context, divisionID
 
 	result := make([]RegistrationResponse, len(regs))
 	for i, r := range regs {
-		result[i] = toRegistrationResponse(r)
+		result[i] = toRegistrationResponse(r, false)
 	}
 
 	return result, nil
 }
 
-// CheckIn marks a registration as checked in.
-func (s *RegistrationService) CheckIn(ctx context.Context, id int64) (RegistrationResponse, error) {
+// CheckIn marks a registration as checked in. The registration must belong to
+// divisionID; otherwise a not-found error is returned.
+func (s *RegistrationService) CheckIn(ctx context.Context, divisionID, id int64) (RegistrationResponse, error) {
 	reg, err := s.queries.GetRegistrationByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 		}
 		return RegistrationResponse{}, fmt.Errorf("get registration for check-in: %w", err)
+	}
+	if reg.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 	}
 
 	if reg.Status != "approved" {
@@ -312,17 +357,21 @@ func (s *RegistrationService) CheckIn(ctx context.Context, id int64) (Registrati
 		return RegistrationResponse{}, fmt.Errorf("failed to check in: %w", err)
 	}
 
-	return toRegistrationResponse(updated), nil
+	return toRegistrationResponse(updated, true), nil
 }
 
-// WithdrawMidTournament withdraws a registration mid-tournament.
-func (s *RegistrationService) WithdrawMidTournament(ctx context.Context, id int64) (RegistrationResponse, error) {
+// WithdrawMidTournament withdraws a registration mid-tournament. The
+// registration must belong to divisionID; otherwise a not-found error is returned.
+func (s *RegistrationService) WithdrawMidTournament(ctx context.Context, divisionID, id int64) (RegistrationResponse, error) {
 	reg, err := s.queries.GetRegistrationByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 		}
 		return RegistrationResponse{}, fmt.Errorf("get registration for withdrawal: %w", err)
+	}
+	if reg.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
 	}
 
 	if reg.Status != "checked_in" && reg.Status != "approved" {
@@ -337,11 +386,23 @@ func (s *RegistrationService) WithdrawMidTournament(ctx context.Context, id int6
 		return RegistrationResponse{}, fmt.Errorf("failed to withdraw: %w", err)
 	}
 
-	return toRegistrationResponse(updated), nil
+	return toRegistrationResponse(updated, true), nil
 }
 
-// UpdateAdminNotes updates the admin notes on a registration.
-func (s *RegistrationService) UpdateAdminNotes(ctx context.Context, id int64, notes *string) (RegistrationResponse, error) {
+// UpdateAdminNotes updates the admin notes on a registration. The registration
+// must belong to divisionID; otherwise a not-found error is returned.
+func (s *RegistrationService) UpdateAdminNotes(ctx context.Context, divisionID, id int64, notes *string) (RegistrationResponse, error) {
+	existing, err := s.queries.GetRegistrationByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+		}
+		return RegistrationResponse{}, fmt.Errorf("get registration for admin notes update: %w", err)
+	}
+	if existing.DivisionID != divisionID {
+		return RegistrationResponse{}, &NotFoundError{Message: "registration not found"}
+	}
+
 	updated, err := s.queries.UpdateRegistrationAdminNotes(ctx, generated.UpdateRegistrationAdminNotesParams{
 		ID:         id,
 		AdminNotes: notes,
@@ -353,5 +414,5 @@ func (s *RegistrationService) UpdateAdminNotes(ctx context.Context, id int64, no
 		return RegistrationResponse{}, fmt.Errorf("update registration admin notes: %w", err)
 	}
 
-	return toRegistrationResponse(updated), nil
+	return toRegistrationResponse(updated, true), nil
 }
