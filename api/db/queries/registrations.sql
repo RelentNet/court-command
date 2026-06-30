@@ -22,6 +22,10 @@ SELECT COUNT(*) FROM registrations WHERE division_id = $1;
 SELECT COUNT(*) FROM registrations
 WHERE division_id = $1 AND status = $2;
 
+-- name: CountActiveRegistrationsByDivision :one
+SELECT COUNT(*) FROM registrations
+WHERE division_id = $1 AND status IN ('approved', 'checked_in');
+
 -- name: ListRegistrationsByDivisionAndStatus :many
 SELECT * FROM registrations
 WHERE division_id = $1 AND status = $2

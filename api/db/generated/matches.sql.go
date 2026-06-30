@@ -1047,7 +1047,7 @@ func (q *Queries) ListLiveMatches(ctx context.Context, arg ListLiveMatchesParams
 const listMatchesByCourt = `-- name: ListMatchesByCourt :many
 SELECT id, public_id, tournament_id, division_id, pod_id, court_id, created_by_user_id, match_type, round, round_name, match_number, team1_id, team2_id, team1_seed, team2_seed, scoring_preset_id, games_per_set, sets_to_win, points_to_win, win_by, max_points, rally_scoring, timeouts_per_game, timeout_duration_sec, freeze_at, team1_score, team2_score, current_set, current_game, serving_team, server_number, set_scores, status, started_at, completed_at, winner_team_id, loser_team_id, win_reason, next_match_id, next_match_slot, loser_next_match_id, loser_next_match_slot, referee_user_id, notes, expires_at, scheduled_at, created_at, updated_at, match_series_id, court_queue_position FROM matches
 WHERE court_id = $1
-ORDER BY scheduled_at NULLS LAST, created_at
+ORDER BY court_queue_position NULLS LAST, scheduled_at NULLS LAST, created_at
 LIMIT $2 OFFSET $3
 `
 

@@ -31,6 +31,18 @@ func (q *Queries) BulkUpdateNoShow(ctx context.Context, arg BulkUpdateNoShowPara
 	return err
 }
 
+const countActiveRegistrationsByDivision = `-- name: CountActiveRegistrationsByDivision :one
+SELECT COUNT(*) FROM registrations
+WHERE division_id = $1 AND status IN ('approved', 'checked_in')
+`
+
+func (q *Queries) CountActiveRegistrationsByDivision(ctx context.Context, divisionID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveRegistrationsByDivision, divisionID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRegistrationsByDivision = `-- name: CountRegistrationsByDivision :one
 SELECT COUNT(*) FROM registrations WHERE division_id = $1
 `
