@@ -384,9 +384,29 @@ func New(cfg *Config) chi.Router {
 			r.Mount("/", cfg.AnnouncementHandler.FlatAnnouncementRoutes())
 		})
 
-		// Division sub-resources (registrations and pods — auth checked by handlers)
+		// Division sub-resources (registrations and pods).
+		//
+		// Registration reads are intentionally public; the mutating routes
+		// (status, seed, placement, check-in, withdraw, admin-notes, create,
+		// bulk-no-show) must sit behind the same auth + sport-isolation chain
+		// as other authed write groups so RequireSportMatchesJWT enforces
+		// org/sport isolation (the service-layer division scoping alone does
+		// not run the isolation middleware). Chi allows only one Mount per
+		// path, so the public reads are mounted on this node and the authed
+		// mutations use a Group — mirroring the /matches split above.
 		r.Route("/divisions/{divisionID}/registrations", func(r chi.Router) {
-			r.Mount("/", cfg.RegistrationHandler.Routes())
+			// Public reads (no auth) — registered directly like /matches so
+			// only the authed subtree uses Mount (chi allows one Mount per
+			// path).
+			r.Get("/", cfg.RegistrationHandler.ListRegistrations)
+			r.Get("/seeking-partner", cfg.RegistrationHandler.ListSeekingPartner)
+			r.Get("/{registrationID}", cfg.RegistrationHandler.GetRegistration)
+
+			// Authenticated mutations (auth + sport isolation).
+			r.Group(func(r chi.Router) {
+				useAuth(r, cfg)
+				r.Mount("/", cfg.RegistrationHandler.Routes())
+			})
 		})
 		r.Route("/divisions/{divisionID}/pods", func(r chi.Router) {
 			r.Mount("/", cfg.PodHandler.Routes())

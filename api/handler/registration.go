@@ -24,17 +24,15 @@ func NewRegistrationHandler(svc *service.RegistrationService) *RegistrationHandl
 	return &RegistrationHandler{regSvc: svc}
 }
 
-// Routes returns a chi.Router with all registration routes mounted.
-// Expects to be mounted under /divisions/{divisionID}/registrations.
+// Routes returns a chi.Router with the mutating registration routes. Expects
+// to be mounted under /divisions/{divisionID}/registrations behind the
+// authenticated + sport-isolation middleware chain (see router.go); each
+// handler additionally enforces role checks. The public read routes
+// (ListRegistrations, ListSeekingPartner, GetRegistration) are registered
+// directly on the parent node in router.go so they stay unauthenticated.
 func (h *RegistrationHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 
-	// Public routes
-	r.Get("/", h.ListRegistrations)
-	r.Get("/seeking-partner", h.ListSeekingPartner)
-	r.Get("/{registrationID}", h.GetRegistration)
-
-	// Authenticated routes
 	r.Post("/", h.Register)
 	r.Patch("/{registrationID}/status", h.UpdateStatus)
 	r.Patch("/{registrationID}/seed", h.UpdateSeed)
