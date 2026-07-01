@@ -36,11 +36,20 @@ export function useMatchWebSocket(publicId: string | undefined): {
   const attemptsRef = useRef(0)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
-  const closedByUnmountRef = useRef(false)
 
   useEffect(() => {
     if (!publicId) return
-    closedByUnmountRef.current = false
+    // Per-run cancellation. A single shared ref would be reset to false by
+    // the next effect run before the previous run's socket fires its
+    // (asynchronous) onclose, letting a torn-down run reschedule connect()
+    // for the stale publicId and pollute the new run's state. Capturing the
+    // flag in the effect closure ties it to this run only.
+    let cancelled = false
+    // Fresh per-run state so a late onclose from a previous run can't mutate
+    // the new run's live socket/timer/attempt entries.
+    attemptsRef.current = 0
+    wsRef.current = null
+    reconnectTimerRef.current = null
 
     const connect = () => {
       const url = buildWsUrl(publicId)
@@ -76,8 +85,13 @@ export function useMatchWebSocket(publicId: string | undefined): {
       }
 
       ws.onclose = () => {
+        // Ignore late closes from a torn-down effect run. `cancelled` is
+        // captured per-run so a previous run's socket can't act here.
+        if (cancelled) return
+        // Guard against a stale onclose clobbering the new run's live socket:
+        // only clear/reschedule if this ws is still the registered one.
+        if (wsRef.current !== ws) return
         wsRef.current = null
-        if (closedByUnmountRef.current) return
         setState('disconnected')
         const idx = Math.min(attemptsRef.current, BACKOFF_STEPS_MS.length - 1)
         const delay = BACKOFF_STEPS_MS[idx]
@@ -90,7 +104,7 @@ export function useMatchWebSocket(publicId: string | undefined): {
     connect()
 
     return () => {
-      closedByUnmountRef.current = true
+      cancelled = true
       if (reconnectTimerRef.current) {
         window.clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null
