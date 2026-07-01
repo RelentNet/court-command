@@ -3,6 +3,7 @@ import { Users } from 'lucide-react'
 import { Card } from '../../components/Card'
 import { Badge } from '../../components/Badge'
 import { EmptyState } from '../../components/EmptyState'
+import { useSport } from '../../auth/SportContext'
 import type { DashboardTeam } from './hooks'
 
 interface Props {
@@ -35,6 +36,9 @@ function TeamAvatar({ team }: { team: DashboardTeam }) {
 }
 
 export function MyTeams({ data }: Props) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? ''
+
   if (data.length === 0) {
     return (
       <EmptyState
@@ -50,7 +54,8 @@ export function MyTeams({ data }: Props) {
       {data.map((team) => (
         <Link
           key={team.id}
-          to={`/teams/${team.slug}` as string}
+          to="/$sport/teams/$teamId"
+          params={{ sport: sportSlug, teamId: String(team.id) }}
           className="block"
         >
           <Card className="hover:border-(--color-accent) transition-colors">

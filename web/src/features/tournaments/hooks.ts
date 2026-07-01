@@ -370,6 +370,40 @@ export function useListRegistrations(
   })
 }
 
+/**
+ * Fetch every registration for a division across all pages.
+ *
+ * The list endpoint is paginated (server caps the page size at 100), so a
+ * single client query only ever holds one page. Bulk operations that must
+ * cover the whole division need the complete set, which this helper assembles
+ * by walking the pages until `total` is reached.
+ */
+export async function fetchAllRegistrations(
+  divisionId: string,
+  status?: string,
+): Promise<Registration[]> {
+  const pageSize = 100
+  const all: Registration[] = []
+  let offset = 0
+
+  // Loop guarded by `total`; pageSize caps each request at the server limit.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const page = await apiGetPaginated<Registration>(
+      `/api/v1/divisions/${divisionId}/registrations${buildQueryString({
+        status,
+        limit: pageSize,
+        offset,
+      })}`,
+    )
+    all.push(...page.items)
+    offset += page.items.length
+    if (page.items.length === 0 || offset >= page.total) break
+  }
+
+  return all
+}
+
 export function useCreateRegistration(divisionId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -589,6 +623,7 @@ export function useUpdateAnnouncement(announcementId: string) {
       apiPatch<Announcement>(`/api/v1/announcements/${announcementId}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+      queryClient.invalidateQueries({ queryKey: ['announcements'] })
     },
   })
 }
@@ -600,6 +635,7 @@ export function useDeleteAnnouncement(announcementId: string) {
       apiDelete<void>(`/api/v1/announcements/${announcementId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tournaments'] })
+      queryClient.invalidateQueries({ queryKey: ['announcements'] })
     },
   })
 }

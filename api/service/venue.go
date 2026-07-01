@@ -772,6 +772,44 @@ func (s *VenueService) CanManageVenue(ctx context.Context, venueID int64, userID
 	return isMgr, nil
 }
 
+// CanManageCourt reports whether the given user may manage (edit/delete) a
+// court. Returns true for platform admins, the court's creator, or a manager
+// of the court's owning venue — the same ownership boundary
+// OverlayService.CanManageCourt enforces for overlay-config writes, so a
+// caller cannot mutate a court outside their org/tournament. Returns
+// NotFoundError when the court does not exist.
+func (s *VenueService) CanManageCourt(ctx context.Context, courtID int64, userID int64, userRole string) (bool, error) {
+	if userRole == "platform_admin" {
+		return true, nil
+	}
+
+	court, err := s.queries.GetCourtByID(ctx, courtID)
+	if err != nil {
+		return false, &NotFoundError{Message: "court not found"}
+	}
+
+	// The court creator may always manage it.
+	if court.CreatedByUserID.Valid && court.CreatedByUserID.Int64 == userID {
+		return true, nil
+	}
+
+	// Otherwise, the caller must be a manager of the court's owning venue.
+	if court.VenueID.Valid {
+		isMgr, err := s.queries.IsVenueManager(ctx, generated.IsVenueManagerParams{
+			VenueID: court.VenueID.Int64,
+			UserID:  userID,
+		})
+		if err != nil {
+			return false, err
+		}
+		if isMgr {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // CanAdminVenue checks if a user has admin-level access to a venue
 // (can add/remove managers). Returns true for venue admins, creator, or platform admin.
 func (s *VenueService) CanAdminVenue(ctx context.Context, venueID int64, userID int64, userRole string) (bool, error) {

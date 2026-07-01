@@ -321,8 +321,11 @@ func keysOf(m map[string]json.RawMessage) []string {
 // ---------------------------------------------------------------------------
 
 // TestApplyEngineResult_ReturnsPreEnrichedResponse asserts that the private
-// scoring helper returns FOUR values, the third being a MatchResponse. This
-// is the mechanical guarantee that every mutation enriches exactly once.
+// scoring helper returns a MatchResponse. This is the mechanical guarantee
+// that every mutation enriches exactly once. The helper also returns the
+// engine instance and EngineResult (it now runs the engine against the
+// row-locked match to avoid lost updates), so callers can read scoring flags
+// and build the score call.
 //
 // Reflection cannot see unexported methods on MatchService without an
 // instance, so we verify by re-parsing the AST and confirming the return
@@ -356,7 +359,7 @@ func TestApplyEngineResult_ReturnsPreEnrichedResponse(t *testing.T) {
 				names = append(names, exprString(field.Type))
 			}
 		}
-		want := []string{"generated.Match", "generated.MatchEvent", "MatchResponse", "error"}
+		want := []string{"generated.Match", "*engine.ScoringEngine", "engine.EngineResult", "generated.MatchEvent", "MatchResponse", "error"}
 		if !reflect.DeepEqual(names, want) {
 			t.Errorf("applyEngineResult return types = %v, want %v", names, want)
 		}

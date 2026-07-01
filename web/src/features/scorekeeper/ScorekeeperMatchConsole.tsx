@@ -152,7 +152,14 @@ export function ScorekeeperMatchConsole({
       },
       onUndo: handleUndo,
     },
-    prefs.keyboard && match?.status === 'in_progress' && !disabled,
+    prefs.keyboard &&
+      match?.status === 'in_progress' &&
+      !disabled &&
+      !scorePoint.isPending &&
+      !sideOut.isPending &&
+      !undo.isPending &&
+      !confirmGame.isPending &&
+      !confirmMatch.isPending,
   )
 
   if (matchQuery.isLoading) {
@@ -210,7 +217,11 @@ export function ScorekeeperMatchConsole({
             mode="scorekeeper"
             disabled={disabled}
             pending={
-              scorePoint.isPending || sideOut.isPending || undo.isPending
+              scorePoint.isPending ||
+              sideOut.isPending ||
+              undo.isPending ||
+              confirmGame.isPending ||
+              confirmMatch.isPending
             }
             onPoint={handlePoint}
             onSideOut={handleSideOut}

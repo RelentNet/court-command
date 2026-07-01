@@ -207,7 +207,11 @@ export function RefMatchConsole({ publicId }: RefMatchConsoleProps) {
         setMenuOpen(false)
       },
     },
-    prefs.keyboard && match?.status === 'in_progress' && !disabled,
+    prefs.keyboard &&
+      match?.status === 'in_progress' &&
+      !disabled &&
+      !gameOverPrompt &&
+      !matchOverPrompt,
   )
 
   if (matchQuery.isLoading) {

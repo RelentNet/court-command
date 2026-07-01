@@ -1026,9 +1026,29 @@ func (s *MatchService) StartMatch(ctx context.Context, matchID int64, userID int
 	}, nil
 }
 
-// RecordEvent records a scoring event and updates the match score.
-// Uses a transaction to ensure atomicity.
+// RecordEvent records a non-score-mutating timeline annotation (e.g. let, fault,
+// line_call, timeout). Uses a transaction to ensure atomicity.
+//
+// Score-mutating event types (points, side-outs, undo, game/match confirmation)
+// must NOT be recorded here: they have to flow through the scoring engine
+// (ScorePoint, SideOut, RemovePoint, ConfirmGameOver, ...) so the engine stays
+// the single source of truth. Previously this method re-implemented scoring
+// inline with logic that diverged from the engine (e.g. flipping the serving
+// team on every side-out instead of only on the second server's loss, and no
+// game-over detection), corrupting live match state. Such types are now
+// rejected, and unknown event types are rejected as well.
 func (s *MatchService) RecordEvent(ctx context.Context, matchID int64, eventType string, payload json.RawMessage, userID int64) (MatchEventResponse, error) {
+	if !IsValidEventType(eventType) {
+		return MatchEventResponse{}, &ValidationError{
+			Message: fmt.Sprintf("unknown event_type %q", eventType),
+		}
+	}
+	if IsScoreMutatingEventType(eventType) {
+		return MatchEventResponse{}, &ValidationError{
+			Message: fmt.Sprintf("event_type %q changes the score and must be submitted through the scoring action endpoints (e.g. /point, /sideout, /remove-point, /undo, /confirm-game, /confirm-match), not the events endpoint", eventType),
+		}
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MatchEventResponse{}, fmt.Errorf("failed to begin transaction: %w", err)
@@ -1060,7 +1080,8 @@ func (s *MatchService) RecordEvent(ctx context.Context, matchID int64, eventType
 		payload = json.RawMessage("{}")
 	}
 
-	// Snapshot BEFORE this event
+	// Snapshot the current state with the annotation. Score/serving state is
+	// left unchanged — this endpoint records annotations only.
 	event, err := qtx.CreateMatchEvent(ctx, generated.CreateMatchEventParams{
 		MatchID:         matchID,
 		SequenceID:      nextSeq,
@@ -1077,51 +1098,6 @@ func (s *MatchService) RecordEvent(ctx context.Context, matchID int64, eventType
 	})
 	if err != nil {
 		return MatchEventResponse{}, fmt.Errorf("failed to create event: %w", err)
-	}
-
-	// Apply the event to update match score
-	newT1 := match.Team1Score
-	newT2 := match.Team2Score
-	newServingTeam := match.ServingTeam
-	newServerNumber := match.ServerNumber
-
-	switch eventType {
-	case "point_team1":
-		newT1++
-		if match.RallyScoring {
-			newServingTeam = pgtype.Int4{Int32: 1, Valid: true}
-		}
-	case "point_team2":
-		newT2++
-		if match.RallyScoring {
-			newServingTeam = pgtype.Int4{Int32: 2, Valid: true}
-		}
-	case "side_out":
-		if newServingTeam.Valid && newServingTeam.Int32 == 1 {
-			newServingTeam = pgtype.Int4{Int32: 2, Valid: true}
-		} else {
-			newServingTeam = pgtype.Int4{Int32: 1, Valid: true}
-		}
-		// Toggle server number for doubles
-		if newServerNumber.Valid && newServerNumber.Int32 == 1 {
-			newServerNumber = pgtype.Int4{Int32: 2, Valid: true}
-		} else if newServerNumber.Valid {
-			newServerNumber = pgtype.Int4{Int32: 1, Valid: true}
-		}
-	}
-
-	_, err = qtx.UpdateMatchScoring(ctx, generated.UpdateMatchScoringParams{
-		ID:           matchID,
-		Team1Score:   newT1,
-		Team2Score:   newT2,
-		CurrentSet:   match.CurrentSet,
-		CurrentGame:  match.CurrentGame,
-		ServingTeam:  newServingTeam,
-		ServerNumber: newServerNumber,
-		SetScores:    match.SetScores,
-	})
-	if err != nil {
-		return MatchEventResponse{}, fmt.Errorf("failed to update match scoring: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -1491,23 +1467,35 @@ func matchToScoringConfig(m generated.Match) engine.ScoringConfig {
 	return cfg
 }
 
-// applyEngineResult writes the engine result back to the database in a transaction.
-// It updates the match scoring state and records an event with the current snapshot.
+// applyEngineResult computes and persists a scoring action in a single
+// transaction.
 //
-// Returns the raw generated.Match, the MatchEvent, and the enriched
-// MatchResponse. Enrichment runs exactly once (per CR-4). Callers MUST use
-// the returned MatchResponse instead of calling enrichedMatchResponse again.
+// The engine computation is supplied as `compute` and is run AGAINST THE
+// ROW-LOCKED match (GetMatchForUpdate) inside the transaction, not against an
+// earlier unlocked read. This closes the lost-update race: the value written
+// always derives from the row read under FOR UPDATE, so two concurrent or
+// rapid-repeat scoring requests can no longer both compute N+1 from the same
+// stale N and clobber each other.
+//
+// The event row stores the PRE-action snapshot (the locked match's state before
+// `compute` is applied), matching RecordEvent's convention. This is what Undo
+// relies on when it restores from the latest event.
+//
+// Returns the raw generated.Match, the engine instance (config-bound, useful for
+// ScoreCall), the EngineResult, the MatchEvent, and the enriched MatchResponse.
+// Enrichment runs exactly once (per CR-4). Callers MUST use the returned
+// MatchResponse instead of calling enrichedMatchResponse again.
 func (s *MatchService) applyEngineResult(
 	ctx context.Context,
 	matchID int64,
-	result engine.EngineResult,
+	compute func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult,
 	eventType string,
 	payload json.RawMessage,
 	userID int64,
-) (generated.Match, generated.MatchEvent, MatchResponse, error) {
+) (generated.Match, *engine.ScoringEngine, engine.EngineResult, generated.MatchEvent, MatchResponse, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to begin transaction: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -1516,9 +1504,17 @@ func (s *MatchService) applyEngineResult(
 	match, err := qtx.GetMatchForUpdate(ctx, matchID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, &NotFoundError{Message: "match not found"}
+			return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, &NotFoundError{Message: "match not found"}
 		}
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("get match for engine result: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("get match for engine result: %w", err)
+	}
+
+	// Run the engine against the row-locked match so the persisted value derives
+	// from the locked read (lost-update protection).
+	eng := engine.NewScoringEngine(matchToScoringConfig(match))
+	result := compute(eng, matchToEngineState(match))
+	if result.IsError {
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, &ValidationError{Message: result.ErrorMessage}
 	}
 
 	// Encode completed games as set_scores JSON.
@@ -1554,7 +1550,7 @@ func (s *MatchService) applyEngineResult(
 		SetScores:    setScores,
 	})
 	if err != nil {
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to update match scoring: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to update match scoring: %w", err)
 	}
 
 	// If status changed, update it.
@@ -1564,71 +1560,60 @@ func (s *MatchService) applyEngineResult(
 			Status: newStatus,
 		})
 		if err != nil {
-			return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to update match status: %w", err)
+			return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to update match status: %w", err)
 		}
 	}
 
 	// Record event.
 	nextSeq, err := qtx.GetNextSequenceID(ctx, matchID)
 	if err != nil {
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to get next sequence: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to get next sequence: %w", err)
 	}
 
 	if payload == nil {
 		payload = json.RawMessage("{}")
 	}
 
+	// Snapshot the state BEFORE this action (the row read under lock), so the
+	// snapshot semantics match RecordEvent and Undo can correctly restore the
+	// prior state from the latest event.
 	event, err := qtx.CreateMatchEvent(ctx, generated.CreateMatchEventParams{
 		MatchID:         matchID,
 		SequenceID:      nextSeq,
 		EventType:       eventType,
-		Team1Score:      result.State.TeamOneScore,
-		Team2Score:      result.State.TeamTwoScore,
+		Team1Score:      match.Team1Score,
+		Team2Score:      match.Team2Score,
 		CurrentSet:      match.CurrentSet,
-		CurrentGame:     result.State.CurrentGameNum,
-		ServingTeam:     pgtype.Int4{Int32: result.State.ServingTeam, Valid: true},
-		ServerNumber:    pgtype.Int4{Int32: result.State.ServerNumber, Valid: true},
-		SetScores:       setScores,
+		CurrentGame:     match.CurrentGame,
+		ServingTeam:     match.ServingTeam,
+		ServerNumber:    match.ServerNumber,
+		SetScores:       match.SetScores,
 		Payload:         payload,
 		CreatedByUserID: pgtype.Int8{Int64: userID, Valid: true},
 	})
 	if err != nil {
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to create event: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to create event: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return generated.Match{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to commit: %w", err)
+		return generated.Match{}, nil, engine.EngineResult{}, generated.MatchEvent{}, MatchResponse{}, fmt.Errorf("failed to commit: %w", err)
 	}
 
 	// Enrich ONCE (CR-4). broadcast + HTTP response share this value.
 	resp := s.enrichedMatchResponse(ctx, updated)
 	s.broadcastMatchUpdate(ctx, updated, resp)
-	return updated, event, resp, nil
+	return updated, eng, result, event, resp, nil
 }
 
 // ScorePoint awards a point to the given team via the scoring engine.
 func (s *MatchService) ScorePoint(ctx context.Context, matchID int64, team int32, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for score point: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.Point(state, team)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
 	payload, _ := json.Marshal(map[string]interface{}{"team": team})
 	eventType := fmt.Sprintf("point_team%d", team)
 
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, eventType, payload, userID)
+	_, eng, result, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.Point(state, team)
+		}, eventType, payload, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1645,24 +1630,10 @@ func (s *MatchService) ScorePoint(ctx context.Context, matchID int64, team int32
 
 // SideOut handles a side-out (loss of serve).
 func (s *MatchService) SideOut(ctx context.Context, matchID int64, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for side out: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.SideOut(state)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeSideOut, nil, userID)
+	_, eng, result, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.SideOut(state)
+		}, EventTypeSideOut, nil, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1676,26 +1647,12 @@ func (s *MatchService) SideOut(ctx context.Context, matchID int64, userID int64)
 
 // RemovePoint removes the last point scored for a team.
 func (s *MatchService) RemovePoint(ctx context.Context, matchID int64, team int32, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for remove point: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	// Use current serving state as previous (simplified undo — full undo via Undo endpoint).
-	result := eng.RemovePoint(state, team, state.ServingTeam, state.ServerNumber)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
 	payload, _ := json.Marshal(map[string]interface{}{"team": team})
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypePointRemoved, payload, userID)
+	_, eng, result, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			// Use current serving state as previous (simplified undo — full undo via Undo endpoint).
+			return eng.RemovePoint(state, team, state.ServingTeam, state.ServerNumber)
+		}, EventTypePointRemoved, payload, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1709,24 +1666,10 @@ func (s *MatchService) RemovePoint(ctx context.Context, matchID int64, team int3
 
 // ConfirmGameOver transitions to the next game after a game win is detected.
 func (s *MatchService) ConfirmGameOver(ctx context.Context, matchID int64, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for confirm game over: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.ConfirmGameOver(state)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeConfirmGameOver, nil, userID)
+	_, eng, result, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.ConfirmGameOver(state)
+		}, EventTypeConfirmGameOver, nil, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1740,24 +1683,10 @@ func (s *MatchService) ConfirmGameOver(ctx context.Context, matchID int64, userI
 
 // ConfirmMatchOver finalizes the match as completed.
 func (s *MatchService) ConfirmMatchOver(ctx context.Context, matchID int64, winnerTeamID, loserTeamID int64, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for confirm match over: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.ConfirmMatchOver(state)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
-	updated, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeConfirmMatchOver, nil, userID)
+	updated, _, _, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.ConfirmMatchOver(state)
+		}, EventTypeConfirmMatchOver, nil, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1827,25 +1756,11 @@ func (s *MatchService) ConfirmMatchOver(ctx context.Context, matchID int64, winn
 
 // CallTimeout records a timeout event.
 func (s *MatchService) CallTimeout(ctx context.Context, matchID int64, team int32, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for timeout: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.Timeout(state, team)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
 	payload, _ := json.Marshal(map[string]interface{}{"team": team})
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeTimeout, payload, userID)
+	_, eng, result, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.Timeout(state, team)
+		}, EventTypeTimeout, payload, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1859,24 +1774,10 @@ func (s *MatchService) CallTimeout(ctx context.Context, matchID int64, team int3
 
 // PauseMatch pauses the match.
 func (s *MatchService) PauseMatch(ctx context.Context, matchID int64, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for pause: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.Pause(state)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeMatchPaused, nil, userID)
+	_, _, _, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.Pause(state)
+		}, EventTypeMatchPaused, nil, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1889,24 +1790,10 @@ func (s *MatchService) PauseMatch(ctx context.Context, matchID int64, userID int
 
 // ResumeMatch resumes a paused match.
 func (s *MatchService) ResumeMatch(ctx context.Context, matchID int64, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for resume: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.Resume(state)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeMatchResumed, nil, userID)
+	_, _, _, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.Resume(state)
+		}, EventTypeMatchResumed, nil, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}
@@ -1921,29 +1808,15 @@ func (s *MatchService) ResumeMatch(ctx context.Context, matchID int64, userID in
 // optional free text that's recorded in the forfeit_declared event payload
 // for audit purposes; an empty string is allowed.
 func (s *MatchService) DeclareForfeit(ctx context.Context, matchID int64, forfeitingTeam int32, winnerTeamID, loserTeamID int64, reason string, userID int64) (ScoringActionResult, error) {
-	match, err := s.queries.GetMatch(ctx, matchID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ScoringActionResult{}, &NotFoundError{Message: "match not found"}
-		}
-		return ScoringActionResult{}, fmt.Errorf("get match for forfeit: %w", err)
-	}
-
-	cfg := matchToScoringConfig(match)
-	eng := engine.NewScoringEngine(cfg)
-	state := matchToEngineState(match)
-
-	result := eng.Forfeit(state, forfeitingTeam)
-	if result.IsError {
-		return ScoringActionResult{}, &ValidationError{Message: result.ErrorMessage}
-	}
-
 	payloadMap := map[string]interface{}{"forfeiting_team": forfeitingTeam}
 	if reason != "" {
 		payloadMap["reason"] = reason
 	}
 	payload, _ := json.Marshal(payloadMap)
-	_, event, resp, err := s.applyEngineResult(ctx, matchID, result, EventTypeForfeitDeclared, payload, userID)
+	_, _, _, event, resp, err := s.applyEngineResult(ctx, matchID,
+		func(eng *engine.ScoringEngine, state engine.MatchState) engine.EngineResult {
+			return eng.Forfeit(state, forfeitingTeam)
+		}, EventTypeForfeitDeclared, payload, userID)
 	if err != nil {
 		return ScoringActionResult{}, err
 	}

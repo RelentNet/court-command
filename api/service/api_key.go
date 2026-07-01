@@ -159,6 +159,23 @@ func (s *ApiKeyService) ValidateApiKey(ctx context.Context, rawKey string) (*gen
 		return nil, NewValidation("API key has expired")
 	}
 
+	// Reject keys belonging to non-active or soft-deleted users. The key's
+	// own is_active flag is checked in the query (GetApiKeyByHash), but a
+	// suspend/ban only wipes the user's sessions -- it does NOT deactivate
+	// their API keys -- so without this check a banned/suspended user keeps
+	// a working authenticated identity through any key created before the
+	// ban. Mirrors the status gate the password Login path enforces.
+	user, err := s.queries.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		return nil, NewNotFound("invalid API key")
+	}
+	if user.DeletedAt.Valid {
+		return nil, NewNotFound("invalid API key")
+	}
+	if user.Status != "active" {
+		return nil, NewValidationf("account is %s", user.Status)
+	}
+
 	// Update last used (fire and forget)
 	_ = s.queries.UpdateApiKeyLastUsed(ctx, apiKey.ID)
 

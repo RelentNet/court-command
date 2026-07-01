@@ -25,6 +25,7 @@ import { TabLayout } from '../../components/TabLayout'
 import { EmptyState } from '../../components/EmptyState'
 import { Badge } from '../../components/Badge'
 import { usePageTitle } from '../../hooks/usePageTitle'
+import { useSport } from '../../auth/SportContext'
 import { cn } from '../../lib/cn'
 
 interface PublicDivisionDetailProps {
@@ -384,6 +385,8 @@ function BracketMatchCard({
   match: LiveMatch
   isLastRound: boolean
 }) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? 'pickleball'
   const isComplete = match.status === 'completed'
   const team1Won = isComplete && match.team_1_score > match.team_2_score
   const team2Won = isComplete && match.team_2_score > match.team_1_score
@@ -452,8 +455,8 @@ function BracketMatchCard({
   if (match.public_id) {
     return (
       <Link
-        to={'/matches/$publicId' as string}
-        params={{ publicId: match.public_id } as Record<string, string>}
+        to="/$sport/matches/$publicId"
+        params={{ sport: sportSlug, publicId: match.public_id }}
       >
         {inner}
       </Link>
@@ -681,6 +684,8 @@ function MatchesTab({
 }
 
 function MatchRow({ match }: { match: LiveMatch }) {
+  const { sport } = useSport()
+  const sportSlug = sport?.slug ?? 'pickleball'
   const isLive = match.status === 'in_progress'
   const isDone = ['completed', 'forfeited', 'cancelled'].includes(match.status)
 
@@ -747,8 +752,8 @@ function MatchRow({ match }: { match: LiveMatch }) {
   if (match.public_id) {
     return (
       <Link
-        to={'/matches/$publicId' as string}
-        params={{ publicId: match.public_id } as Record<string, string>}
+        to="/$sport/matches/$publicId"
+        params={{ sport: sportSlug, publicId: match.public_id }}
         className="block"
       >
         {card}

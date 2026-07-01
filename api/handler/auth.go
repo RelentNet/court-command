@@ -3,10 +3,12 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/court-command/court-command/auth"
+	"github.com/court-command/court-command/middleware"
 	"github.com/court-command/court-command/service"
 	"github.com/court-command/court-command/session"
 )
@@ -15,13 +17,24 @@ import (
 type AuthHandler struct {
 	authService  *service.AuthService
 	secureCookie bool
+	// orgRoles resolves a user's org roles via the Logto Management API
+	// when the JWT lacks the organization_roles claim. Mirrors the
+	// resolver JWTSession uses so MeJWT can elevate platform_admins the
+	// same way protected handlers do. May be nil (tests / dev without
+	// Logto Mgmt creds): the resolver path is then skipped.
+	orgRoles middleware.OrgRoleResolver
 }
 
 // NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(authService *service.AuthService, secureCookie bool) *AuthHandler {
+//
+// orgRoles may be nil; when nil, MeJWT relies solely on the JWT fast
+// path for role elevation (the same posture JWTSession takes with a nil
+// resolver).
+func NewAuthHandler(authService *service.AuthService, secureCookie bool, orgRoles middleware.OrgRoleResolver) *AuthHandler {
 	return &AuthHandler{
 		authService:  authService,
 		secureCookie: secureCookie,
+		orgRoles:     orgRoles,
 	}
 }
 
@@ -179,6 +192,40 @@ func (h *AuthHandler) MeJWT(w http.ResponseWriter, r *http.Request) {
 	// then we apply the in-flight elevation on every /auth/me read.
 	if elevated := claims.ElevatedRole(); elevated != "" && elevated != user.Role {
 		user.Role = elevated
+	}
+
+	// Management API fallback: in production Logto does NOT populate the
+	// organization_roles claim on API-resource access tokens, so the JWT
+	// fast path above never fires and user.Role stays at the local DB
+	// default ('player'). This mirrors JWTSession's Path 2
+	// (api/middleware/jwt_session.go): when the token carries an
+	// organization_id and the user isn't already platform_admin, ask the
+	// Logto Management API for the user's org roles and elevate. Without
+	// this, /auth/me reports 'player' for a genuine platform_admin and the
+	// SPA hides the admin UI even though the backend RequirePlatformAdmin
+	// gate (which runs under JWTSession's resolver) would authorize them.
+	if h.orgRoles != nil &&
+		user.Role != "platform_admin" &&
+		claims.OrganizationID != "" {
+		roles, lookupErr := h.orgRoles.GetUserOrganizationRoles(
+			r.Context(), claims.OrganizationID, claims.Subject)
+		if lookupErr != nil {
+			// Don't fail the request -- the user may legitimately be a
+			// non-admin, and a Logto Mgmt API hiccup shouldn't break
+			// /auth/me. Log so ops can see degraded elevation behavior.
+			slog.WarnContext(r.Context(),
+				"logto org-role lookup failed in /auth/me; falling back to local DB role",
+				"user_id", claims.Subject,
+				"org_id", claims.OrganizationID,
+				"error", lookupErr)
+		} else {
+			for _, role := range roles {
+				if role == "platform_admin" {
+					user.Role = "platform_admin"
+					break
+				}
+			}
+		}
 	}
 
 	resp := &MeResponse{UserResponse: user}

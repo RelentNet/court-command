@@ -12,6 +12,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countPublicTournaments = `-- name: CountPublicTournaments :one
+SELECT COUNT(*) FROM tournaments
+WHERE deleted_at IS NULL AND status = ANY($1::text[])
+`
+
+func (q *Queries) CountPublicTournaments(ctx context.Context, dollar_1 []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countPublicTournaments, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countSearchTournaments = `-- name: CountSearchTournaments :one
 SELECT COUNT(*) FROM tournaments
 WHERE deleted_at IS NULL
@@ -337,6 +349,73 @@ WHERE id = ANY($1::bigint[]) AND deleted_at IS NULL
 
 func (q *Queries) GetTournamentsByIDs(ctx context.Context, dollar_1 []int64) ([]Tournament, error) {
 	rows, err := q.db.Query(ctx, getTournamentsByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Tournament{}
+	for rows.Next() {
+		var i Tournament
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.Name,
+			&i.Slug,
+			&i.Status,
+			&i.StartDate,
+			&i.EndDate,
+			&i.VenueID,
+			&i.LeagueID,
+			&i.SeasonID,
+			&i.Description,
+			&i.LogoUrl,
+			&i.BannerUrl,
+			&i.ContactEmail,
+			&i.ContactPhone,
+			&i.WebsiteUrl,
+			&i.RegistrationOpenAt,
+			&i.RegistrationCloseAt,
+			&i.MaxParticipants,
+			&i.RulesDocumentUrl,
+			&i.CancellationReason,
+			&i.SocialLinks,
+			&i.Notes,
+			&i.SponsorInfo,
+			&i.ShowRegistrations,
+			&i.CreatedByUserID,
+			&i.TdUserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.SportID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicTournaments = `-- name: ListPublicTournaments :many
+SELECT id, public_id, name, slug, status, start_date, end_date, venue_id, league_id, season_id, description, logo_url, banner_url, contact_email, contact_phone, website_url, registration_open_at, registration_close_at, max_participants, rules_document_url, cancellation_reason, social_links, notes, sponsor_info, show_registrations, created_by_user_id, td_user_id, created_at, updated_at, deleted_at, sport_id FROM tournaments
+WHERE deleted_at IS NULL AND status = ANY($1::text[])
+ORDER BY start_date DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListPublicTournamentsParams struct {
+	Column1 []string `json:"column_1"`
+	Limit   int32    `json:"limit"`
+	Offset  int32    `json:"offset"`
+}
+
+// Public directory listing: filters to publicly-visible statuses in SQL so
+// LIMIT/OFFSET and the matching count are computed over the same filtered set.
+func (q *Queries) ListPublicTournaments(ctx context.Context, arg ListPublicTournamentsParams) ([]Tournament, error) {
+	rows, err := q.db.Query(ctx, listPublicTournaments, arg.Column1, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

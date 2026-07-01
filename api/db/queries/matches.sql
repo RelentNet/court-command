@@ -136,7 +136,7 @@ LIMIT $2 OFFSET $3;
 -- name: ListMatchesByCourt :many
 SELECT * FROM matches
 WHERE court_id = $1
-ORDER BY scheduled_at NULLS LAST, created_at
+ORDER BY court_queue_position NULLS LAST, scheduled_at NULLS LAST, created_at
 LIMIT $2 OFFSET $3;
 
 -- name: ListMatchesByCourtActive :many

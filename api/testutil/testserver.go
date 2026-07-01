@@ -111,7 +111,10 @@ func TestServer(t *testing.T, pool *pgxpool.Pool) *httptest.Server {
 	courtQueueService := service.NewCourtQueueService(queries, pool, nil)
 
 	// Phase 1+2 handlers
-	authHandler := handler.NewAuthHandler(authService, false)
+	// nil org-role resolver: the test server doesn't wire Logto Mgmt API
+	// creds, so MeJWT relies on the JWT fast path only (same posture as
+	// JWTSession with a nil resolver).
+	authHandler := handler.NewAuthHandler(authService, false, nil)
 	healthHandler := handler.NewHealthHandler(pool, store.Client())
 	playerHandler := handler.NewPlayerHandler(playerService)
 	teamHandler := handler.NewTeamHandler(teamService)

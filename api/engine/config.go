@@ -95,11 +95,11 @@ func (c ScoringConfig) IsEndChange(team1Score, team2Score, currentGameNum int32,
 	}
 
 	midpoint := (c.PointsToWin + 1) / 2
-	leading := team1Score
-	if team2Score > leading {
-		leading = team2Score
-	}
 
-	// Trigger exactly once when the leading score first reaches the midpoint.
-	return leading == midpoint && (team1Score == midpoint || team2Score == midpoint)
+	// Fire exactly once: only when one team newly reaches the midpoint while the
+	// other is still strictly below it. Because scores increment by exactly one
+	// point at a time, the scoring team always lands precisely on the midpoint,
+	// so this fires at 6-5 (or 5-6) but NOT again at 6-6, 7-6, etc.
+	return (team1Score == midpoint && team2Score < midpoint) ||
+		(team2Score == midpoint && team1Score < midpoint)
 }

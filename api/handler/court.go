@@ -293,6 +293,19 @@ func (h *CourtHandler) UpdateCourt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Court-ownership guard — mirrors the overlay config write handlers so a
+	// caller cannot modify a court outside their org/tournament. Platform
+	// admins, the court creator, and managers of the court's owning venue pass.
+	ok, err := h.venueService.CanManageCourt(r.Context(), courtID, sess.UserID, sess.Role)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	if !ok {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "You do not have permission to manage this court")
+		return
+	}
+
 	var body struct {
 		Name         *string `json:"name"`
 		SurfaceType  *string `json:"surface_type"`
@@ -358,6 +371,19 @@ func (h *CourtHandler) DeleteCourt(w http.ResponseWriter, r *http.Request) {
 	courtID, err := strconv.ParseInt(chi.URLParam(r, "courtID"), 10, 64)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, "INVALID_ID", "Invalid court ID")
+		return
+	}
+
+	// Court-ownership guard — mirrors the overlay config write handlers so a
+	// caller cannot delete a court outside their org/tournament. Platform
+	// admins, the court creator, and managers of the court's owning venue pass.
+	ok, err := h.venueService.CanManageCourt(r.Context(), courtID, sess.UserID, sess.Role)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	if !ok {
+		WriteError(w, http.StatusForbidden, "FORBIDDEN", "You do not have permission to manage this court")
 		return
 	}
 

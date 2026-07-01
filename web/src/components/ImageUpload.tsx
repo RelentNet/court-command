@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { cn } from '../lib/cn'
+import { apiPostForm } from '../lib/api'
 import { Upload, X, Loader2 } from 'lucide-react'
 
 interface ImageUploadProps {
@@ -39,17 +40,8 @@ export function ImageUpload({
       try {
         const formData = new FormData()
         formData.append('file', file)
-        const response = await fetch('/api/v1/uploads', {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        })
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}))
-          throw new Error(body.error?.message || 'Upload failed')
-        }
-        const body = await response.json()
-        onChange(body.data?.url || body.url || null)
+        const data = await apiPostForm<{ url: string }>('/api/v1/uploads', formData)
+        onChange(data?.url || null)
       } catch (err) {
         setError((err as Error).message)
       } finally {
